@@ -57,6 +57,8 @@ print("------ Ran FFT ------")
 ## Need to dig into fft shift to figure out how to set the center for the shift.
 qt = np.fft.fftshift(qt, axes=2)
 print("------ Shifted along second axis.--------")
+np.set_printoptions(threshold=sys.maxsize)
+
 
 #Create the Ram-Lak filter and apply it to the fft (qt). From pseudo code this is optional.
 # First cut I would ignoreit.
@@ -66,34 +68,41 @@ print("------ Shifted along second axis.--------")
 # print(qt)
 
 # Next initialize the matrix of all zeros that will be filled
-qxy = np.zeros((num_rays, num_rays))
+#qxy = np.zeros((num_rays, num_rays))
 
 # Convolution for one slice
 k_r = 2
 
+
 @jit 
-def grid_rec_one_slice(qxy, qt):
-    
-    num_rays, _ = qxy.shape
-    
-#    for q in range(1, num_rays):
+#def grid_rec_one_slice(qxy, qt):
+def grid_rec_one_slice(num_rays,qt):
+
+    qxy = np.zeros((num_rays, num_rays))
+#    num_rays, _ = qxy.shape
     for q in range(num_rays):
-#        for theta in range(0, 180):
         for theta in range(num_angles):
             px = (q - num_rays/2)*np.cos(theta)+(num_rays/2)
             py = (q - num_rays/2)*np.sin(theta)+(num_rays/2)
-            
             for ii in range(-k_r, k_r):
                 for jj in range(-k_r, k_r):
                     ## qt[q,theta,0] to get just the first slice.
                     gaussian_kernel = np.exp(-0.5*(px-round(px)-ii)**2/(2**2)-0.5*(py-round(py)-jj)**2/(2**2))
-                    qxy[int(round(px)+ii-2), int(round(py)+jj-2)] += qt[q,theta,0]*gaussian_kernel
-#                    #*KB2[int(px-round(px)-ii), int(py-round(py)-jj)]
-#                    #print(qxy[round(px)+ii, round(py)+jj])
-                    
-print("----- Finished convolution for one slice -----")
-grid_rec_one_slice(qxy,qt)
+                    #print(gaussian_kernel)
+                    #print(int(round(px)+ii-2), int(round(py)+jj-2))
+                    #print(qt[0,theta,q])
+                    qxy[int(round(px)+ii-2), int(round(py)+jj-2)] += qt[0,theta,q]*gaussian_kernel
+                    #print(qxy[int(round(px)+ii-2), int(round(py)+jj-2)])
+#                    print(int(round(px)+ii-2), int(round(py)+jj-2))
+    return qxy                    
+#print("----- Finished convolution for one slice -----")
+#print(qxy)
+#print(qt)
+#qxy = grid_rec_one_slice(qxy,qt)
+qxy = grid_rec_one_slice(num_rays,qt)
+
+print(qxy)
 print("----- Finished one pass of grid rec ------")
 result = np.fft.fftshift(np.fft.ifft2(qxy), axes=1)
-
+print(result.shape)
 #print(result)
