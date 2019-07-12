@@ -18,7 +18,7 @@ import dxchange
 #inputPath = '/Users/anu/Desktop/Summer/'
 #file      = h5py.File(inputPath+filename, 'r')
 #gdata     = dict(dxchange.reader._find_dataset_group(file).attrs)
-
+print("Hi this is a test change")
 stack_sino = np.random.rand(128,128,128)
 
 #num_slices = int(gdata['nslices']) #number of slices
