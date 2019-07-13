@@ -14,6 +14,7 @@ import h5py
 import dxchange
 import tomopy
 from scipy import misc
+import os
 
 #Read in file
 #filename  = '20190524_085542_clay_testZMQ.h5'
@@ -42,7 +43,7 @@ def K(x):
     return kernel1
 
 def KB2(x,y):
-    kernel2 = np.outer(K(x),K(y))
+    kernel2 = K(x) * K(y)
     return kernel2
 
 #STACK SINOGRAMS
@@ -80,9 +81,10 @@ k_r = 2
 
 def create_unique_folder(name):
    
+    id_index = 0
     while True:
         id_index += 1
-        folder = "Sim_" + dataset_name + "_id_" + str(id_index) + "/"
+        folder = "Sim_" + name + "_id_" + str(id_index) + "/"
         if not os.path.exists(folder):
             os.makedirs(folder)
             break
@@ -103,27 +105,58 @@ def generate_Shepp_Logan(cube_shape):
 
 def forward_project(cube, theta):
 
-    return tomopy.sim.project.project(np.real(cube), theta, pad=False, sinogram_order=False)
+    return tomopy.sim.project.project(cube, theta, pad=False, sinogram_order=False)
 
 
-@jit 
-#def grid_rec_one_slice(qxy, qt):
-def grid_rec_one_slice(qt, num_rays):
+def clip(a, lower, upper):
+
+    return min(max(lower, a), upper)  
+
+def grid_rec_one_slice(qt, theta_array, num_rays):
 
     qxy = np.zeros((num_rays, num_rays))
 
     for q in range(num_rays):
-        for theta in range(num_angles):
+        for theta in theta_array:
             px = (q - num_rays/2)*np.cos(theta)+(num_rays/2)
             py = (q - num_rays/2)*np.sin(theta)+(num_rays/2)
             for ii in range(-k_r, k_r):
                 for jj in range(-k_r, k_r):
 
-                    gaussian_kernel = np.exp(-0.5*(px-round(px)-ii)**2/(2**2)-0.5*(py-round(py)-jj)**2/(2**2))
+                    #gaussian_kernel = np.exp(-0.5*(px-round(px)-ii)**2/(2**2)-0.5*(py-round(py)-jj)**2/(2**2))
 
-                    qxy[int(round(px)+ii-2), int(round(py)+jj-2)] += qt[theta,q]*gaussian_kernel
+                    gaussian_kernel = KB2(px, py)
 
-    return qxy                    
+                    x_index = int(clip(round(px)+ii, 0, num_rays - 1))
+                    y_index = int(clip(round(px)+ii, 0, num_rays - 1))
+
+                    qxy[x_index, y_index] += qt[int(theta),q]*gaussian_kernel
+
+    return qxy    
+
+
+def gridrec(sinogram_stack, theta_array, num_rays):
+
+    tomo_stack = np.zeros((sinogram_stack.shape[0], num_rays, num_rays))
+
+    ramlak_filter = np.abs(np.array(range(num_rays)) - num_rays/2)
+    ramlak_filter = ramlak_filter.reshape((1, ramlak_filter.size))
+
+    print(ramlak_filter)
+
+    for i in range(sinogram_stack.shape[0]):
+
+        print("Reconstructing slice " + str(i))
+
+        sinogram = np.fft.fft(sinogram_stack[i], axis=1)
+        sinogram = np.fft.fftshift(sinogram, axes=1)
+
+        sinogram *= ramlak_filter
+
+        tomogram = grid_rec_one_slice(sinogram, theta, num_rays)
+        tomo_stack[i] = np.fft.fftshift(np.fft.ifft2(tomogram))     
+
+    return tomo_stack
 
 
 base_folder = create_unique_folder("shepp_logan")
@@ -131,30 +164,36 @@ base_folder = create_unique_folder("shepp_logan")
 
 true_obj_shape = (num_slices, num_angles, num_rays)
 
-true_obj = generate_Shepp_Logan(original_data_shape)
+true_obj = generate_Shepp_Logan(true_obj_shape)
 
 save_cube(true_obj, base_folder + "true")
 
 theta = np.arange(0, 180., 180. / num_angles)*np.pi/180.
+print(theta)
 
 simulation = forward_project(true_obj, theta)
 
-save_cube(true_obj, base_folder + "sim")
+#we put these back in degrees...
+theta = theta*180./np.pi
+print(theta)
 
-sinogram = qt[0]
+#I am not sure about this now. Do we normalize the degrees to fit our cube size? I am doing that now...
+theta = theta*(num_angles/180.)
+print(theta)
 
-print("\n\n ---------- Input ---------- \n\n")
-print(sinogram)
+#The simulation generates a stack of projections, meaning, it changes the dimensions order
+save_cube(simulation, base_folder + "sim_project")
 
-qxy = grid_rec_one_slice(sinogram, num_rays)
+simulation = np.swapaxes(simulation,0,1)
 
+save_cube(simulation, base_folder + "sim_slice")
 
-print("\n\n ---------- Finished one pass of grid rec ---------- \n\n")
-result = np.fft.fftshift(np.fft.ifft2(qxy), axes=1)
+#Here I take only a subset of slices to not reconstruct the whole thing...
+sub_slice = 15
 
-print("\n\n ---------- Output ---------- \n\n")
+tomo_stack = gridrec(simulation[0: sub_slice], theta, num_rays)
 
-print(result)
+save_cube(tomo_stack, base_folder + "rec")
 
 
 
