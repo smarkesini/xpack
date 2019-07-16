@@ -7,13 +7,15 @@ Created on Mon Jul  1 14:25:06 2019
 """
 
 #Gridrec algorithm based on pseudocode using Gaussian kernel
-from numba import jit
-import matplotlib.pyplot as plt
+#from numba import jit
+#import matplotlib.pyplot as plt
 import numpy as np
-import h5py
-import dxchange
+#import h5py
+#import dxchange
 import tomopy
+import sys
 from scipy import misc
+#from scipy import special
 import os
 
 #Read in file
@@ -22,7 +24,7 @@ import os
 #file      = h5py.File(inputPath+filename, 'r')
 #gdata     = dict(dxchange.reader._find_dataset_group(file).attrs)
 print("Hi this is a test change")
-stack_sino = np.random.rand(128,128,128)
+#stack_sino = np.random.rand(128,128,128)
 
 #num_slices = int(gdata['nslices']) #number of slices
 #num_angles = int(gdata['nangles']) #number of angles
@@ -35,16 +37,29 @@ num_slices = size
 num_angles = size
 num_rays   = size
 
-print("The total number of slices is", num_slices, "and the total number of angles is", num_angles)
+#print("The total number of slices is", num_slices, "and the total number of angles is", num_angles)
 
-def K(x):
-    sigma = 2
+def gaussian_kernel(x, sigma=2): #using sigma=2 since this is the default value for sigma
     kernel1 = np.exp(-1/2 * (x/sigma)**2)
+    return kernel1 
+    
+
+def keiser_bessel(x, k_r, beta):
+    if np.abs(x) <= k_r:
+        kernel1 = np.i0(beta*np.sqrt(1-(2*x/(k_r-1))**2))/np.abs(np.i0(beta)) 
+    elif np.abs(x) > k_r:
+        kernel1 = 0
     return kernel1
 
-def KB2(x,y):
-    kernel2 = K(x) * K(y)
-    return kernel2
+def K2(x, y, kernel, k_r=2, beta=1): #k_r and beta are parameters for keiser-bessel
+    if kernel == 'gaussian':
+        kernel2 = gaussian_kernel(x) * gaussian_kernel(y)
+        return kernel2
+    elif kernel == 'kb':
+        kernel2 = keiser_bessel(x,k_r,beta) * keiser_bessel(y,k_r,beta)
+        return kernel2
+    else:
+        print("Invalid kernel type")
 
 #STACK SINOGRAMS
 #data = dxchange.read_als_832h5(filename)
@@ -54,15 +69,15 @@ def KB2(x,y):
 
 
 #stack_sino = stack_sino.reshape([num_rays,num_angles,num_slices])
-print("-----Sinogram reshaped -------")
-qt = np.fft.fft(stack_sino, axis=2)
-print("------ Ran FFT ------")
+#print("-----Sinogram reshaped -------")
+#qt = np.fft.fft(stack_sino, axis=2)
+#print("------ Ran FFT ------")
 #qt = np.fft.fft(stack_sino, axis=1)
 
 ## Need to dig into fft shift to figure out how to set the center for the shift.
-qt = np.fft.fftshift(qt, axes=2)
-print("------ Shifted along second axis.--------")
-import sys
+#qt = np.fft.fftshift(qt, axes=2)
+#print("------ Shifted along second axis.--------")
+
 np.set_printoptions(threshold=sys.maxsize)
 
 
@@ -78,7 +93,7 @@ np.set_printoptions(threshold=sys.maxsize)
 
 # Convolution for one slice
 k_r = 2
-
+    
 def create_unique_folder(name):
    
     id_index = 0
@@ -96,7 +111,6 @@ def save_cube(cube, base_fname):
     for n in range(0, cube.shape[0]):
         tname = base_fname + "_" + str(n) + '.tiff'
         misc.imsave(tname, cube[n,:,:])
-
 
 def generate_Shepp_Logan(cube_shape):
 
@@ -123,14 +137,14 @@ def grid_rec_one_slice(qt, theta_array, num_rays):
             for ii in range(-k_r, k_r):
                 for jj in range(-k_r, k_r):
 
-                    #gaussian_kernel = np.exp(-0.5*(px-round(px)-ii)**2/(2**2)-0.5*(py-round(py)-jj)**2/(2**2))
-
-                    gaussian_kernel = KB2(px, py)
-
+#                    gaussian_kernel = np.exp(-0.5*(px-round(px)-ii)**2/(2**2)-0.5*(py-round(py)-jj)**2/(2**2))
+#                    kernel = K2(px-round(px)-ii, py-round(py)-jj, 'kb', k_r) #using keiser-bessel kernel
+                    kernel = K2(px-round(px)-ii, py-round(py)-jj, 'gaussian') #using gaussian kernel
+#                    print(kernel)
                     x_index = int(clip(round(px)+ii, 0, num_rays - 1))
-                    y_index = int(clip(round(px)+ii, 0, num_rays - 1))
+                    y_index = int(clip(round(py)+jj, 0, num_rays - 1))
 
-                    qxy[x_index, y_index] += qt[int(theta),q]*gaussian_kernel
+                    qxy[x_index, y_index] += qt[int(theta),q]*kernel
 
     return qxy    
 
@@ -138,23 +152,29 @@ def grid_rec_one_slice(qt, theta_array, num_rays):
 def gridrec(sinogram_stack, theta_array, num_rays):
 
     tomo_stack = np.zeros((sinogram_stack.shape[0], num_rays, num_rays))
-
+#    sinogram = np.fft.fft(sinogram_stack, axis=1)
+#    sinogram = np.fft.fftshift(sinogram, axes=1)
+#
     ramlak_filter = np.abs(np.array(range(num_rays)) - num_rays/2)
     ramlak_filter = ramlak_filter.reshape((1, ramlak_filter.size))
+#    
+#    sinogram *= ramlak_filter
 
-    print(ramlak_filter)
+    print("Ram-Lak filter values:", ramlak_filter)
 
-    for i in range(sinogram_stack.shape[0]):
+    for i in range(sinogram_stack.shape[0]): #loops through each slice
 
         print("Reconstructing slice " + str(i))
 
         sinogram = np.fft.fft(sinogram_stack[i], axis=1)
+        print("the shape of sinogram is",sinogram.shape)
         sinogram = np.fft.fftshift(sinogram, axes=1)
 
         sinogram *= ramlak_filter
 
-        tomogram = grid_rec_one_slice(sinogram, theta, num_rays)
-        tomo_stack[i] = np.fft.fftshift(np.fft.ifft2(tomogram))     
+        tomogram = grid_rec_one_slice(sinogram, theta_array, num_rays)
+#        tomogram = grid_rec_one_slice(sinogram[i], theta_array, num_rays)
+        tomo_stack[i] = np.fft.fftshift(np.fft.ifft2(tomogram)) 
 
     return tomo_stack
 
@@ -192,6 +212,10 @@ save_cube(simulation, base_folder + "sim_slice")
 sub_slice = 15
 
 tomo_stack = gridrec(simulation[0: sub_slice], theta, num_rays)
+#tomo_stack = gridrec(simulation, theta, num_rays)
+
+#tomo_stack = tomopy.recon(simulation, theta, center=None, sinogram_order=True, algorithm="gridrec")
+#print(tomo_stack)
 
 save_cube(tomo_stack, base_folder + "rec")
 
