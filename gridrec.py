@@ -8,7 +8,7 @@ Created on Mon Jul  1 14:25:06 2019
 
 #Gridrec algorithm based on pseudocode using Gaussian kernel
 #from numba import jit
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import numpy as np
 #import h5py
 #import dxchange
@@ -20,6 +20,7 @@ import os
 
 #Read in file
 #filename  = '20190524_085542_clay_testZMQ.h5'
+
 #inputPath = '/Users/anu/Desktop/Summer/'
 #file      = h5py.File(inputPath+filename, 'r')
 #gdata     = dict(dxchange.reader._find_dataset_group(file).attrs)
@@ -43,11 +44,10 @@ def gaussian_kernel(x, sigma=2): #using sigma=2 since this is the default value 
     kernel1 = np.exp(-1/2 * (x/sigma)**2)
     return kernel1 
     
-
 def keiser_bessel(x, k_r, beta):
-    if np.abs(x) <= k_r:
-        kernel1 = np.i0(beta*np.sqrt(1-(2*x/(k_r-1))**2))/np.abs(np.i0(beta)) 
-    elif np.abs(x) > k_r:
+    if np.abs(x) <= k_r/2:
+        kernel1 = np.i0(beta*np.sqrt(1-(2*x/(k_r))**2))/np.abs(np.i0(beta)) 
+    elif np.abs(x) > k_r/2:
         kernel1 = 0
     return kernel1
 
@@ -80,19 +80,7 @@ def K2(x, y, kernel, k_r=2, beta=1): #k_r and beta are parameters for keiser-bes
 
 np.set_printoptions(threshold=sys.maxsize)
 
-
-#Create the Ram-Lak filter and apply it to the fft (qt). From pseudo code this is optional.
-# First cut I would ignoreit.
-# vec    = (np.linspace(0,r,r))*(-r/2)
-# ramlak = np.abs(vec)
-# qt     = np.multiply(qt, ramlak)
-# print(qt)
-
-# Next initialize the matrix of all zeros that will be filled
-#qxy = np.zeros((num_rays, num_rays))
-
-# Convolution for one slice
-k_r = 2
+k_r =4
     
 def create_unique_folder(name):
    
@@ -121,7 +109,6 @@ def forward_project(cube, theta):
 
     return tomopy.sim.project.project(cube, theta, pad=False, sinogram_order=False)
 
-
 def clip(a, lower, upper):
 
     return min(max(lower, a), upper)  
@@ -136,11 +123,8 @@ def grid_rec_one_slice(qt, theta_array, num_rays):
             py = (q - num_rays/2)*np.sin(theta)+(num_rays/2)
             for ii in range(-k_r, k_r):
                 for jj in range(-k_r, k_r):
-
-#                    gaussian_kernel = np.exp(-0.5*(px-round(px)-ii)**2/(2**2)-0.5*(py-round(py)-jj)**2/(2**2))
 #                    kernel = K2(px-round(px)-ii, py-round(py)-jj, 'kb', k_r) #using keiser-bessel kernel
                     kernel = K2(px-round(px)-ii, py-round(py)-jj, 'gaussian') #using gaussian kernel
-#                    print(kernel)
                     x_index = int(clip(round(px)+ii, 0, num_rays - 1))
                     y_index = int(clip(round(py)+jj, 0, num_rays - 1))
 
@@ -150,31 +134,41 @@ def grid_rec_one_slice(qt, theta_array, num_rays):
 
 
 def gridrec(sinogram_stack, theta_array, num_rays):
-
     tomo_stack = np.zeros((sinogram_stack.shape[0], num_rays, num_rays))
-#    sinogram = np.fft.fft(sinogram_stack, axis=1)
-#    sinogram = np.fft.fftshift(sinogram, axes=1)
-#
     ramlak_filter = np.abs(np.array(range(num_rays)) - num_rays/2)
     ramlak_filter = ramlak_filter.reshape((1, ramlak_filter.size))
-#    
-#    sinogram *= ramlak_filter
-
-    print("Ram-Lak filter values:", ramlak_filter)
+    
 
     for i in range(sinogram_stack.shape[0]): #loops through each slice
 
         print("Reconstructing slice " + str(i))
-
-        sinogram = np.fft.fft(sinogram_stack[i], axis=1)
-        print("the shape of sinogram is",sinogram.shape)
-        sinogram = np.fft.fftshift(sinogram, axes=1)
-
+#        plt.imshow(sinogram_stack[i])
+#        plt.show()
+#        
+        sinogram = np.fft.fft2(sinogram_stack[i]) 
+#        plt.imshow(abs(sinogram))
+#        plt.show()
+        
+        sinogram = np.fft.fftshift(sinogram)
+#        plt.imshow(abs(sinogram))
+#        plt.show()
+#        
         sinogram *= ramlak_filter
+#        sinogram_stack[i] *= ramlak_filter
+
+#        plt.imshow(abs(sinogram))
+#        plt.show()        
 
         tomogram = grid_rec_one_slice(sinogram, theta_array, num_rays)
-#        tomogram = grid_rec_one_slice(sinogram[i], theta_array, num_rays)
-        tomo_stack[i] = np.fft.fftshift(np.fft.ifft2(tomogram)) 
+        
+#        plt.imshow(abs(tomogram))
+#        plt.show() 
+        
+#        tomo_stack[i] = np.fft.ifft2(np.fft.fftshift(tomogram,axes=1))
+        tomo_stack[i] = np.fft.fftshift(np.fft.ifft2(np.fft.fftshift(tomogram)))
+    
+        plt.imshow(abs(tomo_stack[i]))
+        plt.show() 
 
     return tomo_stack
 
@@ -185,16 +179,18 @@ base_folder = create_unique_folder("shepp_logan")
 true_obj_shape = (num_slices, num_angles, num_rays)
 
 true_obj = generate_Shepp_Logan(true_obj_shape)
+print("true obj shape", true_obj.shape)
 
 save_cube(true_obj, base_folder + "true")
 
 theta = np.arange(0, 180., 180. / num_angles)*np.pi/180.
-print(theta)
 
 simulation = forward_project(true_obj, theta)
+print("simulation size", simulation.shape)
+
 
 #we put these back in degrees...
-theta = theta*180./np.pi
+theta = theta*180.0/np.pi
 print(theta)
 
 #I am not sure about this now. Do we normalize the degrees to fit our cube size? I am doing that now...
@@ -211,13 +207,13 @@ save_cube(simulation, base_folder + "sim_slice")
 #Here I take only a subset of slices to not reconstruct the whole thing...
 sub_slice = 15
 
-tomo_stack = gridrec(simulation[0: sub_slice], theta, num_rays)
+tomo_stack = gridrec(simulation[25:35], theta, num_rays)
 #tomo_stack = gridrec(simulation, theta, num_rays)
 
-#tomo_stack = tomopy.recon(simulation, theta, center=None, sinogram_order=True, algorithm="gridrec")
-#print(tomo_stack)
 
-save_cube(tomo_stack, base_folder + "rec")
+#tomo_stack = tomopy.recon(simulation, theta, center=None, sinogram_order=True, algorithm="gridrec")#, filter_name="ramlak")
+
+save_cube(abs(tomo_stack), base_folder + "rec")
 
 
 
