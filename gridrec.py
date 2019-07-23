@@ -32,7 +32,7 @@ print("Hi this is a test change")
 #num_rays   = int(gdata['nrays'])
 #Nr = len(r)
 
-size = 100
+size = 128
 
 num_slices = size
 num_angles = size
@@ -80,7 +80,7 @@ def K2(x, y, kernel, k_r=2, beta=1): #k_r and beta are parameters for keiser-bes
 
 np.set_printoptions(threshold=sys.maxsize)
 
-k_r =2
+k_r = 2
     
 def create_unique_folder(name):
    
@@ -114,17 +114,17 @@ def clip(a, lower, upper):
     return min(max(lower, a), upper)  
 
 def grid_rec_one_slice(qt, theta_array, num_rays):
-    qxy = np.zeros((num_rays, num_rays))
+    print(theta_array.shape)
+    qxy = np.zeros((num_rays, num_rays), dtype=np.complex128)
     for q in range(num_rays):
         ind = 0
         for theta in theta_array:
-            px = (q - num_rays/2)*np.cos(theta)+(num_rays/2)
-            py = (q - num_rays/2)*np.sin(theta)+(num_rays/2)
-
+            px = -(q - num_rays/2)*np.sin(theta)+(num_rays/2)
+            py = (q - num_rays/2)*np.cos(theta)+(num_rays/2)         
             for ii in range(-k_r, k_r):
                 for jj in range(-k_r, k_r):
-                    kernel = K2(px-round(px)-ii, py-round(py)-jj, 'kb', k_r) #using keiser-bessel kernel
-#                    kernel = K2(px-round(px)-ii, py-round(py)-jj, 'gaussian') #using gaussian kernel
+#                    kernel = K2(px-round(px)-ii, py-round(py)-jj, 'kb', k_r) #using keiser-bessel kernel
+                    kernel = K2(px-round(px)-ii, py-round(py)-jj, 'gaussian') #using gaussian kernel
                     x_index = int(clip(round(px)+ii, 0, num_rays - 1))
                     y_index = int(clip(round(py)+jj, 0, num_rays - 1))
 
@@ -133,8 +133,6 @@ def grid_rec_one_slice(qt, theta_array, num_rays):
             ind = ind+1
     return qxy 
    
-
-
 def gridrec(sinogram_stack, theta_array, num_rays):
     tomo_stack = np.zeros((sinogram_stack.shape[0], num_rays, num_rays))
     ramlak_filter = np.abs(np.array(range(num_rays)) - num_rays/2)
@@ -148,7 +146,9 @@ def gridrec(sinogram_stack, theta_array, num_rays):
 #        plt.imshow(sinogram_stack[i])
 #        plt.show()
         
-        sinogram = np.fft.fft(sinogram_stack[i],axis=1) 
+        sinogram = np.fft.fftshift(sinogram_stack[i],axes=1)
+        
+        sinogram = np.fft.fft(sinogram,axis=1)        
 #        plt.imshow(abs(sinogram))
 #        plt.show()
         
@@ -161,8 +161,7 @@ def gridrec(sinogram_stack, theta_array, num_rays):
 #        plt.imshow(abs(tomogram))
 #        plt.show()
         
-#        tomo_stack[i] = np.fft.ifft2(np.fft.ifftshift(tomogram,axes=0))
-#        tomo_stack[i] = np.fft.fftshift(np.fft.ifft2(np.fft.fftshift(tomogram)))
+#        tomo_stack[i] = np.fft.ifft2(np.fft.ifftshift(tomogram))
         tomo_stack[i] = np.fft.fftshift(np.fft.ifft2(np.fft.fftshift(tomogram)))
     
         plt.imshow(tomo_stack[i])
@@ -181,16 +180,17 @@ print("true obj shape", true_obj.shape)
 
 save_cube(true_obj, base_folder + "true")
 
+#angles in radians
 theta = np.arange(0, 180., 180. / num_angles)*np.pi/180.
 
 simulation = forward_project(true_obj, theta)
 print("simulation size", simulation.shape)
 
-#we put these back in degrees...
+##we put these back in degrees...
 #theta = theta*180.0/np.pi
 #print("the shape of theta is",theta.shape)
-
-#I am not sure about this now. Do we normalize the degrees to fit our cube size? I am doing that now...
+#
+##I am not sure about this now. Do we normalize the degrees to fit our cube size? I am doing that now...
 #theta = theta*(num_angles/180.)
 #print(theta)
 
@@ -204,10 +204,13 @@ save_cube(simulation, base_folder + "sim_slice")
 #Here I take only a subset of slices to not reconstruct the whole thing...
 sub_slice = 15
 
-tomo_stack = gridrec(simulation[sub_slice: 55], theta, num_rays)
+tomo_stack = gridrec(simulation[64:65], theta, num_rays)
+plt.imshow(true_obj[64])
+plt.show()
 #tomo_stack = gridrec(simulation, theta, num_rays)
 
 save_cube(abs(tomo_stack), base_folder + "rec")
+
 
 
 
