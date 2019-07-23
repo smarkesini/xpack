@@ -32,7 +32,7 @@ print("Hi this is a test change")
 #num_rays   = int(gdata['nrays'])
 #Nr = len(r)
 
-size = 64
+size = 100
 
 num_slices = size
 num_angles = size
@@ -80,7 +80,7 @@ def K2(x, y, kernel, k_r=2, beta=1): #k_r and beta are parameters for keiser-bes
 
 np.set_printoptions(threshold=sys.maxsize)
 
-k_r =4
+k_r =2
     
 def create_unique_folder(name):
    
@@ -108,68 +108,66 @@ def generate_Shepp_Logan(cube_shape):
 def forward_project(cube, theta):
 
     return tomopy.sim.project.project(cube, theta, pad=False, sinogram_order=False)
-
+    
 def clip(a, lower, upper):
 
     return min(max(lower, a), upper)  
 
 def grid_rec_one_slice(qt, theta_array, num_rays):
-
     qxy = np.zeros((num_rays, num_rays))
-
     for q in range(num_rays):
+        ind = 0
         for theta in theta_array:
             px = (q - num_rays/2)*np.cos(theta)+(num_rays/2)
             py = (q - num_rays/2)*np.sin(theta)+(num_rays/2)
+
             for ii in range(-k_r, k_r):
                 for jj in range(-k_r, k_r):
-#                    kernel = K2(px-round(px)-ii, py-round(py)-jj, 'kb', k_r) #using keiser-bessel kernel
-                    kernel = K2(px-round(px)-ii, py-round(py)-jj, 'gaussian') #using gaussian kernel
+                    kernel = K2(px-round(px)-ii, py-round(py)-jj, 'kb', k_r) #using keiser-bessel kernel
+#                    kernel = K2(px-round(px)-ii, py-round(py)-jj, 'gaussian') #using gaussian kernel
                     x_index = int(clip(round(px)+ii, 0, num_rays - 1))
                     y_index = int(clip(round(py)+jj, 0, num_rays - 1))
 
-                    qxy[x_index, y_index] += qt[int(theta),q]*kernel
-
-    return qxy    
+#                    qxy[x_index, y_index] += qt[int(theta),q]*kernel
+                    qxy[x_index, y_index] += qt[int(ind),q]*kernel
+            ind = ind+1
+    return qxy 
+   
 
 
 def gridrec(sinogram_stack, theta_array, num_rays):
     tomo_stack = np.zeros((sinogram_stack.shape[0], num_rays, num_rays))
     ramlak_filter = np.abs(np.array(range(num_rays)) - num_rays/2)
     ramlak_filter = ramlak_filter.reshape((1, ramlak_filter.size))
+
     
-
     for i in range(sinogram_stack.shape[0]): #loops through each slice
-
+        
+        
         print("Reconstructing slice " + str(i))
 #        plt.imshow(sinogram_stack[i])
 #        plt.show()
-#        
-        sinogram = np.fft.fft2(sinogram_stack[i]) 
+        
+        sinogram = np.fft.fft(sinogram_stack[i],axis=1) 
 #        plt.imshow(abs(sinogram))
 #        plt.show()
         
-        sinogram = np.fft.fftshift(sinogram)
+        sinogram = np.fft.fftshift(sinogram,axes=1)
+        sinogram *= ramlak_filter
 #        plt.imshow(abs(sinogram))
 #        plt.show()
-#        
-        sinogram *= ramlak_filter
-#        sinogram_stack[i] *= ramlak_filter
-
-#        plt.imshow(abs(sinogram))
-#        plt.show()        
 
         tomogram = grid_rec_one_slice(sinogram, theta_array, num_rays)
-        
 #        plt.imshow(abs(tomogram))
-#        plt.show() 
+#        plt.show()
         
-#        tomo_stack[i] = np.fft.ifft2(np.fft.fftshift(tomogram,axes=1))
+#        tomo_stack[i] = np.fft.ifft2(np.fft.ifftshift(tomogram,axes=0))
+#        tomo_stack[i] = np.fft.fftshift(np.fft.ifft2(np.fft.fftshift(tomogram)))
         tomo_stack[i] = np.fft.fftshift(np.fft.ifft2(np.fft.fftshift(tomogram)))
     
-        plt.imshow(abs(tomo_stack[i]))
-        plt.show() 
-
+        plt.imshow(tomo_stack[i])
+        plt.show()
+    
     return tomo_stack
 
 
@@ -188,14 +186,13 @@ theta = np.arange(0, 180., 180. / num_angles)*np.pi/180.
 simulation = forward_project(true_obj, theta)
 print("simulation size", simulation.shape)
 
-
 #we put these back in degrees...
-theta = theta*180.0/np.pi
-print(theta)
+#theta = theta*180.0/np.pi
+#print("the shape of theta is",theta.shape)
 
 #I am not sure about this now. Do we normalize the degrees to fit our cube size? I am doing that now...
-theta = theta*(num_angles/180.)
-print(theta)
+#theta = theta*(num_angles/180.)
+#print(theta)
 
 #The simulation generates a stack of projections, meaning, it changes the dimensions order
 save_cube(simulation, base_folder + "sim_project")
@@ -207,11 +204,8 @@ save_cube(simulation, base_folder + "sim_slice")
 #Here I take only a subset of slices to not reconstruct the whole thing...
 sub_slice = 15
 
-tomo_stack = gridrec(simulation[25:35], theta, num_rays)
+tomo_stack = gridrec(simulation[sub_slice: 55], theta, num_rays)
 #tomo_stack = gridrec(simulation, theta, num_rays)
-
-
-#tomo_stack = tomopy.recon(simulation, theta, center=None, sinogram_order=True, algorithm="gridrec")#, filter_name="ramlak")
 
 save_cube(abs(tomo_stack), base_folder + "rec")
 
