@@ -24,7 +24,7 @@ import os
 #inputPath = '/Users/anu/Desktop/Summer/'
 #file      = h5py.File(inputPath+filename, 'r')
 #gdata     = dict(dxchange.reader._find_dataset_group(file).attrs)
-print("Hi this is a test change")
+
 #stack_sino = np.random.rand(128,128,128)
 
 #num_slices = int(gdata['nslices']) #number of slices
@@ -32,11 +32,6 @@ print("Hi this is a test change")
 #num_rays   = int(gdata['nrays'])
 #Nr = len(r)
 
-size = 128
-
-num_slices = size
-num_angles = size
-num_rays   = size
 
 #print("The total number of slices is", num_slices, "and the total number of angles is", num_angles)
 
@@ -107,7 +102,7 @@ def generate_Shepp_Logan(cube_shape):
 
 def forward_project(cube, theta):
 
-    return tomopy.sim.project.project(cube, theta, pad=False, sinogram_order=False)
+    return tomopy.sim.project.project(cube, theta, pad = False, sinogram_order=False)
     
 def clip(a, lower, upper):
 
@@ -132,6 +127,33 @@ def grid_rec_one_slice(qt, theta_array, num_rays):
                     qxy[x_index, y_index] += qt[int(ind),q]*kernel
             ind = ind+1
     return qxy 
+
+
+def Overlap(image, frames, coord_x, coord_y, k_r):
+
+    for q in range(coord_x.shape[0]):
+        for i in range(coord_x.shape[1]):
+            image[coord_x[q, i] - k_r: coord_x[q, i] + k_r , coord_y[q, i] - k_r: coord_y[q, i] + k_r] += frames[q, i]
+
+    return image
+
+
+def grid_rec_one_slice2(qt, theta_array, num_rays):
+
+    qxy = np.zeros((num_rays + k_r * 2, num_rays + k_r * 2), dtype=np.complex128)
+
+    kernel_x = [[np.array([range(- k_r, k_r), ] * k_r * 2), ] * theta_array.shape[0] , ] * num_rays  #this is 2D k_r*k_r size
+    kernel_y = [[np.array([range(- k_r, k_r), ] * k_r * 2).T, ] * theta_array.shape[0] , ] * num_rays
+
+    px = np.round(-(np.array([range(num_rays), ] *  theta_array.shape[0]) - num_rays/2).T * (np.sin(theta_array)) + (num_rays/2)).astype(int) + k_r
+    py = np.round((np.array([range(num_rays), ] * theta_array.shape[0]) - num_rays/2).T * (np.cos( theta_array)) + (num_rays/2)).astype(int) + k_r
+
+    kernel = K2(kernel_x + np.reshape(px - np.round(px), (px.shape[0], px.shape[1], 1, 1)), kernel_y + np.reshape(py - np.round(py), (py.shape[0], px.shape[1], 1, 1)), 'gaussian') * np.reshape(qt.T, (qt.shape[1], qt.shape[0], 1, 1))
+
+    qxy = Overlap(qxy, kernel, px, py, k_r)
+
+    return qxy[k_r:-k_r, k_r: -k_r] 
+
    
 def gridrec(sinogram_stack, theta_array, num_rays):
     tomo_stack = np.zeros((sinogram_stack.shape[0], num_rays, num_rays))
@@ -143,42 +165,48 @@ def gridrec(sinogram_stack, theta_array, num_rays):
         
         
         print("Reconstructing slice " + str(i))
-#        plt.imshow(sinogram_stack[i])
-#        plt.show()
         
         sinogram = np.fft.fftshift(sinogram_stack[i],axes=1)
         
         sinogram = np.fft.fft(sinogram,axis=1)        
-#        plt.imshow(abs(sinogram))
-#        plt.show()
-        
+
         sinogram = np.fft.fftshift(sinogram,axes=1)
         sinogram *= ramlak_filter
-#        plt.imshow(abs(sinogram))
-#        plt.show()
 
-        tomogram = grid_rec_one_slice(sinogram, theta_array, num_rays)
-#        plt.imshow(abs(tomogram))
-#        plt.show()
-        
-#        tomo_stack[i] = np.fft.ifft2(np.fft.ifftshift(tomogram))
+        tomogram = grid_rec_one_slice2(sinogram, theta_array, num_rays)
+
+        print(tomogram.shape)
+
         tomo_stack[i] = np.fft.fftshift(np.fft.ifft2(np.fft.fftshift(tomogram)))
-    
-        plt.imshow(tomo_stack[i])
-        plt.show()
-    
+
     return tomo_stack
 
+   
 
 base_folder = create_unique_folder("shepp_logan")
 
+size = 128
 
-true_obj_shape = (num_slices, num_angles, num_rays)
+num_slices = size
+num_angles = 512
+num_rays   = size
+
+true_obj_shape = (num_slices, num_rays, num_rays)
 
 true_obj = generate_Shepp_Logan(true_obj_shape)
-print("true obj shape", true_obj.shape)
+
+
+pad_1D = 128
+padding_array = ((0,0), (pad_1D, pad_1D), (pad_1D, pad_1D))
+
+num_rays = num_rays + pad_1D*2
+
+print("True obj shape", true_obj.shape)
 
 save_cube(true_obj, base_folder + "true")
+
+#padding...
+true_obj = np.lib.pad(true_obj, padding_array, 'constant', constant_values=0)
 
 #angles in radians
 theta = np.arange(0, 180., 180. / num_angles)*np.pi/180.
@@ -205,9 +233,10 @@ save_cube(simulation, base_folder + "sim_slice")
 sub_slice = 15
 
 tomo_stack = gridrec(simulation[64:65], theta, num_rays)
-plt.imshow(true_obj[64])
-plt.show()
-#tomo_stack = gridrec(simulation, theta, num_rays)
+
+#tomo_stack = tomopy.recon(simulation[64:75], theta, center=None, sinogram_order=True, algorithm="gridrec")
+
+tomo_stack = tomo_stack[:, pad_1D: -pad_1D, pad_1D: -pad_1D]
 
 save_cube(abs(tomo_stack), base_folder + "rec")
 
