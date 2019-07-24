@@ -42,11 +42,8 @@ def gaussian_kernel(x, sigma=2): #using sigma=2 since this is the default value 
     return kernel1 
     
 def keiser_bessel(x, k_r, beta):
-    for ind in range(len(x)):
-        if np.abs(x) <= k_r/2:
-            kernel1 = np.i0(beta*np.sqrt(1-(2*x/(k_r))**2))/np.abs(np.i0(beta)) 
-        elif np.abs(x) > k_r/2:
-            kernel1 = 0
+#    kernel1 = np.i0(beta*np.sqrt(1-(2*x/(k_r))**2))/np.abs(np.i0(beta)) 
+    kernel1 = (np.abs(x) <= k_r/2) * np.i0(beta*np.sqrt((np.abs(x) <= k_r/2)*(1-(2*x/(k_r))**2)))/np.abs(np.i0(beta)) 
     return kernel1
 
 def K2(x, y, kernel, k_r=2, beta=1): #k_r and beta are parameters for keiser-bessel
@@ -66,7 +63,7 @@ def K2(x, y, kernel, k_r=2, beta=1): #k_r and beta are parameters for keiser-bes
 
 np.set_printoptions(threshold=sys.maxsize)
 
-k_r = 6
+k_r = 3
     
 def create_unique_folder(name):
    
@@ -99,23 +96,23 @@ def clip(a, lower, upper):
 
     return min(max(lower, a), upper)  
 
-#def grid_rec_one_slice(qt, theta_array, num_rays):
-#    print(theta_array.shape)
-#    qxy = np.zeros((num_rays, num_rays), dtype=np.complex128)
-#    for q in range(num_rays):
-#        ind = 0
-#        for theta in theta_array:
-#            px = -(q - num_rays/2)*np.sin(theta)+(num_rays/2)
-#            py = (q - num_rays/2)*np.cos(theta)+(num_rays/2)         
-#            for ii in range(-k_r, k_r):
-#                for jj in range(-k_r, k_r):
-##                    kernel = K2(px-round(px)-ii, py-round(py)-jj, 'kb', k_r) #using keiser-bessel kernel
-#                    kernel = K2(px-round(px)-ii, py-round(py)-jj, 'gaussian') #using gaussian kernel
-#                    x_index = int(clip(round(px)+ii, 0, num_rays - 1))
-#                    y_index = int(clip(round(py)+jj, 0, num_rays - 1))
-#                    qxy[x_index, y_index] += qt[int(ind),q]*kernel
-#            ind = ind+1
-#    return qxy 
+def grid_rec_one_slice(qt, theta_array, num_rays):
+    print(theta_array.shape)
+    qxy = np.zeros((num_rays, num_rays), dtype=np.complex128)
+    for q in range(num_rays):
+        ind = 0
+        for theta in theta_array:
+            px = -(q - num_rays/2)*np.sin(theta)+(num_rays/2)
+            py = (q - num_rays/2)*np.cos(theta)+(num_rays/2)         
+            for ii in range(-k_r, k_r):
+                for jj in range(-k_r, k_r):
+#                    kernel = K2(px-round(px)-ii, py-round(py)-jj, 'kb', k_r) #using keiser-bessel kernel
+                    kernel = K2(px-round(px)-ii, py-round(py)-jj, 'gaussian') #using gaussian kernel
+                    x_index = int(clip(round(px)+ii, 0, num_rays - 1))
+                    y_index = int(clip(round(py)+jj, 0, num_rays - 1))
+                    qxy[x_index, y_index] += qt[int(ind),q]*kernel
+            ind = ind+1
+    return qxy 
 
 def Overlap(image, frames, coord_x, coord_y, k_r):
 
@@ -133,8 +130,8 @@ def grid_rec_one_slice2(qt, theta_array, num_rays): #vectorized version of grid_
     kernel_x = [[np.array([range(- k_r, k_r), ] * k_r * 2), ] * theta_array.shape[0] , ] * num_rays  #this is 2D k_r*k_r size
     kernel_y = [[np.array([range(- k_r, k_r), ] * k_r * 2).T, ] * theta_array.shape[0] , ] * num_rays
 
-    px = np.round(-(np.array([range(num_rays), ] *  theta_array.shape[0]) - num_rays/2).T * (np.sin(theta_array)) + (num_rays/2)).astype(int) + k_r
-    py = np.round((np.array([range(num_rays), ] * theta_array.shape[0]) - num_rays/2).T * (np.cos( theta_array)) + (num_rays/2)).astype(int) + k_r
+    px = np.round(-(np.array([range(num_rays), ] *  theta_array.shape[0]) - num_rays/2).T * (np.sin(theta_array)) + (num_rays/2)).astype(int) + k_r #adding k_r accounts for the padding
+    py = np.round((np.array([range(num_rays), ] * theta_array.shape[0]) - num_rays/2).T * (np.cos( theta_array)) + (num_rays/2)).astype(int) + k_r #adding k_r accounts for the padding
 
     kernel = K2(kernel_x + np.reshape(px - np.round(px), (px.shape[0], px.shape[1], 1, 1)), kernel_y + np.reshape(py - np.round(py), (py.shape[0], px.shape[1], 1, 1)), 'gaussian') * np.reshape(qt.T, (qt.shape[1], qt.shape[0], 1, 1))
 #    kernel = K2(kernel_x + np.reshape(px - np.round(px), (px.shape[0], px.shape[1], 1, 1)), kernel_y + np.reshape(py - np.round(py), (py.shape[0], px.shape[1], 1, 1)), 'kb') * np.reshape(qt.T, (qt.shape[1], qt.shape[0], 1, 1))
