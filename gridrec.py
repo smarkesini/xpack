@@ -17,6 +17,10 @@ import sys
 from scipy import misc
 #from scipy import special
 import os
+import time
+
+start_time = time.time()
+
 
 #Read in file
 #filename  = '20190524_085542_clay_testZMQ.h5'
@@ -24,8 +28,6 @@ import os
 #inputPath = '/Users/anu/Desktop/Summer/'
 #file      = h5py.File(inputPath+filename, 'r')
 #gdata     = dict(dxchange.reader._find_dataset_group(file).attrs)
-
-#stack_sino = np.random.rand(128,128,128)
 
 #num_slices = int(gdata['nslices']) #number of slices
 #num_angles = int(gdata['nangles']) #number of angles
@@ -40,10 +42,11 @@ def gaussian_kernel(x, sigma=2): #using sigma=2 since this is the default value 
     return kernel1 
     
 def keiser_bessel(x, k_r, beta):
-    if np.abs(x) <= k_r/2:
-        kernel1 = np.i0(beta*np.sqrt(1-(2*x/(k_r))**2))/np.abs(np.i0(beta)) 
-    elif np.abs(x) > k_r/2:
-        kernel1 = 0
+    for ind in range(len(x)):
+        if np.abs(x) <= k_r/2:
+            kernel1 = np.i0(beta*np.sqrt(1-(2*x/(k_r))**2))/np.abs(np.i0(beta)) 
+        elif np.abs(x) > k_r/2:
+            kernel1 = 0
     return kernel1
 
 def K2(x, y, kernel, k_r=2, beta=1): #k_r and beta are parameters for keiser-bessel
@@ -61,21 +64,9 @@ def K2(x, y, kernel, k_r=2, beta=1): #k_r and beta are parameters for keiser-bes
 #print("---- Data read -----")
 #stack_sino = data[0]
 
-
-
-#stack_sino = stack_sino.reshape([num_rays,num_angles,num_slices])
-#print("-----Sinogram reshaped -------")
-#qt = np.fft.fft(stack_sino, axis=2)
-#print("------ Ran FFT ------")
-#qt = np.fft.fft(stack_sino, axis=1)
-
-## Need to dig into fft shift to figure out how to set the center for the shift.
-#qt = np.fft.fftshift(qt, axes=2)
-#print("------ Shifted along second axis.--------")
-
 np.set_printoptions(threshold=sys.maxsize)
 
-k_r = 2
+k_r = 6
     
 def create_unique_folder(name):
    
@@ -108,26 +99,23 @@ def clip(a, lower, upper):
 
     return min(max(lower, a), upper)  
 
-def grid_rec_one_slice(qt, theta_array, num_rays):
-    print(theta_array.shape)
-    qxy = np.zeros((num_rays, num_rays), dtype=np.complex128)
-    for q in range(num_rays):
-        ind = 0
-        for theta in theta_array:
-            px = -(q - num_rays/2)*np.sin(theta)+(num_rays/2)
-            py = (q - num_rays/2)*np.cos(theta)+(num_rays/2)         
-            for ii in range(-k_r, k_r):
-                for jj in range(-k_r, k_r):
-#                    kernel = K2(px-round(px)-ii, py-round(py)-jj, 'kb', k_r) #using keiser-bessel kernel
-                    kernel = K2(px-round(px)-ii, py-round(py)-jj, 'gaussian') #using gaussian kernel
-                    x_index = int(clip(round(px)+ii, 0, num_rays - 1))
-                    y_index = int(clip(round(py)+jj, 0, num_rays - 1))
-
-#                    qxy[x_index, y_index] += qt[int(theta),q]*kernel
-                    qxy[x_index, y_index] += qt[int(ind),q]*kernel
-            ind = ind+1
-    return qxy 
-
+#def grid_rec_one_slice(qt, theta_array, num_rays):
+#    print(theta_array.shape)
+#    qxy = np.zeros((num_rays, num_rays), dtype=np.complex128)
+#    for q in range(num_rays):
+#        ind = 0
+#        for theta in theta_array:
+#            px = -(q - num_rays/2)*np.sin(theta)+(num_rays/2)
+#            py = (q - num_rays/2)*np.cos(theta)+(num_rays/2)         
+#            for ii in range(-k_r, k_r):
+#                for jj in range(-k_r, k_r):
+##                    kernel = K2(px-round(px)-ii, py-round(py)-jj, 'kb', k_r) #using keiser-bessel kernel
+#                    kernel = K2(px-round(px)-ii, py-round(py)-jj, 'gaussian') #using gaussian kernel
+#                    x_index = int(clip(round(px)+ii, 0, num_rays - 1))
+#                    y_index = int(clip(round(py)+jj, 0, num_rays - 1))
+#                    qxy[x_index, y_index] += qt[int(ind),q]*kernel
+#            ind = ind+1
+#    return qxy 
 
 def Overlap(image, frames, coord_x, coord_y, k_r):
 
@@ -138,7 +126,7 @@ def Overlap(image, frames, coord_x, coord_y, k_r):
     return image
 
 
-def grid_rec_one_slice2(qt, theta_array, num_rays):
+def grid_rec_one_slice2(qt, theta_array, num_rays): #vectorized version of grid_rec_one_slice
 
     qxy = np.zeros((num_rays + k_r * 2, num_rays + k_r * 2), dtype=np.complex128)
 
@@ -149,6 +137,7 @@ def grid_rec_one_slice2(qt, theta_array, num_rays):
     py = np.round((np.array([range(num_rays), ] * theta_array.shape[0]) - num_rays/2).T * (np.cos( theta_array)) + (num_rays/2)).astype(int) + k_r
 
     kernel = K2(kernel_x + np.reshape(px - np.round(px), (px.shape[0], px.shape[1], 1, 1)), kernel_y + np.reshape(py - np.round(py), (py.shape[0], px.shape[1], 1, 1)), 'gaussian') * np.reshape(qt.T, (qt.shape[1], qt.shape[0], 1, 1))
+#    kernel = K2(kernel_x + np.reshape(px - np.round(px), (px.shape[0], px.shape[1], 1, 1)), kernel_y + np.reshape(py - np.round(py), (py.shape[0], px.shape[1], 1, 1)), 'kb') * np.reshape(qt.T, (qt.shape[1], qt.shape[0], 1, 1))
 
     qxy = Overlap(qxy, kernel, px, py, k_r)
 
@@ -156,7 +145,7 @@ def grid_rec_one_slice2(qt, theta_array, num_rays):
 
    
 def gridrec(sinogram_stack, theta_array, num_rays):
-    tomo_stack = np.zeros((sinogram_stack.shape[0], num_rays, num_rays))
+    tomo_stack = np.zeros((sinogram_stack.shape[0], num_rays, num_rays),dtype=np.complex128)
     ramlak_filter = np.abs(np.array(range(num_rays)) - num_rays/2)
     ramlak_filter = ramlak_filter.reshape((1, ramlak_filter.size))
 
@@ -180,8 +169,6 @@ def gridrec(sinogram_stack, theta_array, num_rays):
         tomo_stack[i] = np.fft.fftshift(np.fft.ifft2(np.fft.fftshift(tomogram)))
 
     return tomo_stack
-
-   
 
 base_folder = create_unique_folder("shepp_logan")
 
@@ -214,14 +201,6 @@ theta = np.arange(0, 180., 180. / num_angles)*np.pi/180.
 simulation = forward_project(true_obj, theta)
 print("simulation size", simulation.shape)
 
-##we put these back in degrees...
-#theta = theta*180.0/np.pi
-#print("the shape of theta is",theta.shape)
-#
-##I am not sure about this now. Do we normalize the degrees to fit our cube size? I am doing that now...
-#theta = theta*(num_angles/180.)
-#print(theta)
-
 #The simulation generates a stack of projections, meaning, it changes the dimensions order
 save_cube(simulation, base_folder + "sim_project")
 
@@ -234,12 +213,13 @@ sub_slice = 15
 
 tomo_stack = gridrec(simulation[64:65], theta, num_rays)
 
-#tomo_stack = tomopy.recon(simulation[64:75], theta, center=None, sinogram_order=True, algorithm="gridrec")
+#tomopy_stack = tomopy.recon(simulation[64:65], theta, center=None, sinogram_order=True, algorithm="gridrec") #compare tomopy reconstruction to our reconstruction
 
 tomo_stack = tomo_stack[:, pad_1D: -pad_1D, pad_1D: -pad_1D]
 
 save_cube(abs(tomo_stack), base_folder + "rec")
 
+print("A simulation of size", simulation.shape, "with kernel radius", k_r, "took", time.time() - start_time, "seconds to run")
 
 
 
