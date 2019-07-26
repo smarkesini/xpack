@@ -63,10 +63,12 @@ gridrec.save_cube(simulation, base_folder + "sim_slice")
 #Here I take only a subset of slices to not reconstruct the whole thing...
 sub_slice = 15
 
+#Calls forward projection
 tomo_stack = gridrec.gridrec(simulation[64:65], theta, num_rays, k_r, 'kb')
 plt.imshow(abs(tomo_stack[0]))
 plt.show()
 
+#Calls backward projection
 sino_stack = gridrec.gridrec_transpose(true_obj[64:65], theta, num_rays, k_r, 'gaussian')
 plt.imshow(abs(sino_stack[0]).real)
 plt.show()
