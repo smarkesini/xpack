@@ -96,7 +96,7 @@ def clip(a, lower, upper):
 
     return min(max(lower, a), upper)  
 
-def grid_rec_one_slice(qt, theta_array, num_rays, kernel_type): #use for backward proj
+def grid_rec_one_slice(qt, theta_array, num_rays, k_r, kernel_type): #use for backward proj
     print(theta_array.shape)
     qxy = np.zeros((num_rays, num_rays), dtype=np.complex128)
     for q in range(num_rays):
@@ -113,7 +113,7 @@ def grid_rec_one_slice(qt, theta_array, num_rays, kernel_type): #use for backwar
             ind = ind+1
     return qxy 
 
-def grid_rec_one_slice_transpose(qxy, theta_array, num_rays): #use for forward proj
+def grid_rec_one_slice_transpose(qxy, theta_array, num_rays, k_r, kernel_type): #use for forward proj
 
     # qxy = np.zeros((num_rays, num_rays), dtype=np.complex128)
     
@@ -133,7 +133,7 @@ def grid_rec_one_slice_transpose(qxy, theta_array, num_rays): #use for forward p
             for ii in range(-k_r, k_r):
                 for jj in range(-k_r, k_r):
 #                    kernel = K2(px-round(px)-ii, py-round(py)-jj, 'kb', k_r) #using keiser-bessel kernel
-                    kernel = K2(px-round(px)-ii, py-round(py)-jj, 'gaussian') #using gaussian kernel
+                    kernel = K2(px-round(px)-ii, py-round(py)-jj, kernel_type) #using gaussian kernel
                     x_index = int(round(px)+ii)
                     y_index = int(round(py)+jj)
                     # beware of clipped values
@@ -152,7 +152,7 @@ def Overlap(image, frames, coord_x, coord_y, k_r):
     return image
 
 
-def grid_rec_one_slice2(qt, theta_array, num_rays, kernel_type): #vectorized version of grid_rec_one_slice
+def grid_rec_one_slice2(qt, theta_array, num_rays, k_r, kernel_type): #vectorized version of grid_rec_one_slice
 
     qxy = np.zeros((num_rays + k_r * 2, num_rays + k_r * 2), dtype=np.complex128)
 
@@ -176,7 +176,7 @@ def grid_rec_one_slice2(qt, theta_array, num_rays, kernel_type): #vectorized ver
     return qxy[k_r:-k_r, k_r: -k_r] 
 
    
-def gridrec(sinogram_stack, theta_array, num_rays, kernel_type): #use for backward proj
+def gridrec(sinogram_stack, theta_array, num_rays, k_r, kernel_type): #use for backward proj
     tomo_stack = np.zeros((sinogram_stack.shape[0], num_rays, num_rays),dtype=np.complex128)
     ramlak_filter = np.abs(np.array(range(num_rays)) - num_rays/2)
     ramlak_filter = ramlak_filter.reshape((1, ramlak_filter.size))
@@ -193,7 +193,7 @@ def gridrec(sinogram_stack, theta_array, num_rays, kernel_type): #use for backwa
         sinogram = np.fft.fftshift(sinogram,axes=1)
         sinogram *= ramlak_filter
 
-        tomogram = grid_rec_one_slice2(sinogram, theta_array, num_rays, kernel_type)
+        tomogram = grid_rec_one_slice2(sinogram, theta_array, num_rays, k_r, kernel_type)
 
         print("the shape of final tomogram is",tomogram.shape)
 
@@ -202,7 +202,7 @@ def gridrec(sinogram_stack, theta_array, num_rays, kernel_type): #use for backwa
         plt.show()
     return tomo_stack
 
-def gridrec_transpose(tomo_stack, theta_array, num_rays): #use for forward proj
+def gridrec_transpose(tomo_stack, theta_array, num_rays, k_r, kernel_type): #use for forward proj
     sinogram_stack = np.zeros((tomo_stack.shape[0],theta_array.shape[0],num_rays),dtype=np.complex128)
 
     ktilde = gaussian_kernel(np.array([range(-k_r, k_r),] * k_r * 2), sigma = k_r)
@@ -237,7 +237,7 @@ def gridrec_transpose(tomo_stack, theta_array, num_rays): #use for forward proj
         tomo_slice = np.fft.ifftshift(np.fft.fft2(np.fft.ifftshift(tomo_slice)))
         #tomo_slice = np.fft.ifftshift(np.fft.fft2(np.fft.ifftshift(tomo_stack[i])))
 
-        sinogram = grid_rec_one_slice_transpose(tomo_slice, theta_array, num_rays)
+        sinogram = grid_rec_one_slice_transpose(tomo_slice, theta_array, num_rays, k_r, kernel_type)
         print(sinogram.shape)
         
         sinogram = np.fft.ifftshift(sinogram,axes=1)
