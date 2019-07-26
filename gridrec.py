@@ -19,7 +19,7 @@ from scipy import misc
 import os
 import time
 
-start_time = time.time()
+#start_time = time.time()
 
 
 #Read in file
@@ -37,7 +37,7 @@ start_time = time.time()
 
 #print("The total number of slices is", num_slices, "and the total number of angles is", num_angles)
 
-def gaussian_kernel(x, sigma=2): #using sigma=2 since this is the default value for sigma
+def gaussian_kernel(x, sigma): #using sigma=2 since this is the default value for sigma
     kernel1 = np.exp(-1/2 * (x/sigma)**2)
     return kernel1 
     
@@ -46,11 +46,11 @@ def keiser_bessel(x, k_r, beta):
     kernel1 = (np.abs(x) <= k_r/2) * np.i0(beta*np.sqrt((np.abs(x) <= k_r/2)*(1-(2*x/(k_r))**2)))/np.abs(np.i0(beta)) 
     return kernel1
 
-def K2(x, y, kernel, k_r=2, beta=1): #k_r and beta are parameters for keiser-bessel
-    if kernel == 'gaussian':
-        kernel2 = gaussian_kernel(x) * gaussian_kernel(y)
+def K2(x, y, kernel_type, k_r=2, beta=1, sigma=2): #k_r and beta are parameters for keiser-bessel
+    if kernel_type == 'gaussian':
+        kernel2 = gaussian_kernel(x,sigma) * gaussian_kernel(y,sigma)
         return kernel2
-    elif kernel == 'kb':
+    elif kernel_type == 'kb':
         kernel2 = keiser_bessel(x,k_r,beta) * keiser_bessel(y,k_r,beta)
         return kernel2
     else:
@@ -61,9 +61,9 @@ def K2(x, y, kernel, k_r=2, beta=1): #k_r and beta are parameters for keiser-bes
 #print("---- Data read -----")
 #stack_sino = data[0]
 
-np.set_printoptions(threshold=sys.maxsize)
-
-k_r = 3
+#np.set_printoptions(threshold=sys.maxsize)
+#
+#k_r = 3
     
 def create_unique_folder(name):
    
@@ -96,7 +96,7 @@ def clip(a, lower, upper):
 
     return min(max(lower, a), upper)  
 
-def grid_rec_one_slice(qt, theta_array, num_rays):
+def grid_rec_one_slice(qt, theta_array, num_rays, kernel_type): #use for backward proj
     print(theta_array.shape)
     qxy = np.zeros((num_rays, num_rays), dtype=np.complex128)
     for q in range(num_rays):
@@ -106,13 +106,42 @@ def grid_rec_one_slice(qt, theta_array, num_rays):
             py = (q - num_rays/2)*np.cos(theta)+(num_rays/2)         
             for ii in range(-k_r, k_r):
                 for jj in range(-k_r, k_r):
-#                    kernel = K2(px-round(px)-ii, py-round(py)-jj, 'kb', k_r) #using keiser-bessel kernel
-                    kernel = K2(px-round(px)-ii, py-round(py)-jj, 'gaussian') #using gaussian kernel
+                    kernel = K2(px-round(px)-ii, py-round(py)-jj, kernel_type, k_r)
                     x_index = int(clip(round(px)+ii, 0, num_rays - 1))
                     y_index = int(clip(round(py)+jj, 0, num_rays - 1))
                     qxy[x_index, y_index] += qt[int(ind),q]*kernel
             ind = ind+1
     return qxy 
+
+def grid_rec_one_slice_transpose(qxy, theta_array, num_rays): #use for forward proj
+
+    # qxy = np.zeros((num_rays, num_rays), dtype=np.complex128)
+    
+    qt = np.zeros((theta_array.shape[0], num_rays), dtype=np.complex128)
+    
+    padding_array = ((k_r, k_r), (k_r, k_r))
+
+    qxy = np.lib.pad(qxy, padding_array, 'constant', constant_values=0)
+
+    for q in range(num_rays):
+        ind = 0
+        for theta in theta_array:
+            px = -(q - num_rays/2)*np.sin(theta)+(num_rays/2) + k_r
+            py = (q - num_rays/2)*np.cos(theta)+(num_rays/2) + k_r    
+            qti=0 # complex (?)
+
+            for ii in range(-k_r, k_r):
+                for jj in range(-k_r, k_r):
+#                    kernel = K2(px-round(px)-ii, py-round(py)-jj, 'kb', k_r) #using keiser-bessel kernel
+                    kernel = K2(px-round(px)-ii, py-round(py)-jj, 'gaussian') #using gaussian kernel
+                    x_index = int(round(px)+ii)
+                    y_index = int(round(py)+jj)
+                    # beware of clipped values
+                    qti += qxy[x_index, y_index]*kernel; 
+                    # qxy[x_index, y_index] += qt[int(ind),q]*kernel
+            qt[int(ind),q] = qti
+            ind = ind+1
+    return qt 
 
 def Overlap(image, frames, coord_x, coord_y, k_r):
 
@@ -123,7 +152,7 @@ def Overlap(image, frames, coord_x, coord_y, k_r):
     return image
 
 
-def grid_rec_one_slice2(qt, theta_array, num_rays): #vectorized version of grid_rec_one_slice
+def grid_rec_one_slice2(qt, theta_array, num_rays, kernel_type): #vectorized version of grid_rec_one_slice
 
     qxy = np.zeros((num_rays + k_r * 2, num_rays + k_r * 2), dtype=np.complex128)
 
@@ -132,92 +161,143 @@ def grid_rec_one_slice2(qt, theta_array, num_rays): #vectorized version of grid_
 
     px = np.round(-(np.array([range(num_rays), ] *  theta_array.shape[0]) - num_rays/2).T * (np.sin(theta_array)) + (num_rays/2)).astype(int) + k_r #adding k_r accounts for the padding
     py = np.round((np.array([range(num_rays), ] * theta_array.shape[0]) - num_rays/2).T * (np.cos( theta_array)) + (num_rays/2)).astype(int) + k_r #adding k_r accounts for the padding
+    
+    kernel = K2(kernel_x + np.reshape(px - np.round(px), (px.shape[0], px.shape[1], 1, 1)), kernel_y + np.reshape(py - np.round(py), (py.shape[0], px.shape[1], 1, 1)), kernel_type) * np.reshape(qt.T, (qt.shape[1], qt.shape[0], 1, 1))
 
-    kernel = K2(kernel_x + np.reshape(px - np.round(px), (px.shape[0], px.shape[1], 1, 1)), kernel_y + np.reshape(py - np.round(py), (py.shape[0], px.shape[1], 1, 1)), 'gaussian') * np.reshape(qt.T, (qt.shape[1], qt.shape[0], 1, 1))
-#    kernel = K2(kernel_x + np.reshape(px - np.round(px), (px.shape[0], px.shape[1], 1, 1)), kernel_y + np.reshape(py - np.round(py), (py.shape[0], px.shape[1], 1, 1)), 'kb') * np.reshape(qt.T, (qt.shape[1], qt.shape[0], 1, 1))
+#    if kernel == 'gaussian':
+#        kernel = K2(kernel_x + np.reshape(px - np.round(px), (px.shape[0], px.shape[1], 1, 1)), kernel_y + np.reshape(py - np.round(py), (py.shape[0], px.shape[1], 1, 1)), 'gaussian') * np.reshape(qt.T, (qt.shape[1], qt.shape[0], 1, 1))
+#    elif kernel == 'kb':
+#        kernel = K2(kernel_x + np.reshape(px - np.round(px), (px.shape[0], px.shape[1], 1, 1)), kernel_y + np.reshape(py - np.round(py), (py.shape[0], px.shape[1], 1, 1)), 'kb') * np.reshape(qt.T, (qt.shape[1], qt.shape[0], 1, 1))
+#    else:
+#        print("Invalid kernel type")
 
     qxy = Overlap(qxy, kernel, px, py, k_r)
 
     return qxy[k_r:-k_r, k_r: -k_r] 
 
    
-def gridrec(sinogram_stack, theta_array, num_rays):
+def gridrec(sinogram_stack, theta_array, num_rays, kernel_type): #use for backward proj
     tomo_stack = np.zeros((sinogram_stack.shape[0], num_rays, num_rays),dtype=np.complex128)
     ramlak_filter = np.abs(np.array(range(num_rays)) - num_rays/2)
     ramlak_filter = ramlak_filter.reshape((1, ramlak_filter.size))
-
+    
     
     for i in range(sinogram_stack.shape[0]): #loops through each slice
-        
         
         print("Reconstructing slice " + str(i))
         
         sinogram = np.fft.fftshift(sinogram_stack[i],axes=1)
         
-        sinogram = np.fft.fft(sinogram,axis=1)        
+        sinogram = np.fft.fft(sinogram,axis=1)  
 
         sinogram = np.fft.fftshift(sinogram,axes=1)
         sinogram *= ramlak_filter
 
-        tomogram = grid_rec_one_slice2(sinogram, theta_array, num_rays)
+        tomogram = grid_rec_one_slice2(sinogram, theta_array, num_rays, kernel_type)
 
-        print(tomogram.shape)
+        print("the shape of final tomogram is",tomogram.shape)
 
         tomo_stack[i] = np.fft.fftshift(np.fft.ifft2(np.fft.fftshift(tomogram)))
-
+        plt.imshow(abs(tomo_stack[i]))
+        plt.show()
     return tomo_stack
 
-base_folder = create_unique_folder("shepp_logan")
+def gridrec_transpose(tomo_stack, theta_array, num_rays): #use for forward proj
+    sinogram_stack = np.zeros((tomo_stack.shape[0],theta_array.shape[0],num_rays),dtype=np.complex128)
 
-size = 128
+    ktilde = gaussian_kernel(np.array([range(-k_r, k_r),] * k_r * 2), sigma = k_r)
+    ktilde *= ktilde.T
+ 
+    #ktilde = gaussian_kernel(np.array([range(-k_r*2, k_r*2),] * k_r * 2 * 2), sigma = k_r)
+    #ktilde *= ktilde.T
+    
+    print(ktilde)
+    
+    print(ktilde.shape)
 
-num_slices = size
-num_angles = 512
-num_rays   = size
+    padding_array = ((num_rays//2 - k_r, num_rays//2 - k_r), (num_rays//2 - k_r, num_rays//2 - k_r))
+    #padding_array = ((num_rays//2 - k_r*2, num_rays//2 - k_r*2), (num_rays//2 - k_r*2, num_rays//2 - k_r*2))
 
-true_obj_shape = (num_slices, num_rays, num_rays)
+    ktilde = np.lib.pad(ktilde, padding_array, 'constant', constant_values=0)
+    
+    deapodization_factor = np.fft.ifftshift(np.fft.ifft2(np.fft.fftshift(ktilde)))
+    
+    deapodization_factor = 1./deapodization_factor
+    
+    
+    plt.imshow(abs(deapodization_factor))
+    plt.show()
+    
+    for i in range(tomo_stack.shape[0]): #loops through each slice
+        print("projecting slice " + str(i))
+        
+        tomo_slice = tomo_stack[i] * deapodization_factor
+        #tomo_slice = tomo_stack[i] 
+        # forward fft centered
+        tomo_slice = np.fft.ifftshift(np.fft.fft2(np.fft.ifftshift(tomo_slice)))
+        #tomo_slice = np.fft.ifftshift(np.fft.fft2(np.fft.ifftshift(tomo_stack[i])))
 
-true_obj = generate_Shepp_Logan(true_obj_shape)
+        sinogram = grid_rec_one_slice_transpose(tomo_slice, theta_array, num_rays)
+        print(sinogram.shape)
+        
+        sinogram = np.fft.ifftshift(sinogram,axes=1)
+        
+        sinogram = np.fft.ifft(sinogram,axis=1)        
 
+        sinogram = np.fft.ifftshift(sinogram,axes=1)
+        print("the shape of final sinogram is",sinogram.shape)
 
-pad_1D = 128
-padding_array = ((0,0), (pad_1D, pad_1D), (pad_1D, pad_1D))
-
-num_rays = num_rays + pad_1D*2
-
-print("True obj shape", true_obj.shape)
-
-save_cube(true_obj, base_folder + "true")
-
-#padding...
-true_obj = np.lib.pad(true_obj, padding_array, 'constant', constant_values=0)
-
-#angles in radians
-theta = np.arange(0, 180., 180. / num_angles)*np.pi/180.
-
-simulation = forward_project(true_obj, theta)
-print("simulation size", simulation.shape)
-
-#The simulation generates a stack of projections, meaning, it changes the dimensions order
-save_cube(simulation, base_folder + "sim_project")
-
-simulation = np.swapaxes(simulation,0,1)
-
-save_cube(simulation, base_folder + "sim_slice")
-
-#Here I take only a subset of slices to not reconstruct the whole thing...
-sub_slice = 15
-
-tomo_stack = gridrec(simulation[64:65], theta, num_rays)
-
-#tomopy_stack = tomopy.recon(simulation[64:65], theta, center=None, sinogram_order=True, algorithm="gridrec") #compare tomopy reconstruction to our reconstruction
-
-tomo_stack = tomo_stack[:, pad_1D: -pad_1D, pad_1D: -pad_1D]
-
-save_cube(abs(tomo_stack), base_folder + "rec")
-
-print("A simulation of size", simulation.shape, "with kernel radius", k_r, "took", time.time() - start_time, "seconds to run")
-
-
-
-
+        sinogram_stack[i]=sinogram
+    print(sinogram_stack.shape)
+    return sinogram_stack
+#
+#base_folder = create_unique_folder("shepp_logan")
+#
+#size = 128
+#
+#num_slices = size
+#num_angles = size
+#num_rays   = size
+#
+#true_obj_shape = (num_slices, num_rays, num_rays)
+#
+#true_obj = generate_Shepp_Logan(true_obj_shape)
+#
+#
+#pad_1D = 0
+#padding_array = ((0,0), (pad_1D, pad_1D), (pad_1D, pad_1D))
+#
+#num_rays = num_rays + pad_1D*2
+#
+#print("True obj shape", true_obj.shape)
+#
+#save_cube(true_obj, base_folder + "true")
+#
+##padding...
+#true_obj = np.lib.pad(true_obj, padding_array, 'constant', constant_values=0)
+#
+##angles in radians
+#theta = np.arange(0, 180., 180. / num_angles)*np.pi/180.
+#
+#simulation = forward_project(true_obj, theta)
+#print("simulation size", simulation.shape)
+#
+##The simulation generates a stack of projections, meaning, it changes the dimensions order
+#save_cube(simulation, base_folder + "sim_project")
+#
+#simulation = np.swapaxes(simulation,0,1)
+#
+#save_cube(simulation, base_folder + "sim_slice")
+#
+##Here I take only a subset of slices to not reconstruct the whole thing...
+#sub_slice = 15
+#
+#tomo_stack = gridrec(simulation[64:65], theta, num_rays)
+#
+##tomopy_stack = tomopy.recon(simulation[64:65], theta, center=None, sinogram_order=True, algorithm="gridrec") #compare tomopy reconstruction to our reconstruction
+#
+#if pad_1D > 0: tomo_stack = tomo_stack[:, pad_1D: -pad_1D, pad_1D: -pad_1D]
+#
+#save_cube(abs(tomo_stack), base_folder + "rec")
+#
+#print("A simulation of size", simulation.shape, "with kernel radius", k_r, "took", time.time() - start_time, "seconds to run")
