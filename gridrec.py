@@ -95,7 +95,6 @@ def clip(a, lower, upper):
     return min(max(lower, a), upper)  
 
 def grid_rec_one_slice(qt, theta_array, num_rays, k_r, kernel_type): #use for backward proj
-    print(theta_array.shape)
     qxy = np.zeros((num_rays, num_rays), dtype=np.complex128)
     for q in range(num_rays):
         ind = 0
@@ -111,15 +110,27 @@ def grid_rec_one_slice(qt, theta_array, num_rays, k_r, kernel_type): #use for ba
             ind = ind+1
     return qxy 
 
-def grid_rec_one_slice_transpose(qxy, theta_array, num_rays, k_r, kernel_type): #use for forward proj
+def grid_rec_one_slice2(qt, theta_array, num_rays, k_r, kernel_type): #vectorized version of grid_rec_one_slice
+    qxy = np.zeros((num_rays + k_r * 2 + 1, num_rays + k_r * 2 + 1), dtype=np.complex128)
+
+    kernel_x = [[np.array([range(- k_r, k_r + 1), ] * (k_r * 2 + 1)), ] * theta_array.shape[0] , ] * num_rays  #this is 2D k_r*k_r size
+    kernel_y = [[np.array([range(- k_r, k_r + 1), ] * (k_r * 2 + 1)).T, ] * theta_array.shape[0] , ] * num_rays
+
+    px = np.round(-(np.array([range(num_rays), ] *  theta_array.shape[0]) - num_rays/2).T * (np.sin(theta_array)) + (num_rays/2)).astype(int) + k_r #adding k_r accounts for the padding
+    py = np.round((np.array([range(num_rays), ] * theta_array.shape[0]) - num_rays/2).T * (np.cos(theta_array)) + (num_rays/2)).astype(int) + k_r #adding k_r accounts for the padding
     
+    kernel = K2(kernel_x + np.reshape(px - np.round(px), (px.shape[0], px.shape[1], 1, 1)), kernel_y + np.reshape(py - np.round(py), (py.shape[0], px.shape[1], 1, 1)), kernel_type) * np.reshape(qt.T, (qt.shape[1], qt.shape[0], 1, 1))
+
+    qxy = Overlap(qxy, kernel, px, py, k_r)
+
+    return qxy[k_r:-k_r, k_r: -k_r] 
+    
+def grid_rec_one_slice_transpose(qxy, theta_array, num_rays, k_r, kernel_type): #use for forward proj
     qt = np.zeros((theta_array.shape[0], num_rays+k_r*2), dtype=np.complex128)
 #    qt = np.zeros((num_rays + k_r * 2, num_rays + k_r * 2), dtype=np.complex128)
 
-    print("the shape of qt is", qt.shape)    
     padding_array = ((k_r, k_r), (k_r, k_r))
     qxy = np.lib.pad(qxy, padding_array, 'constant', constant_values=0)
-    print("shape of qxy is", qxy.shape)
 
     for q in range(num_rays):
         ind = 0
@@ -141,10 +152,54 @@ def grid_rec_one_slice_transpose(qxy, theta_array, num_rays, k_r, kernel_type): 
                     # qxy[x_index, y_index] += qt[int(ind),q]*kernel
             qt[int(ind),q] = qti
             ind = ind+1
-#    return qt 
-    print("shape of qt:", qt.shape)
+
     return qt
 
+def grid_rec_one_slice_transpose2(qxy, theta_array, num_rays, k_r, kernel_type):
+    qt = np.zeros((theta_array.shape[0] + k_r * 2 + 2, num_rays + k_r * 2 + 2), dtype = np.complex128)
+
+#    qt = np.zeros((num_rays + k_r * 2, num_rays + k_r * 2), dtype=np.complex128)
+    
+    padding_array = ((k_r + 1, k_r + 1), (k_r + 1, k_r + 1))
+
+    qxy = np.lib.pad(qxy, padding_array, 'constant', constant_values = 0)
+    
+    kernel_x = [[np.array([range(- k_r, k_r + 1), ] * (k_r * 2 + 1)), ] * theta_array.shape[0] , ] * num_rays  #this is 2D k_r*k_r size
+    kernel_y = [[np.array([range(- k_r, k_r + 1), ] * (k_r * 2 + 1)).T, ] * theta_array.shape[0] , ] * num_rays
+
+    px = np.round(-(np.array([range(num_rays), ] *  theta_array.shape[0]) - num_rays/2).T * (np.sin(theta_array)) + (num_rays/2)).astype(int) + k_r + 1 #adding k_r accounts for the padding
+    py = np.round((np.array([range(num_rays), ] * theta_array.shape[0]) - num_rays/2).T * (np.cos(theta_array)) + (num_rays/2)).astype(int) + k_r + 1#adding k_r accounts for the padding
+
+
+
+#    print(px[0])
+    print("px shape",px.shape)
+    print("py shape",py.shape)    
+    print(qt.shape)
+    
+    kernel = K2(kernel_x + np.reshape(px - np.round(px), (px.shape[0], px.shape[1], 1, 1)), kernel_y + np.reshape(py - np.round(py), (py.shape[0], py.shape[1], 1, 1)), kernel_type)
+    print(kernel.shape)
+
+    qt = Overlap_transpose(qt, qxy, kernel, px, py, k_r)
+    
+    print("qt shape", qt.shape)
+    
+    return qt[k_r + 1 :-k_r - 1, k_r + 1: -k_r - 1]     
+
+
+def Overlap_transpose(image, frames_multiply, frames, coord_x, coord_y, k_r):
+    print("coord_x", coord_x.shape)
+    for q in range(coord_x.shape[1]):
+        for i in range(coord_x.shape[0]):
+#            print(q,i)
+#            print(coord_x[q, i])
+#            print(coord_y[q, i])
+            a = frames[i, q] * frames_multiply[coord_x[i, q] - k_r: coord_x[i, q] + k_r + 1, coord_y[i, q] - k_r: coord_y[i, q] + k_r + 1]
+#            print(a.shape)
+
+            image[q + 1: q + k_r*2 + 2, i + 1: i + k_r*2 + 2] += frames[i, q] * frames_multiply[coord_x[i, q] - k_r: coord_x[i, q] + k_r + 1, coord_y[i, q] - k_r: coord_y[i, q] + k_r + 1]
+
+    return image
 
 def Overlap(image, frames, coord_x, coord_y, k_r):
 
@@ -154,22 +209,6 @@ def Overlap(image, frames, coord_x, coord_y, k_r):
 
     return image
 
-
-def grid_rec_one_slice2(qt, theta_array, num_rays, k_r, kernel_type): #vectorized version of grid_rec_one_slice
-    qxy = np.zeros((num_rays + k_r * 2 + 1, num_rays + k_r * 2 + 1), dtype=np.complex128)
-
-    kernel_x = [[np.array([range(- k_r, k_r + 1), ] * (k_r * 2 + 1)), ] * theta_array.shape[0] , ] * num_rays  #this is 2D k_r*k_r size
-    kernel_y = [[np.array([range(- k_r, k_r + 1), ] * (k_r * 2 + 1)).T, ] * theta_array.shape[0] , ] * num_rays
-
-    px = np.round(-(np.array([range(num_rays), ] *  theta_array.shape[0]) - num_rays/2).T * (np.sin(theta_array)) + (num_rays/2)).astype(int) + k_r #adding k_r accounts for the padding
-    py = np.round((np.array([range(num_rays), ] * theta_array.shape[0]) - num_rays/2).T * (np.cos(theta_array)) + (num_rays/2)).astype(int) + k_r #adding k_r accounts for the padding
-    
-    kernel = K2(kernel_x + np.reshape(px - np.round(px), (px.shape[0], px.shape[1], 1, 1)), kernel_y + np.reshape(py - np.round(py), (py.shape[0], px.shape[1], 1, 1)), kernel_type) * np.reshape(qt.T, (qt.shape[1], qt.shape[0], 1, 1))
-
-    qxy = Overlap(qxy, kernel, px, py, k_r)
-
-    return qxy[k_r:-k_r, k_r: -k_r] 
-   
 def gridrec(sinogram_stack, theta_array, num_rays, k_r, kernel_type): #use for backward proj
     tomo_stack = np.zeros((sinogram_stack.shape[0], num_rays+1, num_rays+1),dtype=np.complex128)
     ramlak_filter = np.abs(np.array(range(num_rays)) - num_rays/2)
@@ -199,6 +238,7 @@ def gridrec(sinogram_stack, theta_array, num_rays, k_r, kernel_type): #use for b
 
 def gridrec_transpose(tomo_stack, theta_array, num_rays, k_r, kernel_type): #use for forward proj
 #    sinogram_stack = np.zeros((tomo_stack.shape[0],theta_array.shape[0] + 1,num_rays + 1),dtype=np.complex128)
+    print(num_rays)
     sinogram_stack = np.zeros((tomo_stack.shape[0], theta_array.shape[0], num_rays + k_r*2),dtype=np.complex128)
 
     ktilde = gaussian_kernel(np.array([range(-k_r, k_r+1),] * (k_r * 2 + 1)), sigma = k_r)
@@ -222,7 +262,6 @@ def gridrec_transpose(tomo_stack, theta_array, num_rays, k_r, kernel_type): #use
     plt.show()
     
     for i in range(tomo_stack.shape[0]): #loops through each slice
-        print("projecting slice " + str(i))
         
         tomo_slice = tomo_stack[i] * deapodization_factor
         # forward fft centered
@@ -236,8 +275,24 @@ def gridrec_transpose(tomo_stack, theta_array, num_rays, k_r, kernel_type): #use
         sinogram = np.fft.ifft(sinogram,axis=1)        
 
         sinogram = np.fft.ifftshift(sinogram,axes=1)
-        print("the shape of final sinogram is",sinogram.shape)
         
         sinogram_stack[i]=sinogram
         
     return sinogram_stack
+
+def sirt(A,b,end): #A is forward projection, b is the projections
+    x = np.zeros((A.shape[1],1))
+    rows = A.shape[0]
+    cols = A.shape[1]
+    C = np.zeros((cols,cols))
+    for i in range(cols):
+        C[i][i] = 1/(np.sum(A,axis=0)[i])
+    R = np.zeros((rows,rows))
+    for j in range(rows):
+        R[j][j] = 1/(np.sum(A,axis=1)[i])
+
+    CATR = C * A.T * R
+    
+    for i in range(1,end):
+        x = x + CATR * (b - A * x)
+    return x
