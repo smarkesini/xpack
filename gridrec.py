@@ -13,10 +13,10 @@ import numpy as np
 #import h5py
 #import dxchange
 import tomopy
-from scipy import 
+#from scipy import 
 import imageio
 import os
-
+import cupy as cp
 
 #start_time = time.time()
 
@@ -81,7 +81,7 @@ def create_unique_folder(name):
 def save_cube(cube, base_fname):
 
     for n in range(0, cube.shape[0]):
-        tname = base_fname + "_" + str(n) + '.tiff'
+        tname = base_fname + "_" + str(n) + '.png'
         imageio.imwrite(tname, cube[n,:,:])
         
 
@@ -212,8 +212,11 @@ def Overlap(image, frames, coord_x, coord_y, k_r):
 
 
 def gridrec(sinogram_stack, theta_array, num_rays, k_r, kernel_type, xp): #use for backward proj
-    
-    tomo_stack = np.zeros((sinogram_stack.shape[0], num_rays+1, num_rays+1),dtype=np.complex128)
+ 
+    #print("the value of num_rays[0] is",  len(num_rays)) #at this point, the type is cupy.ndarray but should be int
+    print("num_rays type", type(num_rays))
+    tomo_stack = np.zeros((sinogram_stack.shape[0], num_rays + 1, num_rays + 1),dtype=np.complex128)
+ 
     ramlak_filter = np.abs(np.array(range(num_rays)) - num_rays/2)
     ramlak_filter = ramlak_filter.reshape((1, ramlak_filter.size))
     
@@ -221,7 +224,7 @@ def gridrec(sinogram_stack, theta_array, num_rays, k_r, kernel_type, xp): #use f
     for i in range(sinogram_stack.shape[0]): #loops through each slice
         
         print("Reconstructing slice " + str(i))
-        
+        print("type is", type(sinogram_stack[i])) 
         sinogram = np.fft.fftshift(sinogram_stack[i],axes=1)
         
         sinogram = np.fft.fft(sinogram,axis=1)  
@@ -274,6 +277,12 @@ def gridrec_transpose(tomo_stack, theta_array, num_rays, k_r, kernel_type, xp): 
     
     return sinogram_stack
 
+def force_data_types(input_data):
+
+    input_data["data"]  = input_data["data"].astype(np.complex128)
+    input_data["theta"] = input_data["theta"].astype(np.float64)	
+    #input_data["rays"]  = input_data["rays"].astype(np.uint)
+
 def memcopy_to_device(host_pointers):
     
     for key, value in host_pointers.items():
@@ -286,14 +295,16 @@ def memcopy_to_host(device_pointers):
         
         device_pointers[key] = cp.asnumpy(value)
 
-
 def tomo_reconstruct(data, theta, rays, k_r, kernel_type, algorithm, gpu_accelerated):
-    
+    print("before defining the dictionary, type of num rays is", type(rays))
     input_data = {"data": data,
                   "theta": theta,
-                  "rays": rays,
-                  "k_r": k_r,
-                  "kernel_type": kernel_type}
+                  "rays": rays}#,
+                  #"k_r": k_r,
+                  #"kernel_type": kernel_type}
+    print("after defining the dictionary, type of num rays is", type(rays), type(input_data["rays"]))
+    force_data_types(input_data)
+    
     if gpu_accelerated == True:
         xp = __import__("cupy")
         memcopy_to_device(input_data)
@@ -302,11 +313,11 @@ def tomo_reconstruct(data, theta, rays, k_r, kernel_type, algorithm, gpu_acceler
         xp = __import__("numpy")
         
     if algorithm == "gridrec":
-        output_data = gridrec(input_data["data"], input_data["theta"], input_data["rays"], input_data["k_r"], input_data["kernel_type"],xp)
-    
+       output_data = gridrec(input_data["data"], input_data["theta"], rays, k_r, kernel_type, xp)    
+
     elif algorithm == "gridrec_transpose":
-        output_data = gridrec_transpose(input_data["data"], input_data["theta"], input_data["rays"], input_data["k_r"], input_data["kernel_type"],xp)
-    
+       output_data = gridrec_transpose(input_data["data"], input_data["theta"], rays, k_r, kernel_type, xp)    
+
     if gpu_accelerated:
         memcopy_to_host(output_data)
     
