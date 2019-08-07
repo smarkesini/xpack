@@ -15,7 +15,6 @@ import numpy as np
 import tomopy
 from scipy import misc
 import os
-import cupy as cp
 
 
 #start_time = time.time()
@@ -294,7 +293,7 @@ def tomo_reconstruct(data, theta, rays, k_r, kernel_type, algorithm, gpu_acceler
                   "rays": rays,
                   "k_r": k_r,
                   "kernel_type": kernel_type}
-    if gpu_accelerated:
+    if gpu_accelerated == True:
         xp = __import__("cupy")
         memcopy_to_device(input_data)
         
