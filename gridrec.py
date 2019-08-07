@@ -13,7 +13,8 @@ import numpy as np
 #import h5py
 #import dxchange
 import tomopy
-from scipy import misc
+from scipy import 
+import imageio
 import os
 
 
@@ -81,7 +82,7 @@ def save_cube(cube, base_fname):
 
     for n in range(0, cube.shape[0]):
         tname = base_fname + "_" + str(n) + '.tiff'
-        misc.imsave(tname, cube[n,:,:])
+        imageio.imwrite(tname, cube[n,:,:])
         
 
 def generate_Shepp_Logan(cube_shape):
