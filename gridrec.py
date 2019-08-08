@@ -16,7 +16,7 @@ import tomopy
 #from scipy import 
 import imageio
 import os
-import cupy as cp
+#import cupy as cp
 
 #start_time = time.time()
 
@@ -126,6 +126,16 @@ def grid_rec_one_slice(qt, theta_array, num_rays, k_r, kernel_type): #use for ba
 
 def grid_rec_one_slice2(qt, theta_array, num_rays, k_r, kernel_type, xp): #vectorized version of grid_rec_one_slice
     
+    input_data = {"qt": qt,
+                  "theta_array": theta_array,
+                  "num_rays": num_rays,
+                  "k_r": k_r,
+                  "kernel_type": kernel_type,
+                  "xp": xp}
+    
+    if xp == "cupy":
+        memcopy_to_device(input_data)
+    
     qxy = xp.zeros((num_rays + k_r * 2 + 1, num_rays + k_r * 2 + 1), dtype=xp.complex128)
 
     kernel_x = [[xp.array([range(- k_r, k_r + 1), ] * (k_r * 2 + 1)), ] * theta_array.shape[0] , ] * num_rays  #this is 2D k_r*k_r size
@@ -137,6 +147,9 @@ def grid_rec_one_slice2(qt, theta_array, num_rays, k_r, kernel_type, xp): #vecto
     kernel = K2(kernel_x + np.reshape(px - xp.round(px), (px.shape[0], px.shape[1], 1, 1)), kernel_y + xp.reshape(py - xp.round(py), (py.shape[0], px.shape[1], 1, 1)), kernel_type) * xp.reshape(qt.T, (qt.shape[1], qt.shape[0], 1, 1))
 
     qxy = Overlap(qxy, kernel, px, py, k_r)
+    
+    if xp == "cupy":
+        memcopy_to_host(input_data)
 
     return qxy[k_r:-k_r, k_r: -k_r] 
 
@@ -296,18 +309,18 @@ def memcopy_to_host(device_pointers):
         device_pointers[key] = cp.asnumpy(value)
 
 def tomo_reconstruct(data, theta, rays, k_r, kernel_type, algorithm, gpu_accelerated):
-    print("before defining the dictionary, type of num rays is", type(rays))
     input_data = {"data": data,
                   "theta": theta,
                   "rays": rays}#,
                   #"k_r": k_r,
                   #"kernel_type": kernel_type}
-    print("after defining the dictionary, type of num rays is", type(rays), type(input_data["rays"]))
+    print("type of data", type(input_data["data"]), "type of theta", type(input_data["theta"]))
     force_data_types(input_data)
+    print("type of data", type(input_data["data"]), "type of theta", type(input_data["theta"]))
     
     if gpu_accelerated == True:
         xp = __import__("cupy")
-        memcopy_to_device(input_data)
+#        memcopy_to_device(input_data)
         
     else:
         xp = __import__("numpy")
@@ -318,8 +331,8 @@ def tomo_reconstruct(data, theta, rays, k_r, kernel_type, algorithm, gpu_acceler
     elif algorithm == "gridrec_transpose":
        output_data = gridrec_transpose(input_data["data"], input_data["theta"], rays, k_r, kernel_type, xp)    
 
-    if gpu_accelerated:
-        memcopy_to_host(output_data)
+#    if gpu_accelerated:
+#        memcopy_to_host(output_data)
     
     return output_data
 
