@@ -26,7 +26,7 @@ import time
 from sklearn.metrics import mean_squared_error
 
 
-start_time = time.time()
+
 
 np.set_printoptions(threshold=sys.maxsize)
 
@@ -34,7 +34,7 @@ k_r = 2
 
 base_folder = gridrec.create_unique_folder("shepp_logan")
 
-size = 64
+size = 256
 
 num_slices = size
 num_angles = size
@@ -45,7 +45,7 @@ true_obj_shape = (num_slices, num_rays, num_rays)
 
 true_obj = gridrec.generate_Shepp_Logan(true_obj_shape)
 
-pad_1D = 32
+pad_1D = 64//2
 padding_array = ((0,0), (pad_1D, pad_1D), (pad_1D, pad_1D))
 
 num_rays = num_rays + pad_1D*2
@@ -67,22 +67,28 @@ simulation = gridrec.forward_project(true_obj, theta)
 gridrec.save_cube(simulation, base_folder + "sim_project")
 
 simulation = np.swapaxes(simulation,0,1)
-plt.imshow(simulation[32])
-plt.show()
+#plt.imshow(simulation[32])
+#plt.show()
 
 #gridrec.save_cube(simulation[64], base_folder + "sim_slice")
 
 #Here I take only a subset of slices to not reconstruct the whole thing...
 sub_slice = 15
 
+#Use this to test CPU multithreading:
+# export MKL_NUM_THREADS=N_threads
+
 #Calls backward projection
 #tomo_stack = gridrec.gridrec(simulation[32:33], theta, num_rays, k_r, 'gaussian')
 #tomo_stack = gridrec.gridrec(simulation[32:33], theta, num_rays, k_r, 'gaussian')
-tomo_stack = gridrec.tomo_reconstruct(simulation[32:33], theta, num_rays, k_r, 'gaussian', 'gridrec',gpu_accelerated=False)
-if pad_1D > 0: tomo_stack = tomo_stack[:, pad_1D: -pad_1D, pad_1D: -pad_1D]
-plt.imshow(abs(tomo_stack[0]),cmap='Greys')
-plt.show()
 
+start_time = time.time()
+
+tomo_stack = gridrec.tomo_reconstruct(simulation, theta, num_rays, k_r, 'gaussian', 'gridrec',gpu_accelerated = False)
+
+print("A simulation of size", simulation.shape, "with kernel radius", k_r, "took", time.time() - start_time, "seconds to run")
+
+if pad_1D > 0: tomo_stack = tomo_stack[:, pad_1D: -pad_1D, pad_1D: -pad_1D]
 
 #Calls forward projection
 #sino_stack = gridrec.gridrec_transpose(true_obj[64:65], theta, num_rays, k_r, 'gaussian')
@@ -90,10 +96,13 @@ plt.show()
 #plt.imshow(abs(sino_stack[0]),cmap='gray')
 
 #Save images
-#gridrec.save_cube(abs(tomo_stack), base_folder + "rec")
+gridrec.save_cube(abs(tomo_stack), base_folder + "rec")
 #gridrec.save_cube(abs(sino_stack), base_folder + "sino")
 
-print("A simulation of size", simulation.shape, "with kernel radius", k_r, "took", time.time() - start_time, "seconds to run")
+
+
+plt.imshow(abs(tomo_stack[0]),cmap='Greys')
+plt.show()
 
 
 #Calculates and plots mean squared error

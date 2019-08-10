@@ -82,7 +82,7 @@ def save_cube(cube, base_fname):
 
     for n in range(0, cube.shape[0]):
         tname = base_fname + "_" + str(n) + '.png'
-        imageio.imwrite(tname, cube[n,:,:])
+        imageio.imwrite(tname, cube[n,:,:].astype(np.uint8))
         
 
 def generate_Shepp_Logan(cube_shape):
@@ -102,7 +102,7 @@ def clip(a, lower, upper):
 
 def grid_rec_one_slice(qt, theta_array, num_rays, k_r, kernel_type): #use for backward proj
     
-    qxy = np.zeros((num_rays + k_r * 2 + 1, num_rays + k_r * 2 + 1), dtype=np.complex128)
+    qxy = np.zeros((num_rays + k_r * 2 + 1, num_rays + k_r * 2 + 1), dtype=np.complex64)
     for q in range(num_rays):
         ind = 0
         
@@ -124,28 +124,29 @@ def grid_rec_one_slice(qt, theta_array, num_rays, k_r, kernel_type): #use for ba
 
 
 
-def grid_rec_one_slice2(qt, theta_array, num_rays, k_r, kernel_type, xp): #vectorized version of grid_rec_one_slice
+def grid_rec_one_slice2(qt, theta_array, num_rays, k_r, kernel_type, xp, mode = "python"): #vectorized version of grid_rec_one_slice
     
-    qxy = xp.zeros((num_rays + k_r * 2 + 1, num_rays + k_r * 2 + 1), dtype=xp.complex128)
+    pad = k_r
 
-    kernel_x = [[xp.array([range(- k_r, k_r + 1), ] * (k_r * 2 + 1)), ] * theta_array.shape[0] , ] * num_rays  #this is 2D k_r*k_r size
-    kernel_y = [[xp.array([range(- k_r, k_r + 1), ] * (k_r * 2 + 1)).T, ] * theta_array.shape[0] , ] * num_rays
-    
-    kernel_x = xp.asanyarray(kernel_x)
-    kernel_y = xp.asanyarray(kernel_y)
+    qxy = xp.zeros((num_rays + pad * 2 + 1, num_rays + pad * 2 + 1), dtype=xp.complex64)
+
+    kernel_x = xp.stack([xp.stack([xp.array([range(- k_r, k_r + 1), ] * (k_r * 2 + 1)), ] * theta_array.shape[0]) , ] * num_rays)  #this is 2D k_r*k_r size
+    kernel_y = xp.stack([xp.stack([xp.array([range(- k_r, k_r + 1), ] * (k_r * 2 + 1)).T, ] * theta_array.shape[0]) , ] * num_rays)
         
-    px = xp.around(-(xp.array([range(num_rays), ] *  theta_array.shape[0]) - num_rays/2).T * (xp.sin(theta_array)) + (num_rays/2)).astype(int) + k_r #adding k_r accounts for the padding
-    py = xp.around((xp.array([range(num_rays), ] * theta_array.shape[0]) - num_rays/2).T * (xp.cos(theta_array)) + (num_rays/2)).astype(int) + k_r #adding k_r accounts for the padding   
+    px = xp.around(-(xp.array([range(num_rays), ] *  theta_array.shape[0]) - num_rays/2).T * (xp.sin(theta_array)) + (num_rays/2)).astype(int) + pad #adding k_r accounts for the padding
+    py = xp.around((xp.array([range(num_rays), ] * theta_array.shape[0]) - num_rays/2).T * (xp.cos(theta_array)) + (num_rays/2)).astype(int) + pad #adding k_r accounts for the padding 
+
     kernel = K2(kernel_x + xp.reshape(px - xp.around(px), (px.shape[0], px.shape[1], 1, 1)), kernel_y + xp.reshape(py - xp.around(py), (py.shape[0], px.shape[1], 1, 1)), kernel_type, xp) * xp.reshape(qt.T, (qt.shape[1], qt.shape[0], 1, 1))
 
-    qxy = Overlap(qxy, kernel, px, py, k_r)
+    qxy = Overlap(qxy, kernel, px, py, k_r, mode)
 
-    return qxy[k_r:-k_r, k_r: -k_r] 
+
+    return qxy[pad:-pad, pad: -pad] 
 
     
 def grid_rec_one_slice_transpose(qxy, theta_array, num_rays, k_r, kernel_type): #use for forward proj
     
-    qt = np.zeros((theta_array.shape[0], num_rays), dtype=np.complex128)
+    qt = np.zeros((theta_array.shape[0], num_rays), dtype=np.complex64)
     padding_array = ((k_r, k_r), (k_r, k_r))
     qxy = np.lib.pad(qxy, padding_array, 'constant', constant_values=0)
     
@@ -173,9 +174,9 @@ def grid_rec_one_slice_transpose(qxy, theta_array, num_rays, k_r, kernel_type): 
     return qt
 
 
-def grid_rec_one_slice_transpose2(qxy, theta_array, num_rays, k_r, kernel_type, xp): #vectorized version of grid_rec_one_slice_transpose
+def grid_rec_one_slice_transpose2(qxy, theta_array, num_rays, k_r, kernel_type, xp, mode): #vectorized version of grid_rec_one_slice_transpose
     
-    qt = xp.zeros((theta_array.shape[0] + k_r * 2 + 2, num_rays + k_r * 2 + 2), dtype = xp.complex128)
+    qt = xp.zeros((theta_array.shape[0] + k_r * 2 + 2, num_rays + k_r * 2 + 2), dtype = xp.complex64)
 
     padding_array = ((k_r + 1, k_r + 1), (k_r + 1, k_r + 1))
     qxy = xp.lib.pad(qxy, padding_array, 'constant', constant_values = 0)
@@ -203,7 +204,20 @@ def Overlap_transpose(image, frames_multiply, frames, coord_x, coord_y, k_r):
     return image
 
 
-def Overlap(image, frames, coord_x, coord_y, k_r):
+
+def Overlap(image, frames, coord_x, coord_y, k_r, mode = None):
+
+    if mode is "python":
+        return Overlap_CPU(image, frames, coord_x, coord_y, k_r)
+
+    elif mode is "cuda":
+        return Overlap_GPU(image, frames, coord_x, coord_y, k_r)
+
+    else:
+        return None
+
+
+def Overlap_CPU(image, frames, coord_x, coord_y, k_r):
 
     for q in range(coord_x.shape[0]):
         
@@ -213,9 +227,43 @@ def Overlap(image, frames, coord_x, coord_y, k_r):
     return image
 
 
-def gridrec(sinogram_stack, theta_array, num_rays, k_r, kernel_type, xp): #use for backward proj
+
+convolve_raw_kernel = None
+if convolve_raw_kernel is None:
+    with open("convolve.cu", 'r') as myfile:
+        convolve_raw_kernel = myfile.read()
+
+def Overlap_GPU(image, frames, coord_x, coord_y, k_r):
+
+    n_angles = coord_x.shape[1]
+    n_rays = coord_x.shape[0]
+
+    img_x = image.shape[0]
+    img_y = image.shape[1]
+
+    nthreads = 128
+    nblocks = ((n_rays * n_angles) / nthreads) + 1
+
+    import cupy as cp
+
+
+    image = image.astype(cp.complex64)
+    frames = frames.astype(cp.complex64)
+
+    coord_x = coord_x.astype(cp.int32)
+    coord_y = coord_y.astype(cp.int32)
+
+
+    cp.RawKernel(convolve_raw_kernel, "Convolve") \
+        ((int(nblocks),), (int(nthreads),), \
+        (image, frames, coord_x, coord_y, k_r, n_angles, n_rays, img_x, img_y))
+
+    return image
+
+
+def gridrec(sinogram_stack, theta_array, num_rays, k_r, kernel_type, xp, mode): #use for backward proj
  
-    tomo_stack = xp.zeros((sinogram_stack.shape[0], num_rays + 1, num_rays + 1),dtype=xp.complex128)
+    tomo_stack = xp.zeros((sinogram_stack.shape[0], num_rays + 1, num_rays + 1),dtype=xp.complex64)
  
     ramlak_filter = xp.abs(xp.array(range(num_rays)) - num_rays/2)
     ramlak_filter = ramlak_filter.reshape((1, ramlak_filter.size))
@@ -232,16 +280,16 @@ def gridrec(sinogram_stack, theta_array, num_rays, k_r, kernel_type, xp): #use f
         sinogram = xp.fft.fftshift(sinogram,axes=1)
         sinogram *= ramlak_filter
 
-        tomogram = grid_rec_one_slice2(sinogram, theta_array, num_rays, k_r, kernel_type, xp)
+        tomogram = grid_rec_one_slice2(sinogram, theta_array, num_rays, k_r, kernel_type, xp, mode)
 
         tomo_stack[i] = xp.fft.fftshift(xp.fft.ifft2(xp.fft.fftshift(tomogram)))
         
     return tomo_stack
 
 
-def gridrec_transpose(tomo_stack, theta_array, num_rays, k_r, kernel_type, xp): #use for forward proj
+def gridrec_transpose(tomo_stack, theta_array, num_rays, k_r, kernel_type, xp, mode): #use for forward proj
 
-    sinogram_stack = np.zeros((tomo_stack.shape[0], theta_array.shape[0], num_rays),dtype=np.complex128)
+    sinogram_stack = np.zeros((tomo_stack.shape[0], theta_array.shape[0], num_rays),dtype=np.complex64)
 
     ktilde = gaussian_kernel(np.array([range(-k_r, k_r+1),] * (k_r * 2 + 1)), sigma = k_r)
     ktilde *= ktilde.T
@@ -264,7 +312,7 @@ def gridrec_transpose(tomo_stack, theta_array, num_rays, k_r, kernel_type, xp): 
         # forward fft centered
         tomo_slice = np.fft.ifftshift(np.fft.fft2(np.fft.ifftshift(tomo_slice)))
 
-        sinogram = grid_rec_one_slice_transpose2(tomo_slice, theta_array, num_rays, k_r, kernel_type, xp)
+        sinogram = grid_rec_one_slice_transpose2(tomo_slice, theta_array, num_rays, k_r, kernel_type, xp, mode)
         print(sinogram.shape)
         
         sinogram = np.fft.ifftshift(sinogram,axes=1)
@@ -279,7 +327,7 @@ def gridrec_transpose(tomo_stack, theta_array, num_rays, k_r, kernel_type, xp): 
 
 def force_data_types(input_data):
 
-    input_data["data"]  = input_data["data"].astype(np.complex128)
+    input_data["data"]  = input_data["data"].astype(np.complex64)
     input_data["theta"] = input_data["theta"].astype(np.float64)	
     #input_data["rays"]  = input_data["rays"].astype(np.uint)
 
@@ -299,24 +347,31 @@ def tomo_reconstruct(data, theta, rays, k_r, kernel_type, algorithm, gpu_acceler
     input_data = {"data": data,
                   "theta": theta,
                   "rays": rays}
-    
+    mode = None    
+
+    force_data_types(input_data)
+
     if gpu_accelerated == True:
+        mode = "cuda"
         xp = __import__("cupy")
         memcopy_to_device(input_data)
 
     else:
+        mode = "python"
         xp = __import__("numpy")
         
     if algorithm == "gridrec":
-       output_data = gridrec(input_data["data"], input_data["theta"], rays, k_r, kernel_type, xp)    
+       output_stack = gridrec(input_data["data"], input_data["theta"], rays, k_r, kernel_type, xp, mode)    
 
     elif algorithm == "gridrec_transpose":
-       output_data = gridrec_transpose(input_data["data"], input_data["theta"], rays, k_r, kernel_type, xp)
+       output_stack = gridrec_transpose(input_data["data"], input_data["theta"], rays, k_r, kernel_type, xp, mode)
+
+    output_data = {"result": output_stack}
     
     if gpu_accelerated == True:
-        memcopy_to_device(output_data)
+        memcopy_to_host(output_data)
 
-    return output_data
+    return output_data["result"]
 
 def sirt(A,At,b,end): #A is forward projection, b is the projections
     
