@@ -81,8 +81,8 @@ def create_unique_folder(name):
 def save_cube(cube, base_fname):
 
     for n in range(0, cube.shape[0]):
-        tname = base_fname + "_" + str(n) + '.png'
-        imageio.imwrite(tname, cube[n,:,:].astype(np.uint8))
+        tname = base_fname + "_" + str(n) + '.jpeg'
+        imageio.imwrite(tname, cube[n,:,:].astype(np.float32))
         
 
 def generate_Shepp_Logan(cube_shape):
