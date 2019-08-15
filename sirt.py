@@ -9,13 +9,18 @@ def sirt(sino_data, theta_array, num_rays, k_r, kernel_type, algorithm, gpu_acce
 
     image = np.zeros((sino_data.shape[0], sino_data.shape[1], sino_data.shape[2]))
     
+    if gpu_accelerated == False:
+        mode = "python"
+        xp = __import__("numpy")
+        
     print("image", image.shape)
     
     for i in range(max_iter):
         
         print("------ Iteration", i, "------")
-        sino_sim = gridrec.forward_project(image, theta_array)
-        sino_sim = np.swapaxes(sino_sim,0,1) 
+#        sino_sim = gridrec.forward_project(image, theta_array)
+        sino_sim = gridrec.gridrec_transpose(image, theta_array, num_rays, k_r, kernel_type, xp, mode)
+#        sino_sim = np.swapaxes(sino_sim,0,1) 
         
         residual = sino_data - sino_sim
         
@@ -33,7 +38,7 @@ def sirt(sino_data, theta_array, num_rays, k_r, kernel_type, algorithm, gpu_acce
 k_r = 2
 size = 64
 num_slices = size
-num_angles = size*2
+num_angles = size*4
 num_rays   = size
 
 base_folder = gridrec.create_unique_folder("shepp_logan")
@@ -52,14 +57,32 @@ theta = np.arange(0, 180., 180. / num_angles)*np.pi/180.
 
 simulation = gridrec.forward_project(true_obj, theta)
 simulation = np.swapaxes(simulation,0,1)
+plt.imshow(simulation[size//2])
+plt.show()
+xp=__import__("numpy")
+mode='python'
+kernel_type = "gaussian"
 
-kernel_type = 'kb'
-algorithm = 'gridrec'
-gpu_accelerated = False
 
-recon = gridrec.tomo_reconstruct(simulation,theta,num_rays,k_r,kernel_type,algorithm,gpu_accelerated)
-recon = recon[:,:recon.shape[1]-1,:recon.shape[2]-1]
-factor = np.sum(true_obj*recon)/np.sum(recon**2)
-print("Factor is", factor, "abs is", np.abs(factor))
+forward = gridrec.gridrec_transpose(true_obj[size//2:size//2+1], theta, num_rays, k_r, kernel_type, xp, mode)
 
-image = sirt(simulation, theta, num_rays, k_r, kernel_type, algorithm, gpu_accelerated, 5, factor)
+plt.imshow(np.abs(forward[0]))
+
+#kernel_type = 'kb'
+#algorithm = 'gridrec'
+#gpu_accelerated = False
+
+
+
+#recon = gridrec.tomo_reconstruct(simulation,theta,num_rays,k_r,kernel_type,algorithm,gpu_accelerated)
+#recon = recon[:,:recon.shape[1]-1,:recon.shape[2]-1]
+#factor = np.sum(true_obj*recon)/np.sum(recon**2)
+
+            
+#plt.imshow(abs(recon[32])) 
+#plt.show()
+
+#print("Factor is", factor, "abs is", np.abs(factor))
+
+
+#image = sirt(simulation, theta, num_rays, k_r, kernel_type, algorithm, gpu_accelerated, 1, factor)
