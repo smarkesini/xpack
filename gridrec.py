@@ -16,7 +16,7 @@ import tomopy
 #from scipy import 
 import imageio
 import os
-import cupy as cp
+#import cupy as cp
 
 #start_time = time.time()
 
@@ -144,28 +144,36 @@ def grid_rec_one_slice2(qt, theta_array, num_rays, k_r, kernel_type, xp, mode = 
     return qxy[pad:-pad, pad: -pad] 
 
     
-def grid_rec_one_slice_transpose(qxy, theta_array, num_rays, k_r, kernel_type): #use for forward proj
+def grid_rec_one_slice_transpose(qxy, theta_array, num_rays, k_r, kernel_type, xp, mode): #use for forward proj
     
     qt = np.zeros((theta_array.shape[0], num_rays), dtype=np.complex64)
-    padding_array = ((k_r, k_r), (k_r, k_r))
+    padding_array = ((k_r, k_r+1), (k_r, k_r+1))
     qxy = np.lib.pad(qxy, padding_array, 'constant', constant_values=0)
+    print(qxy.shape)
     
     for q in range(num_rays):
         ind = 0
         
         for theta in theta_array:
-            px = -(q - num_rays/2)*np.sin(theta)+(num_rays/2) + k_r
-            py = (q - num_rays/2)*np.cos(theta)+(num_rays/2) + k_r    
+            px = -(q - num_rays/2)*np.sin(theta)+(num_rays/2) + k_r 
+            py = (q - num_rays/2)*np.cos(theta)+(num_rays/2) + k_r 
+            
+#            This is what we had after the meeting
+#            px = -(q  - (num_rays)/2)*np.sin(theta)+((num_rays+4+2*k_r)/2)
+#            py = (q  - (num_rays)/2)*np.cos(theta)+((num_rays+4+2*k_r)/2)
+            
+            
             qti = 0
 
             for ii in range(-k_r, k_r+1):
                 
                 for jj in range(-k_r, k_r+1):
-                    kernel = K2(px-round(px)-ii, py-round(py)-jj, kernel_type)
-                    x_index = int(clip(round(px)+ii, 0, num_rays - 1))
-                    y_index = int(clip(round(py)+jj, 0, num_rays - 1))
+                    kernel = K2(px-round(px)-ii, py-round(py)-jj, kernel_type, xp)
+                    x_index = int(round(px +ii))
+                    y_index = int(round(py +jj))
 
-                    qti += qxy[x_index, y_index]*kernel; 
+#                    if x_index>=0 & x_index<num_rays-, y_index --> do this instead of clipping
+                    qti += qxy[x_index, y_index]*kernel
                     
             qt[int(ind),q] = qti
             
@@ -187,7 +195,7 @@ def grid_rec_one_slice_transpose2(qxy, theta_array, num_rays, k_r, kernel_type, 
     px = xp.around(-(xp.array([range(num_rays), ] *  theta_array.shape[0]) - num_rays/2).T * (xp.sin(theta_array)) + (num_rays/2)).astype(int) + k_r + 1 #adding k_r accounts for the padding
     py = xp.around((xp.array([range(num_rays), ] * theta_array.shape[0]) - num_rays/2).T * (xp.cos(theta_array)) + (num_rays/2)).astype(int) + k_r + 1#adding k_r accounts for the padding
 
-    kernel = K2(kernel_x + xp.reshape(px - xp.around(px), (px.shape[0], px.shape[1], 1, 1)), kernel_y + xp.reshape(py - xp.around(py), (py.shape[0], py.shape[1], 1, 1)), kernel_type)
+    kernel = K2(kernel_x + xp.reshape(px - xp.around(px), (px.shape[0], px.shape[1], 1, 1)), kernel_y + xp.reshape(py - xp.around(py), (py.shape[0], py.shape[1], 1, 1)), kernel_type,xp)
 
     qt = Overlap_transpose(qt, qxy, kernel, px, py, k_r)
 
@@ -291,7 +299,7 @@ def gridrec_transpose(tomo_stack, theta_array, num_rays, k_r, kernel_type, xp, m
 
     sinogram_stack = np.zeros((tomo_stack.shape[0], theta_array.shape[0], num_rays),dtype=np.complex64)
 
-    ktilde = gaussian_kernel(np.array([range(-k_r, k_r+1),] * (k_r * 2 + 1)), sigma = k_r)
+    ktilde = gaussian_kernel(np.array([range(-k_r, k_r+1),] * (k_r * 2 + 1)), k_r, xp)
     ktilde *= ktilde.T
 
     print(ktilde)
@@ -310,10 +318,12 @@ def gridrec_transpose(tomo_stack, theta_array, num_rays, k_r, kernel_type, xp, m
         
         tomo_slice = tomo_stack[i] * deapodization_factor
         # forward fft centered
-        tomo_slice = np.fft.ifftshift(np.fft.fft2(np.fft.ifftshift(tomo_slice)))
+        tomo_slice = np.fft.ifftshift(np.fft.fft2(np.fft.fftshift(tomo_slice)))
 
-        sinogram = grid_rec_one_slice_transpose2(tomo_slice, theta_array, num_rays, k_r, kernel_type, xp, mode)
-        print(sinogram.shape)
+        sinogram = grid_rec_one_slice_transpose(tomo_slice, theta_array, num_rays, k_r, kernel_type, xp, mode)
+        print("sinogram shape", sinogram.shape)
+        
+        #sinogram = np.roll(sinogram,1,axis=1)
         
         sinogram = np.fft.ifftshift(sinogram,axes=1)
         
