@@ -28,8 +28,8 @@ import subprocess
 import operator
 import os
 
-from mpi4py import *
-
+#from mpi4py import *
+gpu_accelerated = False
 
 def mpi_gather(send_buff):
 
@@ -41,19 +41,28 @@ def mpi_gather(send_buff):
     return np.array(recv_buff)
 
 def get_chunk_slice(n_slices):
+    try:
+        mpi
+        rank = int(MPI.COMM_WORLD.Get_rank())
+        chunk_size = n_slices/MPI.COMM_WORLD.Get_size()
+            
+        extra_work = 0
+        if int(MPI.COMM_WORLD.Get_size()) == rank + 1:
+            extra_work = n_slices % MPI.COMM_WORLD.Get_size()
+         
+    except:         
+        rank = 0
+        chunk_size = n_slices
+        extra_work = 0
+        return slice(int(0), int(n_slices))
 
-    rank = int(MPI.COMM_WORLD.Get_rank())
-
-    chunk_size = n_slices/MPI.COMM_WORLD.Get_size()
-    extra_work = 0
-
-    if int(MPI.COMM_WORLD.Get_size()) == rank + 1:
-        extra_work = n_slices % MPI.COMM_WORLD.Get_size()
-
+            
     return slice(int(rank * chunk_size), int(((rank + 1) * chunk_size) + extra_work))
 
 #Setup local GPU device based on a gpu_priority integer. The lower the priority, the more available gpu this assigns.
 def set_visible_device(gpu_priority):
+    if gpu_accelerated == False:        
+        return 0, 0, 0
 
     cmd = "nvidia-smi --query-gpu=index,memory.total,memory.free,memory.used,pstate,utilization.gpu --format=csv"
  
@@ -86,8 +95,12 @@ def set_visible_device(gpu_priority):
 np.set_printoptions(threshold=sys.maxsize)
 
 k_r = 2
-
-if(MPI.COMM_WORLD.Get_rank() == 0): base_folder = gridrec.create_unique_folder("shepp_logan")
+try:
+    mpi
+    if(MPI.COMM_WORLD.Get_rank() == 0): base_folder = gridrec.create_unique_folder("shepp_logan")
+except:
+    base_folder = gridrec.create_unique_folder("shepp_logan")
+    
 
 size = 256
 
@@ -122,8 +135,8 @@ simulation = gridrec.forward_project(true_obj, theta)
 #if(MPI.COMM_WORLD.Get_rank() == 0): gridrec.save_cube(simulation, base_folder + "sim_project")
 
 simulation = np.swapaxes(simulation,0,1)
-#plt.imshow(simulation[32])
-#plt.show()
+plt.imshow(simulation[32])
+plt.show()
 
 #if(MPI.COMM_WORLD.Get_rank() == 0): gridrec.save_cube(simulation[64], base_folder + "sim_slice")
 
@@ -144,41 +157,46 @@ chunk_slice = get_chunk_slice(num_slices)
 
 print(chunk_slice)
 
-set_visible_device(MPI.COMM_WORLD.Get_rank())
+try:
+    mpi
+    set_visible_device(MPI.COMM_WORLD.Get_rank())
+except:
+    set_visible_device(1)
 
-
-tomo_stack = gridrec.tomo_reconstruct(simulation[chunk_slice], theta, num_rays, k_r, 'gaussian', 'gridrec',gpu_accelerated = True)
-#tomo_stack = tomopy.recon(simulation, theta, center=None, sinogram_order=True, algorithm="gridrec")
-
-print(tomo_stack.shape)
-
-if(MPI.COMM_WORLD.Get_size() > 0): print("Communicating results...")
-
-tomo_stack = mpi_gather(tomo_stack)
-
-if(MPI.COMM_WORLD.Get_rank() == 0):
-
-    tomo_stack = tomo_stack.reshape((num_slices, tomo_stack.shape[-2], tomo_stack.shape[-1]))
-
-    print(tomo_stack.shape)
-
-    print("A simulation of size", simulation.shape, "with kernel radius", k_r, "took", time.time() - start_time, "seconds to run")
-
-    if pad_1D > 0: tomo_stack = tomo_stack[:, pad_1D: -pad_1D, pad_1D: -pad_1D]
-
-#Calls forward projection
-#sino_stack = gridrec.gridrec_transpose(true_obj[64:65], theta, num_rays, k_r, 'gaussian')
-#if pad_1D > 0: sino_stack = sino_stack[:, :, pad_1D: -pad_1D]
-#plt.imshow(abs(sino_stack[0]),cmap='gray')
-
-    #Save images
-    gridrec.save_cube(abs(tomo_stack), base_folder + "rec")
-    #gridrec.save_cube(abs(sino_stack), base_folder + "sino")
-
-
-
-    plt.imshow(abs(tomo_stack[tomo_stack.shape[0]//2]),cmap='Greys')
-    plt.show()
+    
+#
+#tomo_stack = gridrec.tomo_reconstruct(simulation[chunk_slice], theta, num_rays, k_r, 'gaussian', 'gridrec',gpu_accelerated)
+##tomo_stack = tomopy.recon(simulation, theta, center=None, sinogram_order=True, algorithm="gridrec")
+#
+#print(tomo_stack.shape)
+#
+#if(MPI.COMM_WORLD.Get_size() > 0): print("Communicating results...")
+#
+#tomo_stack = mpi_gather(tomo_stack)
+#
+#if(MPI.COMM_WORLD.Get_rank() == 0):
+#
+#    tomo_stack = tomo_stack.reshape((num_slices, tomo_stack.shape[-2], tomo_stack.shape[-1]))
+#
+#    print(tomo_stack.shape)
+#
+#    print("A simulation of size", simulation.shape, "with kernel radius", k_r, "took", time.time() - start_time, "seconds to run")
+#
+#    if pad_1D > 0: tomo_stack = tomo_stack[:, pad_1D: -pad_1D, pad_1D: -pad_1D]
+#
+##Calls forward projection
+##sino_stack = gridrec.gridrec_transpose(true_obj[64:65], theta, num_rays, k_r, 'gaussian')
+##if pad_1D > 0: sino_stack = sino_stack[:, :, pad_1D: -pad_1D]
+##plt.imshow(abs(sino_stack[0]),cmap='gray')
+#
+#    #Save images
+#    gridrec.save_cube(abs(tomo_stack), base_folder + "rec")
+#    #gridrec.save_cube(abs(sino_stack), base_folder + "sino")
+#
+#
+#
+#    plt.imshow(abs(tomo_stack[tomo_stack.shape[0]//2]),cmap='Greys')
+#    plt.show()
 
 
 #Calculates and plots mean squared error
