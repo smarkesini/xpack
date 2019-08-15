@@ -147,21 +147,20 @@ def grid_rec_one_slice2(qt, theta_array, num_rays, k_r, kernel_type, xp, mode = 
 def grid_rec_one_slice_transpose(qxy, theta_array, num_rays, k_r, kernel_type, xp, mode): #use for forward proj
     
     qt = np.zeros((theta_array.shape[0], num_rays), dtype=np.complex64)
-    padding_array = ((k_r, k_r+1), (k_r, k_r+1))
-    qxy = np.lib.pad(qxy, padding_array, 'constant', constant_values=0)
+#    padding_array = ((k_r, k_r), (k_r, k_r))
+#    qxy = np.lib.pad(qxy, padding_array, 'constant', constant_values=0)
     print(qxy.shape)
     
     for q in range(num_rays):
         ind = 0
         
         for theta in theta_array:
-            px = -(q - num_rays/2)*np.sin(theta)+(num_rays/2) + k_r 
-            py = (q - num_rays/2)*np.cos(theta)+(num_rays/2) + k_r 
+            px = -(q - num_rays/2)*np.sin(theta)+(num_rays/2) + 1# + k_r 
+            py = (q - num_rays/2)*np.cos(theta)+(num_rays/2) + 1# + k_r
             
 #            This is what we had after the meeting
 #            px = -(q  - (num_rays)/2)*np.sin(theta)+((num_rays+4+2*k_r)/2)
 #            py = (q  - (num_rays)/2)*np.cos(theta)+((num_rays+4+2*k_r)/2)
-            
             
             qti = 0
 
@@ -169,15 +168,21 @@ def grid_rec_one_slice_transpose(qxy, theta_array, num_rays, k_r, kernel_type, x
                 
                 for jj in range(-k_r, k_r+1):
                     kernel = K2(px-round(px)-ii, py-round(py)-jj, kernel_type, xp)
-                    x_index = int(round(px +ii))
-                    y_index = int(round(py +jj))
-
+                    x_index = int(round(px) +ii)
+                    y_index = int(round(py) +jj)
+#                    print("x index is", x_index, "y index is", y_index, "num rays", num_rays)
 #                    if x_index>=0 & x_index<num_rays-, y_index --> do this instead of clipping
-                    qti += qxy[x_index, y_index]*kernel
-                    
+#                    if (x_index >= 0 and x_index <= num_rays+2*k_r-1) and (y_index >= 0 and y_index <= num_rays+2*k_r-1):
+                    if (x_index >= 0 and x_index < num_rays) and (y_index >= 0 and y_index < num_rays):
+
+                        qti += qxy[x_index, y_index]*kernel
+                    else:
+                        qti += 0
+                        
             qt[int(ind),q] = qti
             
             ind = ind+1
+            
             
     return qt
 
