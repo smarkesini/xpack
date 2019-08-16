@@ -100,7 +100,7 @@ def clip(a, lower, upper):
     return min(max(lower, a), upper)  
 
 
-def grid_rec_one_slice(qt, theta_array, num_rays, k_r, kernel_type): #use for backward proj
+def grid_rec_one_slice(qt, theta_array, num_rays, k_r, kernel_type, xp, mode): #use for backward proj
     
     qxy = np.zeros((num_rays + k_r * 2 + 1, num_rays + k_r * 2 + 1), dtype=np.complex64)
     for q in range(num_rays):
@@ -113,7 +113,7 @@ def grid_rec_one_slice(qt, theta_array, num_rays, k_r, kernel_type): #use for ba
             for ii in range(-k_r, k_r+1):
                 
                 for jj in range(-k_r, k_r+1):
-                    kernel = K2(px-round(px)-ii, py-round(py)-jj, kernel_type, k_r)
+                    kernel = K2(px-round(px)-ii, py-round(py)-jj, kernel_type, xp, k_r)
                     x_index = int(clip(round(px)+ii, 0, num_rays - 1))
                     y_index = int(clip(round(py)+jj, 0, num_rays - 1))
                     qxy[x_index, y_index] += qt[int(ind),q]*kernel
@@ -149,7 +149,6 @@ def grid_rec_one_slice_transpose(qxy, theta_array, num_rays, k_r, kernel_type, x
     qt = np.zeros((theta_array.shape[0], num_rays), dtype=np.complex64)
 #    padding_array = ((k_r, k_r), (k_r, k_r))
 #    qxy = np.lib.pad(qxy, padding_array, 'constant', constant_values=0)
-    print(qxy.shape)
     
     for q in range(num_rays):
         ind = 0
@@ -170,7 +169,6 @@ def grid_rec_one_slice_transpose(qxy, theta_array, num_rays, k_r, kernel_type, x
                     kernel = K2(px-round(px)-ii, py-round(py)-jj, kernel_type, xp)
                     x_index = int(round(px) +ii)
                     y_index = int(round(py) +jj)
-#                    print("x index is", x_index, "y index is", y_index, "num rays", num_rays)
 #                    if x_index>=0 & x_index<num_rays-, y_index --> do this instead of clipping
 #                    if (x_index >= 0 and x_index <= num_rays+2*k_r-1) and (y_index >= 0 and y_index <= num_rays+2*k_r-1):
                     if (x_index >= 0 and x_index < num_rays) and (y_index >= 0 and y_index < num_rays):
@@ -293,7 +291,7 @@ def gridrec(sinogram_stack, theta_array, num_rays, k_r, kernel_type, xp, mode): 
         sinogram = xp.fft.fftshift(sinogram,axes=1)
         sinogram *= ramlak_filter
 
-        tomogram = grid_rec_one_slice2(sinogram, theta_array, num_rays, k_r, kernel_type, xp, mode)
+        tomogram = grid_rec_one_slice(sinogram, theta_array, num_rays, k_r, kernel_type, xp, mode)
 
         tomo_stack[i] = xp.fft.fftshift(xp.fft.ifft2(xp.fft.fftshift(tomogram)))
         
@@ -307,10 +305,6 @@ def gridrec_transpose(tomo_stack, theta_array, num_rays, k_r, kernel_type, xp, m
     ktilde = gaussian_kernel(np.array([range(-k_r, k_r+1),] * (k_r * 2 + 1)), k_r, xp)
     ktilde *= ktilde.T
 
-    print(ktilde)
-    
-    print(ktilde.shape)
-
     padding_array = ((num_rays//2 - k_r - 1, num_rays//2 - k_r), (num_rays//2 - k_r - 1, num_rays//2 - k_r))
 
     ktilde = np.lib.pad(ktilde, padding_array, 'constant', constant_values=0)
@@ -323,10 +317,13 @@ def gridrec_transpose(tomo_stack, theta_array, num_rays, k_r, kernel_type, xp, m
         
         tomo_slice = tomo_stack[i] * deapodization_factor
         # forward fft centered
+        
+#        tomo_slice = np.roll(tomo_slice,k_r,axis=0)
+#        tomo_slice = np.roll(tomo_slice,k_r,axis=1)
+
         tomo_slice = np.fft.ifftshift(np.fft.fft2(np.fft.fftshift(tomo_slice)))
 
         sinogram = grid_rec_one_slice_transpose(tomo_slice, theta_array, num_rays, k_r, kernel_type, xp, mode)
-        print("sinogram shape", sinogram.shape)
         
         #sinogram = np.roll(sinogram,1,axis=1)
         
@@ -347,17 +344,20 @@ def force_data_types(input_data):
     #input_data["rays"]  = input_data["rays"].astype(np.uint)
 
 def memcopy_to_device(host_pointers):
-    
-    for key, value in host_pointers.items():
-         
-        host_pointers[key] = cp.asarray(value)
-        
+    try:
+        import cupy as cp
+        for key, value in host_pointers.items():      
+            host_pointers[key] = cp.asarray(value)
+    except:
+        print("Unable to import CuPy")
 def memcopy_to_host(device_pointers):
-    
-    for key, value in device_pointers.items():
+    try:
+        import cupy as cp
+        for key, value in device_pointers.items():       
+            device_pointers[key] = cp.asnumpy(value)
+    except:
+        print("Unable to import CuPy")
         
-        device_pointers[key] = cp.asnumpy(value)
-
 def tomo_reconstruct(data, theta, rays, k_r, kernel_type, algorithm, gpu_accelerated):
     input_data = {"data": data,
                   "theta": theta,
