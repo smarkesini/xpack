@@ -105,7 +105,7 @@ except:
 size = 64
 
 num_slices = size
-num_angles = size*2
+num_angles = int(np.ceil(size//2*np.pi*2))
 #num_angles = 512
 num_rays   = size
 
@@ -144,20 +144,20 @@ kernel_type = 'gaussian'
 mode = "python"
 simulation1 = gridrec.gridrec_transpose(true_obj[num_slices//2:num_slices//2+1], theta, num_rays, k_r, kernel_type, xp, mode)
 #simulation1 = gridrec.gridrec_transpose(true_obj, theta, num_rays, k_r, kernel_type, xp, mode)
-scaling_1_0=(np.sum(simulation * simulation1))/np.sum(simulation *simulation)
-
+print("ratio gridrec_transpose i/r=", np.max(np.abs(np.imag(simulation1[0])))/np.max(np.real(simulation1[0])))
+simulation1=simulation1.real
+scaling_1_0=(np.sum(simulation * simulation1))/np.sum(simulation1 *simulation1)
 
 #simulation = np.swapaxes(simulation,0,1)
 plt.imshow(np.real(simulation1[0]))
 plt.show()
-print("ratio gridrec_transpose i/r=", np.max(np.abs(np.imag(simulation1[0])))/np.max(np.real(simulation1[0])))
 
 
 #tomo_stack = tomopy.recon(simulation, theta, center=None, sinogram_order=True, algorithm="gridrec")
 #sim1=simulation[num_slices//2:num_slices//2+1,:,num_rays//4:num_rays//4*3]
 #tomo_stack = tomopy.recon(sim1, theta, center=None, sinogram_order=True, algorithm="gridrec")
 
-tomo_stack = tomopy.recon(simulation[num_slices//2:num_slices//2+1], theta, center=None, sinogram_order=True, algorithm="gridrec")
+tomo_stack = tomopy.recon(simulation[num_slices//2:num_slices//2+1], theta, center=None, sinogram_order=True, algorithm="gridrec", filter_name='ramlak')
 plt.imshow(tomo_stack[0])
 plt.show()
 
@@ -180,12 +180,21 @@ tomo_stackc=tomo_stack[0,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3]
 tomo_stack1c=(tomo_stack1[0,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3]).real
 tomo_stack0c=true_obj[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3]
 
+plt.imshow(tomo_stackc)
+plt.show()
+plt.imshow(tomo_stack1c.real)
+plt.show()
+
+
 #
 scalingc=(np.sum(tomo_stack0c * tomo_stackc))/np.sum(tomo_stackc *tomo_stackc)
 ##scaling1c=(np.sum(tomo_stackc * tomo_stack1c))/np.sum(tomo_stack1c *tomo_stack1c)
 scaling1c=(np.sum(tomo_stack0c * tomo_stack1c))/np.sum(tomo_stack1c *tomo_stack1c)
 #tomo_stack1c*=scaling1c
 #tomo_stackc*=scalingc
+print("forward tomopy/nufft scaling=", scaling_1_0)
+
+print("scaling tomopy/nufft",scaling1c)
 
 snr0=np.sum(abs(tomo_stackc*scalingc-tomo_stack0c)**2)/np.sum(tomo_stack0c**2)
 snr1=np.sum(abs(tomo_stack1c*scaling1c-tomo_stack0c)**2)/np.sum(tomo_stack0c**2)
