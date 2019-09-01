@@ -138,7 +138,8 @@ def generate_Shepp_Logan(cube_shape):
 
 def forward_project(cube, theta):
 
-    return tomopy.sim.project.project(cube, theta, pad = False, sinogram_order=False)
+    #return tomopy.sim.project.project(cube, theta, pad = False, sinogram_order=False)
+    return tomopy.sim.project.project(cube, theta, pad = False, sinogram_order=True)
 
     
 def clip(a, lower, upper):
@@ -316,6 +317,79 @@ def grid_rec_one_slice2(qt, theta_array, num_rays, k_r, kernel_type, xp, mode = 
     
     return qxy[pad:-pad-1, pad: -pad-1] 
 
+def gridding_setup(num_rays, theta_array, xp=np, kernel_type = 'gaussian', k_r = 2):
+    
+    num_angles=theta_array.shape[0]
+    
+    stencil=xp.array([range(-k_r, k_r+1),])
+    stencilx=xp.reshape(stencil,[1,1,2*k_r+1,1])
+    stencily=xp.reshape(stencil,[1,1,1,2*k_r+1])
+
+    # coordinates of the points on the  grid
+    px = - (xp.sin(np.reshape(theta_array,[num_angles,1]))) * (xp.array([range(num_rays) ]) - num_rays/2)+ num_rays/2 + k_r  #adding k_r accounts for the padding
+    py =   (xp.cos(np.reshape(theta_array,[num_angles,1]))) * (xp.array([range(num_rays) ]) - num_rays/2)+ num_rays/2 + k_r  #adding k_r accounts for the padding
+    
+    # output index
+    pind = xp.array(range(num_rays*num_angles))
+    
+    # reshape coordinates and index
+    px=xp.reshape(px,[num_angles,num_rays,1,1])
+    py=xp.reshape(py,[num_angles,num_rays,1,1])
+    pind=xp.reshape(pind,[num_angles,num_rays,1,1])
+    
+    # compute kernels
+    kx=K1(stencilx - (px - xp.around(px)),k_r, kernel_type, xp); 
+    ky=K1(stencily - (py - xp.around(py)),k_r, kernel_type, xp); 
+    Kval=(kx*ky)
+    
+    
+    # expand coordinates with stencils
+    kx=stencilx+xp.around(px)
+    ky=stencily+xp.around(py)
+
+  # row  index (where the output goes)
+    Krow=((kx)*(num_rays+2*k_r+1)+ky)
+    # column index (where to get the input)
+    Kcol=(pind+kx*0+ky*0)
+    
+    # create sparse array   
+    S=scipy.sparse.csr_matrix((Kval.flatten(), (Krow.flatten(), Kcol.flatten())), shape=((num_rays+2*k_r+1)**2, num_angles*num_rays))
+
+    # note that we swap column and rows to get the transpose
+    ST=scipy.sparse.csr_matrix((Kval.flatten(),(Kcol.flatten(), Krow.flatten())), shape=(num_angles*num_rays, (num_rays+2*k_r+1)**2))
+    
+       
+    return S, ST
+
+def radon_setup(num_rays, theta_array, xp=np, kernel_type = 'gaussian', k_r = 2):
+
+    S, ST = gridding_setup(num_rays, theta_array, xp, kernel_type , k_r)
+    
+
+    
+    deapodization_factor = deapodization(num_rays, kernel_type, xp, k_r)
+    
+    # get the filter
+    num_angles=theta_array.shape[0]
+    print("num_angles", num_angles)
+    ramlak_filter = (xp.abs(xp.array(range(num_rays)) - num_rays/2)+1./num_rays)*2./(num_rays**2)/num_angles*1.1184626
+    # removing the highest frequency
+    ramlak_filter[0]=0;
+
+    #ramlak_filter = ramlak_filter.reshape((1, ramlak_filter.size))
+    ramlak_filter = ramlak_filter.reshape((1, 1, ramlak_filter.size))
+    
+    
+            
+    
+    R  = lambda tomo:  radon(tomo, deapodization_factor/num_rays/3.5*1.046684, ST, k_r, num_angles )
+    IR = lambda sino: iradon(sino, deapodization_factor, S,  k_r, ramlak_filter )
+    #iradon(sinogram_stack, deapodization_factor, S, k_r , hfilter): 
+   
+    return R,IR
+    
+
+    
 
 def grid_rec_one_slice_transposeSpMV(qxy, theta_array, num_rays, k_r, kernel_type, xp, mode): #use for backward proj
     
@@ -531,6 +605,103 @@ def Overlap_GPU(image, frames, coord_x, coord_y, k_r):
 
     return image
 
+def iradon(sinogram_stack, deapodization_factor, S, k_r , hfilter): 
+              #iradon(sino, deapodization_factor, S,  k_r, ramlak_filter )
+    xp=np
+    num_slices = sinogram_stack.shape[0]
+    num_angles = sinogram_stack.shape[1]
+    num_rays   = sinogram_stack.shape[2]
+    
+    tomo_stack = xp.zeros((num_slices, num_rays , num_rays ),dtype=xp.complex64)
+    
+    sinogram_stack = xp.fft.fftshift(sinogram_stack,axes=2)
+    sinogram_stack = xp.fft.fft(sinogram_stack,axis=2)
+    sinogram_stack = xp.fft.fftshift(sinogram_stack,axes=2)
+    sinogram_stack *= hfilter
+    sinogram_stack  = xp.reshape(sinogram_stack,(num_slices,num_rays*num_angles)).T
+    #qt=xp.reshape(sinogram_stack,(num_slices,num_rays*num_angles))
+    qxy=S*sinogram_stack
+    
+    #qxy=S*xp.reshape(sinogram_stack,(num_slices,num_rays*num_angles)).T
+    qxy=xp.reshape(qxy,(num_rays+2*k_r+1,num_rays+2*k_r+1,num_slices))
+    #qxy[k_r:-k_r-1, k_r: -k_r-1,:] 
+    tomogram = qxy[k_r:-k_r-1, k_r: -k_r-1,:] 
+    # removing the highest frequency        
+    tomogram = np.moveaxis(tomogram,0,0)
+    tomogram[:,0,:]=0
+    tomogram[:,:,0]=0
+    #tomogram=xp.fft.fftshift(tomogram,(1,2))
+    tomogram=xp.fft.fftshift(xp.fft.ifft2(xp.fft.fftshift(tomogram,(1,2))),(1,2))
+    
+    
+    
+#    for i in range(num_slices):
+#        
+#        # from (r,theta) - radon space - to (q,theta)
+#        #qt = xp.fft.fftshift(sinogram_stack[i],axes=1)
+#        qt=sinogram_stack[i]
+#        #qt = xp.fft.fft(qt,axis=1)  
+#        #qt = xp.fft.fftshift(qt,axes=1)
+#        
+#        # non uniform ifft:
+#        
+#        # density compensation
+#        #qt *= hfilter
+#        
+#        # inverse gridding from (q,theta) to (qx,qy) 
+#        qxy=S*(qt).flatten()
+#        qxy=xp.reshape(qxy,(num_rays+2*k_r+1,num_rays+2*k_r+1))
+#        #qxy=xp.reshape(S*(qt).flatten(),(num_rays+2*k_r+1,num_rays+2*k_r+1))
+#        tomogram = qxy[k_r:-k_r-1, k_r: -k_r-1] 
+#        
+#        # removing the highest frequency
+#        tomogram[0,:]=0
+#        tomogram[:,0]=0
+#        
+#        # back to (xy) space
+#        tomo_stack[i] = xp.fft.fftshift(xp.fft.ifft2(xp.fft.fftshift(tomogram)))
+    
+
+    
+    tomo_stack*=deapodization_factor
+    return tomo_stack
+
+def radon(tomo_stack, deapodization_factor, ST, k_r, num_angles ):
+    
+    num_slices = tomo_stack.shape[0]
+    
+    num_rays   = tomo_stack.shape[2]
+
+    sinogram_stack = np.zeros((num_slices, num_angles, num_rays),dtype=np.complex64)
+
+
+    qxy = np.zeros((num_rays+2*k_r+1, num_rays+2*k_r+1), dtype=np.complex64)
+    
+    
+    for i in range(num_slices):
+        tomo_slice = tomo_stack[i] * deapodization_factor
+        # forward 2D fft centered
+
+        tomo_slice = np.fft.ifftshift(np.fft.fft2(np.fft.fftshift(tomo_slice)))
+        # copy to qxy while removing the highest frequency
+        qxy[k_r+1:-k_r-1, k_r+1: -k_r-1] = tomo_slice[1:,1:]
+
+        sinogram=np.reshape(ST*(qxy).flatten(),(num_angles,num_rays))
+
+        sinogram[:,0]=0
+        
+        # inverse 2D fft centered
+        
+        sinogram = np.fft.ifftshift(sinogram,axes=1)        
+        sinogram = np.fft.ifft(sinogram,axis=1)        
+
+        sinogram = np.fft.ifftshift(sinogram,axes=1)
+        
+        sinogram_stack[i]=sinogram
+    
+    return sinogram_stack
+        
+        
 
 def gridrec(sinogram_stack, theta_array, num_rays, k_r, kernel_type, xp, mode): #use for backward proj
  

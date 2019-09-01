@@ -28,6 +28,9 @@ import subprocess
 import operator
 import os
 
+from timeit import default_timer as timer
+
+
 #from mpi4py import *
 gpu_accelerated = False
 
@@ -106,6 +109,7 @@ size = 64
 
 num_slices = size
 num_angles = int(np.ceil(size//2*np.pi*2))
+num_angles = 180
 #num_angles = 512
 num_rays   = size
 
@@ -120,6 +124,7 @@ num_rays = num_rays + pad_1D*2
 
 print("True obj shape", true_obj.shape)
 
+
 #if(MPI.COMM_WORLD.Get_rank() == 0): gridrec.save_cube(true_obj, base_folder + "true")
 
 #padding...
@@ -129,20 +134,38 @@ true_obj = np.lib.pad(true_obj, padding_array, 'constant', constant_values=0)
 #theta = np.arange(-90, 90., 180. / num_angles)*np.pi/180.
 theta = np.arange(0, 180, 180. / num_angles)*np.pi/180.
 
+
+radon,iradon=gridrec.radon_setup(num_rays, theta, xp=np, kernel_type = 'gaussian', k_r = 2)
+
+
+
+start = timer()
 simulation = gridrec.forward_project(true_obj, theta)
+end = timer()
+print("tomopy simulation time=",end - start)
 
 
 #The simulation generates a stack of projections, meaning, it changes the dimensions order
 #if(MPI.COMM_WORLD.Get_rank() == 0): gridrec.save_cube(simulation, base_folder + "sim_project")
 
-simulation = np.swapaxes(simulation,0,1)
+#simulation = np.swapaxes(simulation,0,1)
 plt.imshow(simulation[num_slices//2])
 plt.show()
 
 import numpy as xp
 kernel_type = 'gaussian'
 mode = "python"
-simulation1 = gridrec.gridrec_transpose(true_obj[num_slices//2:num_slices//2+1], theta, num_rays, k_r, kernel_type, xp, mode)
+#simulation1 = gridrec.gridrec_transpose(true_obj[num_slices//2:num_slices//2+1], theta, num_rays, k_r, kernel_type, xp, mode)
+#simulation1=radon(true_obj[num_slices//2:num_slices//2+1])
+
+start = timer()
+simulation1=radon(true_obj)
+end = timer()
+simulation1=simulation1[num_slices//2:num_slices//2+1]
+print("new simulation time=",end - start)
+
+
+
 #simulation1 = gridrec.gridrec_transpose(true_obj, theta, num_rays, k_r, kernel_type, xp, mode)
 print("ratio gridrec_transpose i/r=", np.max(np.abs(np.imag(simulation1[0])))/np.max(np.real(simulation1[0])))
 simulation1=simulation1.real
@@ -157,9 +180,22 @@ plt.show()
 #sim1=simulation[num_slices//2:num_slices//2+1,:,num_rays//4:num_rays//4*3]
 #tomo_stack = tomopy.recon(sim1, theta, center=None, sinogram_order=True, algorithm="gridrec")
 
+start = timer()
 tomo_stack = tomopy.recon(simulation[num_slices//2:num_slices//2+1], theta, center=None, sinogram_order=True, algorithm="gridrec", filter_name='ramlak')
+end = timer()
+print("tomopy recon time=",end - start)
+
+start = timer()
+tomo_stack_g = iradon(simulation[num_slices//2:num_slices//2+1])
+end = timer()
+print("spmv recon time=",end - start)
+
+tomo_stack = tomopy.recon(simulation[num_slices//2:num_slices//2+1], theta, center=None, sinogram_order=True, algorithm="gridrec", filter_name='ramlak')
+
+
 plt.imshow(tomo_stack[0])
 plt.show()
+
 
 
 #gridrec(sinogram_stack, theta_array, num_rays, k_r, kernel_type, xp, mode): #use for backward proj 
@@ -167,6 +203,7 @@ plt.show()
 xp = np
 sim1=simulation[num_slices//2:num_slices//2+1,:]
 tomo_stack1 = gridrec.gridrec(sim1, theta, num_rays, k_r,"gaussian", xp, "gridrec")
+
 
 #tomo_stack1 = gridrec.gridrec(sim1, theta, num_rays, k_r,kernel_type="gaussian", xp,  algorithm="gridrec")
 plt.imshow((tomo_stack1[0]).real)
