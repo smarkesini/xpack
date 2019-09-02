@@ -189,7 +189,7 @@ start = timer()
 tomo_stack_g = iradon(simulation1)
 #tomo_stack_g = iradon(simulation[num_slices//2:num_slices//2+1])
 end = timer()
-print("spmv recon time=",end - start)
+print("spmv recon time  =",end - start)
 
 tomo_stack = tomopy.recon(simulation[num_slices//2:num_slices//2+1], theta, center=None, sinogram_order=True, algorithm="gridrec", filter_name='ramlak')
 
@@ -215,7 +215,7 @@ plt.imshow((tomo_stack1[0]).real)
 #plt.imshow((tomo_stack1[0,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3]).real)
 plt.show()
 
-print("gridrec r/i=", np.max(abs(tomo_stack1.imag))/np.max(abs(tomo_stack1.real)))
+print("gridrec i/r=", np.max(abs(tomo_stack1.imag))/np.max(abs(tomo_stack1.real)))
 
 tomo_stackc=tomo_stack[0,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3]
 tomo_stack1c=(tomo_stack1[0,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3]).real

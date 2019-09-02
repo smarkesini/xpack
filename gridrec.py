@@ -395,7 +395,7 @@ def radon_setup(num_rays, theta_array, xp=np, kernel_type = 'gaussian', k_r = 2)
     # get the filter
     num_angles=theta_array.shape[0]
     print("num_angles", num_angles)
-    ramlak_filter = (xp.abs(xp.array(range(num_rays)) - num_rays/2)+1./num_rays)*k_r/(num_rays**2)/num_angles*1.1184626
+    ramlak_filter = (xp.abs(xp.array(range(num_rays)) - num_rays/2)+1./num_rays)/(num_rays**2)/num_angles/9.8
     
     # this is to avoid one fftshift
     ramlak_filter*=(-1)**np.arange(num_rays);
@@ -640,130 +640,174 @@ def iradon(sinogram_stack, deapodization_factor, S, k_r , hfilter):
               #iradon(sino, deapodization_factor, S,  k_r, ramlak_filter )
     xp=np
     
-#    sino=sinogram_stack[0::2,:,:]+1j*sinogram_stack[1::2,:,:]
-#    sinogram_stack = sino
-#    
-    
     num_slices = sinogram_stack.shape[0]
     num_angles = sinogram_stack.shape[1]
     num_rays   = sinogram_stack.shape[2]
-    
-    #tomo_stack = xp.zeros((num_slices, num_rays , num_rays ),dtype=xp.complex64)
-    
+
     # we can avoid the initial fftshift by modifying the input filter
     #sinogram_stack = xp.fft.fftshift(sinogram_stack,axes=2)
     
-    start = timer()
-    
-    sinogram_stack = xp.fft.fft(sinogram_stack,axis=2)
-    #end = timer()
-
-    sinogram_stack = xp.fft.fftshift(sinogram_stack,axes=2)
-    
-    #print("iradon fft1=",end - start)
-
-    sinogram_stack *= hfilter
-    sinogram_stack  = xp.reshape(sinogram_stack,(num_slices,num_rays*num_angles)).T
-    #qt=xp.reshape(sinogram_stack,(num_slices,num_rays*num_angles))
-
-    #start = timer()
-    qxy=S*sinogram_stack
-    #end = timer()
-    #print("iradon SpMV=",end - start)
-
-    #start = timer()
-
-    #qxy=S*xp.reshape(sinogram_stack,(num_slices,num_rays*num_angles)).T
-    qxy=xp.reshape(qxy,(num_rays+2*k_r+1,num_rays+2*k_r+1,num_slices))
-    #end = timer()
-    #print("reshaping SpMV=",end - start)
-    #qxy[k_r:-k_r-1, k_r: -k_r-1,:] 
-    tomogram = qxy[k_r:-k_r-1, k_r: -k_r-1,:] 
-    
-    #tomogram = np.moveaxis(tomogram,0,0)
-    tomogram = np.moveaxis(tomogram,2,0)
-    # removing the highest frequency        
-    #tomogram = np.moveaxis(tomogram,0,0)
-    tomogram[:,0,:]=0
-    tomogram[:,:,0]=0
-    #tomogram=xp.fft.fftshift(tomogram,(1,2))
-
-    #tomogram=xp.fft.fftshift(tomogram,(1,2))
-
-    start = timer()
-    #tomogram=xp.fft.fftshift(xp.fft.ifft2(xp.fft.fftshift(tomogram,(1,2))),(1,2))
-    tomogram=xp.fft.fftshift(xp.fft.ifft2(tomogram),(1,2))
-    #tomogram=xp.fft.ifft2(tomogram)
-    end = timer()
-    #print("iradon fft2=",end - start)
-    #tomogram=xp.fft.fftshift(tomogram,(1,2))
-    
-    
-    
-#    for i in range(num_slices):
-#        
-#        # from (r,theta) - radon space - to (q,theta)
-#        #qt = xp.fft.fftshift(sinogram_stack[i],axes=1)
-#        qt=sinogram_stack[i]
-#        #qt = xp.fft.fft(qt,axis=1)  
-#        #qt = xp.fft.fftshift(qt,axes=1)
-#        
-#        # non uniform ifft:
-#        
-#        # density compensation
-#        #qt *= hfilter
-#        
-#        # inverse gridding from (q,theta) to (qx,qy) 
-#        qxy=S*(qt).flatten()
-#        qxy=xp.reshape(qxy,(num_rays+2*k_r+1,num_rays+2*k_r+1))
-#        #qxy=xp.reshape(S*(qt).flatten(),(num_rays+2*k_r+1,num_rays+2*k_r+1))
-#        tomogram = qxy[k_r:-k_r-1, k_r: -k_r-1] 
-#        
-#        # removing the highest frequency
-#        tomogram[0,:]=0
-#        tomogram[:,0]=0
-#        
-#        # back to (xy) space
-#        tomo_stack[i] = xp.fft.fftshift(xp.fft.ifft2(xp.fft.fftshift(tomogram)))
-    
-
-    
-    tomogram*=deapodization_factor
-
-#    tomo_stack=xp.zeros((num_slices*2, num_rays , num_rays), dtype=xp.float32 )
-#    tomo_stack[0::2,:,:]=tomogram.real
-#    tomo_stack[1::2,:,:]=tomogram.imag
-#    return tomo_stack
+#    start = timer()
 #    
+#    sinogram_stack = xp.fft.fft(sinogram_stack,axis=2)
+#    #end = timer()
+#
+#    sinogram_stack = xp.fft.fftshift(sinogram_stack,axes=2)
+#    
+#    #print("iradon fft1=",end - start)
+#
+#    sinogram_stack *= hfilter
+#    sinogram_stack  = xp.reshape(sinogram_stack,(num_slices,num_rays*num_angles)).T
+#    #qt=xp.reshape(sinogram_stack,(num_slices,num_rays*num_angles))
+#
+#    #start = timer()
+#    qxy=S*sinogram_stack
+#    #end = timer()
+#    #print("iradon SpMV=",end - start)
+#
+#    #start = timer()
+#
+#    #qxy=S*xp.reshape(sinogram_stack,(num_slices,num_rays*num_angles)).T
+#    qxy=xp.reshape(qxy,(num_rays+2*k_r+1,num_rays+2*k_r+1,num_slices))
+#    #end = timer()
+#    #print("reshaping SpMV=",end - start)
+#    #qxy[k_r:-k_r-1, k_r: -k_r-1,:] 
+#    tomogram = qxy[k_r:-k_r-1, k_r: -k_r-1,:] 
+#    
+#    #tomogram = np.moveaxis(tomogram,0,0)
+#    tomogram = np.moveaxis(tomogram,2,0)
+#    # removing the highest frequency        
+#    #tomogram = np.moveaxis(tomogram,0,0)
+#    tomogram[:,0,:]=0
+#    tomogram[:,:,0]=0
+#    #tomogram=xp.fft.fftshift(tomogram,(1,2))
+#
+#    #tomogram=xp.fft.fftshift(tomogram,(1,2))
+#
+#    start = timer()
+#    #tomogram=xp.fft.fftshift(xp.fft.ifft2(xp.fft.fftshift(tomogram,(1,2))),(1,2))
+#    tomogram=xp.fft.fftshift(xp.fft.ifft2(tomogram),(1,2))
+#    #tomogram=xp.fft.ifft2(tomogram)
+#    end = timer()
+#    #print("iradon fft2=",end - start)
+#    #tomogram=xp.fft.fftshift(tomogram,(1,2))
+#    tomogram*=deapodization_factor
+#
+#    return tomogram  
+
     
-    return tomogram
+    tomo_stack = xp.zeros((num_slices, num_rays , num_rays ),dtype=xp.complex64)
+    
+
+    for i in range(0,num_slices,2):
+        if i > num_slices-2:
+            qt=sinogram_stack[i]
+        else:
+            qt=sinogram_stack[i]+1j*sinogram_stack[i+1]
+            
+    #for i in range(num_slices):
+        
+        # from (r,theta) - radon space - to (q,theta)
+        #qt = xp.fft.fftshift(sinogram_stack[i],axes=1)
+        qt=sinogram_stack[i]
+        qt = xp.fft.fft(qt,axis=1)  
+        qt = xp.fft.fftshift(qt,axes=1)
+        
+        # non uniform iifft:
+        
+        # density compensation
+        qt *= hfilter[0,0]
+        
+        # inverse gridding from (q,theta) to (qx,qy) 
+        qxy=S*(qt).flatten()
+        qxy=xp.reshape(qxy,(num_rays+2*k_r+1,num_rays+2*k_r+1))
+        #qxy=xp.reshape(S*(qt).flatten(),(num_rays+2*k_r+1,num_rays+2*k_r+1))
+        tomogram = qxy[k_r:-k_r-1, k_r: -k_r-1] 
+        
+        # removing the highest frequency
+        tomogram[0,:]=0
+        tomogram[:,0]=0
+        
+        # back to (xy) space
+        tomogram=xp.fft.fftshift(xp.fft.ifft2((tomogram)))
+        #tomo_stack[i] = xp.fft.fftshift(xp.fft.ifft2(xp.fft.fftshift(tomogram)))
+        #tomo_stack[i] = tomogram
+        if i > num_slices-2:
+            tomo_stack[i]=tomogram.real
+        else:
+            tomo_stack[i]=tomogram.real
+            tomo_stack[i+1]=tomogram.imag
+    
+
+    
+    tomo_stack*=deapodization_factor
+
+#    return tomo_stack
+  
+    
+#    tomo_stack1=xp.zeros((num_slices0, num_rays , num_rays), dtype=xp.float32 )
+#    tomo_stack1[0::2,:,:]=tomo_stack.real
+#    tomo_stack1[1::2,:,:]=tomo_stack[:num_slices0*2,:,:].imag
+    return tomo_stack
+    
+
 
     #return tomogram
 
 def radon(tomo_stack, deapodization_factor, ST, k_r, num_angles ):
     
+    xp=np
     num_slices = tomo_stack.shape[0]
     
     num_rays   = tomo_stack.shape[2]
 
     sinogram_stack = np.zeros((num_slices, num_angles, num_rays),dtype=np.complex64)
 
-
-    qxy = np.zeros((num_rays+2*k_r+1, num_rays+2*k_r+1), dtype=np.complex64)
     
-    #tomo_stack*=deapodization
+#    qxy = np.zeros((num_slices,num_rays+2*k_r+1, num_rays+2*k_r+1), dtype=np.complex64)
+#    
+#    tomo_stack1 = tomo_stack*deapodization_factor
+#    tomo_stack1 = np.fft.fft2(np.fft.fftshift(tomo_stack1,axes=(1,2)))
+#    qxy[:,k_r+1:-k_r-1, k_r+1: -k_r-1] = tomo_stack1[:,1:,1:]
+#    
+#    qxy=np.reshape(qxy,(num_slices,(num_rays+2*k_r+1)**2)).T
+#    sinogram=np.reshape(ST*qxy,(num_angles,num_rays,num_slices))
+#    sinogram = np.moveaxis(sinogram,2,0)
+#    sinogram[:,:,0]=0
+#    
+#    sinogram = xp.fft.fftshift(sinogram,axes=2)
+#    
+#    sinogram = xp.fft.fft(sinogram,axis=2)
+#    #end = timer()
+#
+#    sinogram = xp.fft.fftshift(sinogram,axes=2)
+#    return sinogram
+
+    
+#    
+#    print("qxy shape",qxy.shape,"S shape",ST.shape)
+#    print("sinogram",sinogram.shape)
+#    
+    qxy = np.zeros((num_rays+2*k_r+1, num_rays+2*k_r+1), dtype=np.complex64)
     
     for i in range(num_slices):
         
         tomo_slice = tomo_stack[i] * deapodization_factor[0]
         # forward 2D fft centered
-        #tomo_slice = tomo_stack[i]
+        
+        if i== num_slices//2:
+            tomo_slice+=0
+            
         
         #tomo_slice = np.fft.ifftshift(np.fft.fft2(np.fft.fftshift(tomo_slice)))
         tomo_slice = np.fft.fft2(np.fft.fftshift(tomo_slice))
+        #tomo_slice = tomo_stack1[i]
+        
         # copy to qxy while removing the highest frequency
         qxy[k_r+1:-k_r-1, k_r+1: -k_r-1] = tomo_slice[1:,1:]
-
+        
+        #print("qxy shape",qxy.shape,"S shape",ST.shape)
+        
         sinogram=np.reshape(ST*(qxy).flatten(),(num_angles,num_rays))
 
         sinogram[:,0]=0
