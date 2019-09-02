@@ -89,6 +89,27 @@ def deapodization(num_rays,kernel_type,xp,k_r=2, beta=1, sigma=2):
     
     return 1./apodization_factor
 
+def deapodization_shifted(num_rays,kernel_type,xp,k_r=2, beta=1, sigma=2):
+    #stencil=np.array([range(-k_r, k_r+1),]
+    sampling=2
+    step=1./sampling
+    stencil=np.array([np.arange(-k_r, k_r+1-step*(sampling-1),step),])
+   
+    ktilde=K1(stencil,k_r, kernel_type, xp,  beta, sigma)
+    
+    padding_array = ((0,0),(num_rays*sampling//2 - k_r*sampling , num_rays*sampling//2 - k_r*sampling-1))
+    ktilde1=np.lib.pad(ktilde, padding_array, 'constant', constant_values=0)
+    # ktilde1 = np.fft.fftshift(np.fft.ifft(np.fft.ifftshift(ktilde1)))
+    ktilde1 = np.fft.fftshift(np.fft.ifft(ktilde1))
+    #print("ratio i/r=", np.max(abs(deapodization_factor.imag))/np.max(abs(deapodization_factor.real)))
+
+    ktilde2=(ktilde1[:,num_rays*(sampling)//2-num_rays//2:num_rays*(sampling)//2+num_rays//2]).real
+    
+    apodization_factor = ktilde2 * ktilde2.T
+    
+    return 1./apodization_factor
+
+
 def deapodization_simple(num_rays,kernel_type,xp,k_r=2, beta=1, sigma=2):
     ktilde=K1(np.array([range(-k_r, k_r+1),] ), k_r, kernel_type, xp,  beta, sigma)
     padding_array = ((0,0),(num_rays//2 - k_r , num_rays//2 - k_r-1))
@@ -367,12 +388,19 @@ def radon_setup(num_rays, theta_array, xp=np, kernel_type = 'gaussian', k_r = 2)
     
 
     
-    deapodization_factor = deapodization(num_rays, kernel_type, xp, k_r)
+    #deapodization_factor = deapodization(num_rays, kernel_type, xp, k_r)
+    deapodization_factor = deapodization_shifted(num_rays, kernel_type, xp, k_r)
+    deapodization_factor=xp.reshape(deapodization_factor,(1,num_rays,num_rays))
     
     # get the filter
     num_angles=theta_array.shape[0]
     print("num_angles", num_angles)
-    ramlak_filter = (xp.abs(xp.array(range(num_rays)) - num_rays/2)+1./num_rays)*2./(num_rays**2)/num_angles*1.1184626
+    ramlak_filter = (xp.abs(xp.array(range(num_rays)) - num_rays/2)+1./num_rays)*k_r/(num_rays**2)/num_angles*1.1184626
+    
+    # this is to avoid one fftshift
+    ramlak_filter*=(-1)**np.arange(num_rays);
+    
+    
     # removing the highest frequency
     ramlak_filter[0]=0;
 
@@ -383,6 +411,9 @@ def radon_setup(num_rays, theta_array, xp=np, kernel_type = 'gaussian', k_r = 2)
             
     
     R  = lambda tomo:  radon(tomo, deapodization_factor/num_rays/3.5*1.046684, ST, k_r, num_angles )
+    
+    
+    #IR = lambda sino: iradon(sino, deapodization_factor, S,  k_r, ramlak_filter )
     IR = lambda sino: iradon(sino, deapodization_factor, S,  k_r, ramlak_filter )
     #iradon(sinogram_stack, deapodization_factor, S, k_r , hfilter): 
    
@@ -608,30 +639,64 @@ def Overlap_GPU(image, frames, coord_x, coord_y, k_r):
 def iradon(sinogram_stack, deapodization_factor, S, k_r , hfilter): 
               #iradon(sino, deapodization_factor, S,  k_r, ramlak_filter )
     xp=np
+    
+#    sino=sinogram_stack[0::2,:,:]+1j*sinogram_stack[1::2,:,:]
+#    sinogram_stack = sino
+#    
+    
     num_slices = sinogram_stack.shape[0]
     num_angles = sinogram_stack.shape[1]
     num_rays   = sinogram_stack.shape[2]
     
-    tomo_stack = xp.zeros((num_slices, num_rays , num_rays ),dtype=xp.complex64)
+    #tomo_stack = xp.zeros((num_slices, num_rays , num_rays ),dtype=xp.complex64)
     
-    sinogram_stack = xp.fft.fftshift(sinogram_stack,axes=2)
+    # we can avoid the initial fftshift by modifying the input filter
+    #sinogram_stack = xp.fft.fftshift(sinogram_stack,axes=2)
+    
+    start = timer()
+    
     sinogram_stack = xp.fft.fft(sinogram_stack,axis=2)
+    #end = timer()
+
     sinogram_stack = xp.fft.fftshift(sinogram_stack,axes=2)
+    
+    #print("iradon fft1=",end - start)
+
     sinogram_stack *= hfilter
     sinogram_stack  = xp.reshape(sinogram_stack,(num_slices,num_rays*num_angles)).T
     #qt=xp.reshape(sinogram_stack,(num_slices,num_rays*num_angles))
+
+    #start = timer()
     qxy=S*sinogram_stack
-    
+    #end = timer()
+    #print("iradon SpMV=",end - start)
+
+    #start = timer()
+
     #qxy=S*xp.reshape(sinogram_stack,(num_slices,num_rays*num_angles)).T
     qxy=xp.reshape(qxy,(num_rays+2*k_r+1,num_rays+2*k_r+1,num_slices))
+    #end = timer()
+    #print("reshaping SpMV=",end - start)
     #qxy[k_r:-k_r-1, k_r: -k_r-1,:] 
     tomogram = qxy[k_r:-k_r-1, k_r: -k_r-1,:] 
+    
+    #tomogram = np.moveaxis(tomogram,0,0)
+    tomogram = np.moveaxis(tomogram,2,0)
     # removing the highest frequency        
-    tomogram = np.moveaxis(tomogram,0,0)
+    #tomogram = np.moveaxis(tomogram,0,0)
     tomogram[:,0,:]=0
     tomogram[:,:,0]=0
     #tomogram=xp.fft.fftshift(tomogram,(1,2))
-    tomogram=xp.fft.fftshift(xp.fft.ifft2(xp.fft.fftshift(tomogram,(1,2))),(1,2))
+
+    #tomogram=xp.fft.fftshift(tomogram,(1,2))
+
+    start = timer()
+    #tomogram=xp.fft.fftshift(xp.fft.ifft2(xp.fft.fftshift(tomogram,(1,2))),(1,2))
+    tomogram=xp.fft.fftshift(xp.fft.ifft2(tomogram),(1,2))
+    #tomogram=xp.fft.ifft2(tomogram)
+    end = timer()
+    #print("iradon fft2=",end - start)
+    #tomogram=xp.fft.fftshift(tomogram,(1,2))
     
     
     
@@ -663,8 +728,17 @@ def iradon(sinogram_stack, deapodization_factor, S, k_r , hfilter):
     
 
     
-    tomo_stack*=deapodization_factor
-    return tomo_stack
+    tomogram*=deapodization_factor
+
+#    tomo_stack=xp.zeros((num_slices*2, num_rays , num_rays), dtype=xp.float32 )
+#    tomo_stack[0::2,:,:]=tomogram.real
+#    tomo_stack[1::2,:,:]=tomogram.imag
+#    return tomo_stack
+#    
+    
+    return tomogram
+
+    #return tomogram
 
 def radon(tomo_stack, deapodization_factor, ST, k_r, num_angles ):
     
@@ -677,12 +751,16 @@ def radon(tomo_stack, deapodization_factor, ST, k_r, num_angles ):
 
     qxy = np.zeros((num_rays+2*k_r+1, num_rays+2*k_r+1), dtype=np.complex64)
     
+    #tomo_stack*=deapodization
     
     for i in range(num_slices):
-        tomo_slice = tomo_stack[i] * deapodization_factor
+        
+        tomo_slice = tomo_stack[i] * deapodization_factor[0]
         # forward 2D fft centered
-
-        tomo_slice = np.fft.ifftshift(np.fft.fft2(np.fft.fftshift(tomo_slice)))
+        #tomo_slice = tomo_stack[i]
+        
+        #tomo_slice = np.fft.ifftshift(np.fft.fft2(np.fft.fftshift(tomo_slice)))
+        tomo_slice = np.fft.fft2(np.fft.fftshift(tomo_slice))
         # copy to qxy while removing the highest frequency
         qxy[k_r+1:-k_r-1, k_r+1: -k_r-1] = tomo_slice[1:,1:]
 
