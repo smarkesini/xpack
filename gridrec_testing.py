@@ -28,7 +28,9 @@ import subprocess
 import operator
 import os
 
-from timeit import default_timer as timer
+#from timeit import default_timer as timer
+#from timeit import timer as timer
+from time import process_time as timer
 
 
 #from mpi4py import *
@@ -107,7 +109,7 @@ except:
 
 size = 64*2
 
-num_slices = size
+num_slices = size//2
 num_angles = int(np.ceil(size//2*np.pi*2))
 #num_angles = 180
 #num_angles = 512
@@ -161,17 +163,19 @@ mode = "python"
 start = timer()
 simulation1=radon(true_obj)
 end = timer()
-simulation1=simulation1[num_slices//2:num_slices//2+1]
+#
+simulation1s=simulation1[num_slices//2:num_slices//2+1]
+
 print("new simulation time=",end - start)
 
 
 #simulation1 = gridrec.gridrec_transpose(true_obj, theta, num_rays, k_r, kernel_type, xp, mode)
-print("ratio gridrec_transpose i/r=", np.max(np.abs(np.imag(simulation1[0])))/np.max(np.real(simulation1[0])))
-simulation1=simulation1.real
-scaling_1_0=(np.sum(simulation * simulation1))/np.sum(simulation1 *simulation1)
+#print("ratio gridrec_transpose i/r=", np.max(np.abs(np.imag(simulation1s[0])))/np.max(np.real(simulation1[0])))
+simulation1s=simulation1s.real
+scaling_1_0=(np.sum(simulation * simulation1s))/np.sum(simulation1s *simulation1s)
 
 #simulation = np.swapaxes(simulation,0,1)
-plt.imshow(np.real(simulation1[0]))
+plt.imshow(np.real(simulation1s[0]))
 plt.show()
 
 
@@ -182,14 +186,24 @@ plt.show()
 start = timer()
 #tomo_stack = tomopy.recon(simulation[num_slices//2:num_slices//2+1], theta, center=None, sinogram_order=True, algorithm="gridrec", filter_name='ramlak')
 tomo_stack = tomopy.recon(simulation, theta, center=None, sinogram_order=True, algorithm="gridrec", filter_name='ramlak')
+tomo_stack = tomopy.recon(simulation, theta, center=None, sinogram_order=True, algorithm="gridrec", filter_name='ramlak')
+tomo_stack = tomopy.recon(simulation, theta, center=None, sinogram_order=True, algorithm="gridrec", filter_name='ramlak')
 end = timer()
-print("tomopy recon time=",end - start)
+tomopy_time=(end - start)/3
+print("tomopy recon time=",tomopy_time)
+
+simulation1=simulation1.real
 
 start = timer()
 tomo_stack_g = iradon(simulation1)
+tomo_stack_g = iradon(simulation1)
+tomo_stack_g = iradon(simulation1)
 #tomo_stack_g = iradon(simulation[num_slices//2:num_slices//2+1])
 end = timer()
-print("spmv recon time  =",end - start)
+spmv_time=(end - start)/3
+
+#print("tomopy recon time=",tomopy_time)
+print("spmv recon time  =",spmv_time)
 
 tomo_stack = tomopy.recon(simulation[num_slices//2:num_slices//2+1], theta, center=None, sinogram_order=True, algorithm="gridrec", filter_name='ramlak')
 
@@ -205,12 +219,15 @@ xp = np
 sim=simulation[num_slices//2:num_slices//2+1,:]
 #sim1=simulation1[num_slices//2:num_slices//2+1,:]
 #tomo_stack1 = gridrec.gridrec(sim1, theta, num_rays, k_r,"gaussian", xp, "gridrec")
-tomo_stack1 = iradon(simulation1)
+#simulation1=simulation1
+
+#tomo_stack1 = iradon(simulation1)
+tomo_stack1 = tomo_stack_g
 #tomo_stack1 = iradon(sim1)
 
 
 #tomo_stack1 = gridrec.gridrec(sim1, theta, num_rays, k_r,kernel_type="gaussian", xp,  algorithm="gridrec")
-plt.imshow((tomo_stack1[0]).real)
+plt.imshow((tomo_stack1[num_slices//2]).real)
 
 #plt.imshow((tomo_stack1[0,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3]).real)
 plt.show()
@@ -218,7 +235,7 @@ plt.show()
 print("gridrec i/r=", np.max(abs(tomo_stack1.imag))/np.max(abs(tomo_stack1.real)))
 
 tomo_stackc=tomo_stack[0,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3]
-tomo_stack1c=(tomo_stack1[0,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3]).real
+tomo_stack1c=(tomo_stack1[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3]).real
 tomo_stack0c=true_obj[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3]
 
 plt.imshow(tomo_stackc)
@@ -240,6 +257,9 @@ print("scaling tomopy/nufft",scaling1c)
 snr0=np.sum(abs(tomo_stackc*scalingc-tomo_stack0c)**2)/np.sum(tomo_stack0c**2)
 snr1=np.sum(abs(tomo_stack1c*scaling1c-tomo_stack0c)**2)/np.sum(tomo_stack0c**2)
 print("snrs",1./snr0,1./snr1)
+
+print("tomopy recon time=",tomopy_time)
+print("spmv recon time  =",spmv_time)
 
 
 #
