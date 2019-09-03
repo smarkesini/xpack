@@ -105,7 +105,7 @@ except:
     base_folder = gridrec.create_unique_folder("shepp_logan")
     
 
-size = 64
+size = 64*2
 
 num_slices = size
 num_angles = int(np.ceil(size//2*np.pi*2))

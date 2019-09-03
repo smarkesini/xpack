@@ -346,9 +346,14 @@ def gridding_setup(num_rays, theta_array, xp=np, kernel_type = 'gaussian', k_r =
     stencilx=xp.reshape(stencil,[1,1,2*k_r+1,1])
     stencily=xp.reshape(stencil,[1,1,1,2*k_r+1])
 
+    #qray = xp.array([range(num_rays) ]) - num_rays/2
+    # this avoids one fftshift
+    qray = xp.fft.fftshift(xp.array([range(num_rays) ]) - num_rays/2)
+
     # coordinates of the points on the  grid
-    px = - (xp.sin(np.reshape(theta_array,[num_angles,1]))) * (xp.array([range(num_rays) ]) - num_rays/2)+ num_rays/2 + k_r  #adding k_r accounts for the padding
-    py =   (xp.cos(np.reshape(theta_array,[num_angles,1]))) * (xp.array([range(num_rays) ]) - num_rays/2)+ num_rays/2 + k_r  #adding k_r accounts for the padding
+    px = - (xp.sin(np.reshape(theta_array,[num_angles,1]))) * (qray)+ num_rays/2 + k_r  #adding k_r accounts for the padding
+    py =   (xp.cos(np.reshape(theta_array,[num_angles,1]))) * (qray)+ num_rays/2 + k_r  #adding k_r accounts for the padding
+    
     
     # output index
     pind = xp.array(range(num_rays*num_angles))
@@ -365,27 +370,61 @@ def gridding_setup(num_rays, theta_array, xp=np, kernel_type = 'gaussian', k_r =
     
     
     # expand coordinates with stencils
-    kx=stencilx+xp.around(px)
-    ky=stencily+xp.around(py)
+    #kx=stencilx+xp.around(px)
+    #ky=stencily+xp.around(py)
+    
+    # shift stencils and find points out of bound
+    kx=stencilx+xp.around(px)-k_r
+    ky=stencily+xp.around(py)-k_r
+    #ii=xp.where((kx>=0) & (ky>=0) & (kx<=num_rays-1) & (ky<=num_rays-1))
+    # let's remoce the 0 frequencies as well (kx=0,ky=0)
+    ii=xp.where((kx>=1) & (ky>=1) & (kx<=num_rays-1) & (ky<=num_rays-1))
+
+    
+    rays=xp.reshape(np.arange(num_rays),[1,num_rays,1,1])
+    # fftshift2 the output
+    Kval*=((-1)**kx)*((-1)**ky)*((-1)**rays)
+    
+    xp.reshape((-1)**np.arange(num_rays),[1,num_rays,1,1])
+    #kx=np.mod(kx+num_rays//2,num_rays)
+    #ky=np.mod(kx+num_rays//2,num_rays)
+    
 
   # row  index (where the output goes)
-    Krow=((kx)*(num_rays+2*k_r+1)+ky)
+    Krow=((kx)*(num_rays)+ky)
+    #Krow=((kx)*(num_rays+2*k_r+1)+ky)
     # column index (where to get the input)
     Kcol=(pind+kx*0+ky*0)
     
+    # remove points out of bound
+    Krow=Krow[ii]
+    Kcol=Kcol[ii]
+    Kval=Kval[ii]
+
     # create sparse array   
-    S=scipy.sparse.csr_matrix((Kval.flatten(), (Krow.flatten(), Kcol.flatten())), shape=((num_rays+2*k_r+1)**2, num_angles*num_rays))
+    S=scipy.sparse.csr_matrix((Kval.flatten(), (Krow.flatten(), Kcol.flatten())), shape=((num_rays)**2, num_angles*num_rays))
 
     # note that we swap column and rows to get the transpose
-    ST=scipy.sparse.csr_matrix((Kval.flatten(),(Kcol.flatten(), Krow.flatten())), shape=(num_angles*num_rays, (num_rays+2*k_r+1)**2))
+    ST=scipy.sparse.csr_matrix((Kval.flatten(),(Kcol.flatten(), Krow.flatten())), shape=(num_angles*num_rays, (num_rays)**2))
+
+    
+#    # create sparse array   
+#    S=scipy.sparse.csr_matrix((Kval.flatten(), (Krow.flatten(), Kcol.flatten())), shape=((num_rays+2*k_r+1)**2, num_angles*num_rays))
+#
+#    # note that we swap column and rows to get the transpose
+#    ST=scipy.sparse.csr_matrix((Kval.flatten(),(Kcol.flatten(), Krow.flatten())), shape=(num_angles*num_rays, (num_rays+2*k_r+1)**2))
     
        
     return S, ST
 
 def radon_setup(num_rays, theta_array, xp=np, kernel_type = 'gaussian', k_r = 2):
 
+    print("seting up gridding")
+    start = timer()
+
     S, ST = gridding_setup(num_rays, theta_array, xp, kernel_type , k_r)
-    
+    end = timer()
+    print("gridding setup time=",end - start)
 
     
     #deapodization_factor = deapodization(num_rays, kernel_type, xp, k_r)
@@ -395,28 +434,31 @@ def radon_setup(num_rays, theta_array, xp=np, kernel_type = 'gaussian', k_r = 2)
     # get the filter
     num_angles=theta_array.shape[0]
     print("num_angles", num_angles)
-    ramlak_filter = (xp.abs(xp.array(range(num_rays)) - num_rays/2)+1./num_rays)/(num_rays**2)/num_angles/9.8
+    #ramlak_filter = (xp.abs(xp.array(range(num_rays)) - num_rays/2)+1./num_rays)/(num_rays**2)/num_angles/9.8
+    ramlak_filter = (xp.abs(xp.array(range(num_rays)) - num_rays/2)+1./num_rays)/(num_rays**3)/num_angles*13.06381
     
     # this is to avoid one fftshift
-    ramlak_filter*=(-1)**np.arange(num_rays);
+    #ramlak_filter*=(-1)**np.arange(num_rays);
     
     
     # removing the highest frequency
     ramlak_filter[0]=0;
+    
+    # we shiftet the sparse matrix output
+    ramlak_filter=xp.fft.fftshift(ramlak_filter)
 
     #ramlak_filter = ramlak_filter.reshape((1, ramlak_filter.size))
     ramlak_filter = ramlak_filter.reshape((1, 1, ramlak_filter.size))
     
     
-            
+    dpr= deapodization_factor/num_rays/3.5*1.046684
     
-    R  = lambda tomo:  radon(tomo, deapodization_factor/num_rays/3.5*1.046684, ST, k_r, num_angles )
+    R  = lambda tomo:  radon(tomo, dpr , ST, k_r, num_angles )
     
     
-    #IR = lambda sino: iradon(sino, deapodization_factor, S,  k_r, ramlak_filter )
     IR = lambda sino: iradon(sino, deapodization_factor, S,  k_r, ramlak_filter )
-    #iradon(sinogram_stack, deapodization_factor, S, k_r , hfilter): 
-   
+    
+    
     return R,IR
     
 
@@ -436,7 +478,7 @@ def grid_rec_one_slice_transposeSpMV(qxy, theta_array, num_rays, k_r, kernel_typ
     stencil=np.array([range(-k_r, k_r+1),])
     stencilx=np.reshape(stencil,[1,1,2*k_r+1,1])
     stencily=np.reshape(stencil,[1,1,1,2*k_r+1])
-
+    
     # coordinates of the points on the  grid
     px = - (xp.sin(np.reshape(theta_array,[num_angles,1]))) * (xp.array([range(num_rays) ]) - num_rays/2)+ num_rays/2 + k_r  #adding k_r accounts for the padding
     py =   (xp.cos(np.reshape(theta_array,[num_angles,1]))) * (xp.array([range(num_rays) ]) - num_rays/2)+ num_rays/2 + k_r  #adding k_r accounts for the padding
@@ -697,7 +739,7 @@ def iradon(sinogram_stack, deapodization_factor, S, k_r , hfilter):
 
     
     tomo_stack = xp.zeros((num_slices, num_rays , num_rays ),dtype=xp.complex64)
-    
+    nrna=num_rays*num_angles
 
     for i in range(0,num_slices,2):
         if i > num_slices-2:
@@ -709,27 +751,38 @@ def iradon(sinogram_stack, deapodization_factor, S, k_r , hfilter):
         
         # from (r,theta) - radon space - to (q,theta)
         #qt = xp.fft.fftshift(sinogram_stack[i],axes=1)
-        qt=sinogram_stack[i]
+        #qt=sinogram_stack[i]
         qt = xp.fft.fft(qt,axis=1)  
-        qt = xp.fft.fftshift(qt,axes=1)
+        #qt = xp.fft.fftshift(qt,axes=1)
         
         # non uniform iifft:
         
         # density compensation
         qt *= hfilter[0,0]
-        
+        # qt *= xp.fft.fftshift(hfilter[0,0])
+        qt=np.reshape(qt,(nrna,1))
         # inverse gridding from (q,theta) to (qx,qy) 
-        qxy=S*(qt).flatten()
-        qxy=xp.reshape(qxy,(num_rays+2*k_r+1,num_rays+2*k_r+1))
+        #qxy=S*(qt).flatten()
+        #qxy=xp.reshape(qxy,(num_rays+2*k_r+1,num_rays+2*k_r+1))
+        #tomogram=xp.reshape(S*(qt).flatten(),(num_rays,num_rays))
+        tomogram=xp.reshape(S*(qt),(num_rays,num_rays))
+        
         #qxy=xp.reshape(S*(qt).flatten(),(num_rays+2*k_r+1,num_rays+2*k_r+1))
-        tomogram = qxy[k_r:-k_r-1, k_r: -k_r-1] 
+        #tomogram = qxy[k_r:-k_r-1, k_r: -k_r-1] 
+        #tomogram = qxy
         
         # removing the highest frequency
-        tomogram[0,:]=0
-        tomogram[:,0]=0
+        #tomogram[0,:]=0
+        #tomogram[:,0]=0
+        
+        #tomogram[num_rays//2,:]=0
+        #tomogram[:,num_rays//2]=0
+        
+        
         
         # back to (xy) space
-        tomogram=xp.fft.fftshift(xp.fft.ifft2((tomogram)))
+        #tomogram=xp.fft.fftshift(xp.fft.ifft2((tomogram)))
+        tomogram=xp.fft.ifft2(tomogram)
         #tomo_stack[i] = xp.fft.fftshift(xp.fft.ifft2(xp.fft.fftshift(tomogram)))
         #tomo_stack[i] = tomogram
         if i > num_slices-2:
@@ -800,24 +853,33 @@ def radon(tomo_stack, deapodization_factor, ST, k_r, num_angles ):
             
         
         #tomo_slice = np.fft.ifftshift(np.fft.fft2(np.fft.fftshift(tomo_slice)))
-        tomo_slice = np.fft.fft2(np.fft.fftshift(tomo_slice))
-        #tomo_slice = tomo_stack1[i]
+        #tomo_slice = np.fft.fft2(np.fft.fftshift(tomo_slice))
+        tomo_slice = np.fft.fft2(tomo_slice)
         
+        #tomo_slice = tomo_stack1[i]
+        #tomo_slice[0,:]=0
+        #tomo_slice[:,0]=0
         # copy to qxy while removing the highest frequency
-        qxy[k_r+1:-k_r-1, k_r+1: -k_r-1] = tomo_slice[1:,1:]
+        #qxy[k_r+1:-k_r-1, k_r+1: -k_r-1] = tomo_slice[1:,1:]
         
         #print("qxy shape",qxy.shape,"S shape",ST.shape)
         
-        sinogram=np.reshape(ST*(qxy).flatten(),(num_angles,num_rays))
+        sinogram=np.reshape(ST*(tomo_slice).flatten(),(num_angles,num_rays))
 
-        sinogram[:,0]=0
+        #sinogram=np.reshape(ST*(qxy).flatten(),(num_angles,num_rays))
+
+        #sinogram[:,0]=0
+        #sinogram = np.fft.ifftshift(sinogram,axes=1)  
         
-        # inverse 2D fft centered
+        # we shifted the ST array
+        sinogram[:,num_rays//2]=0
         
-        sinogram = np.fft.ifftshift(sinogram,axes=1)        
+        # inverse fft centered
+        
+              
         sinogram = np.fft.ifft(sinogram,axis=1)        
 
-        sinogram = np.fft.ifftshift(sinogram,axes=1)
+        #sinogram = np.fft.ifftshift(sinogram,axes=1)
         
         sinogram_stack[i]=sinogram
     
