@@ -15,7 +15,7 @@ Created on Thu Jul 25 19:14:36 2019
 """
 
 import numpy as np
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import tomopy
 import h5py
 import dxchange
@@ -148,7 +148,8 @@ radon,iradon=gridrec.radon_setup(num_rays, theta, xp=np, kernel_type = 'gaussian
 start = timer()
 simulation = gridrec.forward_project(true_obj, theta)
 end = timer()
-print("tomopy simulation time=",end - start)
+time_tomopy_forward=end-start
+print("tomopy simulation time=", time_tomopy_forward)
 
 
 #The simulation generates a stack of projections, meaning, it changes the dimensions order
@@ -156,8 +157,8 @@ print("tomopy simulation time=",end - start)
 
 #simulation = np.swapaxes(simulation,0,1)
 
-#plt.imshow(simulation[num_slices//2])
-#plt.show()
+plt.imshow(simulation[num_slices//2])
+plt.show()
 
 import numpy as xp
 kernel_type = 'gaussian'
@@ -180,20 +181,20 @@ simulation1=radon(true_obj)
 #simulation1*=msk_sino
 
 end = timer()
+time_radon=end-start
 #
-simulation1s=simulation1[num_slices//2:num_slices//2+1]
+#simulation1s=simulation1[num_slices//2:num_slices//2+1]
+print("tomopy simulation time=", time_tomopy_forward)
 
-print("new simulation time=",end - start)
-
+simulation1s=radon(true_obj[num_slices//2:num_slices//2+1])[0]
 
 #simulation1 = gridrec.gridrec_transpose(true_obj, theta, num_rays, k_r, kernel_type, xp, mode)
-print("ratio gridrec_transpose i/r=",  np.max(np.imag(simulation1[num_slices//2]))/np.max(np.abs(np.real(simulation1[num_slices//2]))))
 simulation1s=simulation1s.real
 scaling_1_0=(np.sum(simulation * simulation1s))/np.sum(simulation1s *simulation1s)
 
 #simulation = np.swapaxes(simulation,0,1)
-#plt.imshow(np.real(simulation1s[0]))
-#plt.show()
+plt.imshow(np.real(simulation1s))
+plt.show()
 
 
 #tomo_stack = tomopy.recon(simulation, theta, center=None, sinogram_order=True, algorithm="gridrec")
@@ -211,7 +212,6 @@ simulation1=simulation1.real
 
 start = timer()
 tomo_stack_g = iradon(simulation1)
-tomo_stack_g
 #tomo_stack_g = iradon(simulation[num_slices//2:num_slices//2+1])
 end = timer()
 spmv_time=(end - start)
@@ -220,9 +220,6 @@ spmv_time=(end - start)
 print("spmv recon time  =",spmv_time)
 
 tomo_stack = tomopy.recon(simulation[num_slices//2:num_slices//2+1], theta, center=None, sinogram_order=True, algorithm="gridrec", filter_name='ramlak')
-
-#plt.imshow(tomo_stack[0])
-#plt.show()
 
 
 
@@ -243,10 +240,10 @@ tomo_stack1 = tomo_stack_g
 
 
 #tomo_stack1 = gridrec.gridrec(sim1, theta, num_rays, k_r,kernel_type="gaussian", xp,  algorithm="gridrec")
-#plt.imshow((tomo_stack1[num_slices//2]).real)
+plt.imshow((tomo_stack1[num_slices//2]).real)
 
 #plt.imshow((tomo_stack1[0,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3]).real)
-#plt.show()
+plt.show()
 
 print("gridrec i/r=", np.max(abs(tomo_stack1.imag))/np.max(abs(tomo_stack1.real)))
 
@@ -254,10 +251,10 @@ tomo_stackc=tomo_stack[0,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3]
 tomo_stack1c=(tomo_stack1[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3]).real
 tomo_stack0c=true_obj[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3]
 
-#plt.imshow(tomo_stackc)
-#plt.show()
-#plt.imshow(tomo_stack1c.real)
-#plt.show()
+plt.imshow(tomo_stackc)
+plt.show()
+plt.imshow(tomo_stack1c.real)
+plt.show()
 
 
 #
@@ -270,12 +267,16 @@ print("forward tomopy/nufft scaling=", scaling_1_0)
 
 print("scaling tomopy/nufft",scaling1c)
 
-snr0=np.sum(abs(tomo_stackc*scalingc-tomo_stack0c)**2)/np.sum(tomo_stack0c**2)
-snr1=np.sum(abs(tomo_stack1c*scaling1c-tomo_stack0c)**2)/np.sum(tomo_stack0c**2)
-print("snrs",1./snr0,1./snr1)
+snr_tomopy=np.sum(tomo_stack0c**2)/np.sum(abs(tomo_stackc*scalingc-tomo_stack0c)**2)
+snr_spmv  =np.sum(tomo_stack0c**2)/np.sum(abs(tomo_stack1c*scaling1c-tomo_stack0c)**2)
+#print("snr tomopy",snr_tomopy,snr_spmv)
 
-print("tomopy recon time=",tomopy_time)
-print("spmv recon time  =",spmv_time)
+#print("tomopy simulation time=", time_tomopy_forward)
+#print("new simulation time=",time_radon)
+print("tomopy rec time =%g, sim time %g, snr=%g " %(tomopy_time, time_tomopy_forward, snr_tomopy))
+
+#print("tomopy rec time  = ",tomopy_time, "sim time", time_tomopy_forward, "srn", snr_tomopy)
+print("spmv   rec time =%g, sim time %g, snr %g"% (spmv_time, time_radon, snr_spmv))
 
 
 #
