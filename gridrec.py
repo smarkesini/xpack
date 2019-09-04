@@ -8,8 +8,7 @@ Created on Mon Jul  1 14:25:06 2019
 
 #Gridrec algorithm based on pseudocode using Gaussian kernel
 #from numba import jit
-import matplotlib.pyplot as plt
-import numpy as np
+#import matplotlib.pyplot as plt
 #import h5py
 #import dxchange
 import tomopy
@@ -17,6 +16,7 @@ import tomopy
 import imageio
 import os
 from timeit import default_timer as timer
+import numpy as np
 import scipy
 #import cupy as cp
 
@@ -40,7 +40,7 @@ import scipy
 
 def gaussian_kernel(x, k_r, sigma, xp): #using sigma=2 since this is the default value for sigma
 #    kernel1 = xp.exp(-1/2 * (x/sigma)**2 *16)
-    kernel1 = xp.exp(-1/2 * 8 * (x/sigma)**2 )
+    kernel1 = xp.exp(-1/2 * 10 * (x/sigma)**2 )
     kernel1 = kernel1* (xp.abs(x) <= k_r)
     return kernel1 
     
@@ -72,7 +72,7 @@ def K2(x, y, kernel_type, xp, k_r=2, beta=1, sigma=2): #k_r and beta are paramet
 
 def deapodization(num_rays,kernel_type,xp,k_r=2, beta=1, sigma=2):
     #stencil=np.array([range(-k_r, k_r+1),]
-    sampling=2
+    sampling=8
     step=1./sampling
     stencil=np.array([np.arange(-k_r, k_r+1-step*(sampling-1),step),])
    
@@ -91,7 +91,7 @@ def deapodization(num_rays,kernel_type,xp,k_r=2, beta=1, sigma=2):
 
 def deapodization_shifted(num_rays,kernel_type,xp,k_r=2, beta=1, sigma=2):
     #stencil=np.array([range(-k_r, k_r+1),]
-    sampling=2
+    sampling=32
     step=1./sampling
     stencil=np.array([np.arange(-k_r, k_r+1-step*(sampling-1),step),])
    
@@ -382,8 +382,10 @@ def gridding_setup(num_rays, theta_array, xp=np, kernel_type = 'gaussian', k_r =
 
     
     rays=xp.reshape(np.arange(num_rays),[1,num_rays,1,1])
+    rays=(-1)**rays     #fftshift
+    rays[:,num_rays//2,:,:]=0 # removing highest frequency
     # fftshift2 the output
-    Kval*=((-1)**kx)*((-1)**ky)*((-1)**rays)
+    Kval*=((-1)**kx)*((-1)**ky)*(rays)
     
     xp.reshape((-1)**np.arange(num_rays),[1,num_rays,1,1])
     #kx=np.mod(kx+num_rays//2,num_rays)
@@ -400,10 +402,17 @@ def gridding_setup(num_rays, theta_array, xp=np, kernel_type = 'gaussian', k_r =
     Krow=Krow[ii]
     Kcol=Kcol[ii]
     Kval=Kval[ii]
-
+    
+    print("Kval type",Kval.dtype,"Krow type",Krow.dtype)
+    #Kval=np.float32(Kval)
+    Kval=np.complex64(Kval)
+    Krow=np.longlong(Krow)
+    Kcol=np.longlong(Kcol)
+    
+    
     # create sparse array   
-    #S=scipy.sparse.csc_matrix((Kval.flatten(), (Krow.flatten(), Kcol.flatten())), shape=((num_rays)**2, num_angles*num_rays))
-    S=scipy.sparse.csr_matrix((Kval.ravel(), (Krow.ravel(), Kcol.ravel())), shape=((num_rays)**2, num_angles*num_rays))
+    S=scipy.sparse.csc_matrix((Kval.ravel(), (Krow.ravel(), Kcol.ravel())), shape=((num_rays)**2, num_angles*num_rays))
+    #S=scipy.sparse.csr_matrix((Kval.ravel(), (Krow.ravel(), Kcol.ravel())), shape=((num_rays)**2, num_angles*num_rays))
 
     # note that we swap column and rows to get the transpose
     ST=scipy.sparse.csr_matrix((Kval.ravel(),(Kcol.ravel(), Krow.ravel())), shape=(num_angles*num_rays, (num_rays)**2))
@@ -451,13 +460,25 @@ def radon_setup(num_rays, theta_array, xp=np, kernel_type = 'gaussian', k_r = 2)
     #ramlak_filter = ramlak_filter.reshape((1, ramlak_filter.size))
     ramlak_filter = ramlak_filter.reshape((1, 1, ramlak_filter.size))
     
+    msk_sino=np.ones(num_rays)
+    msk_sino[0:num_rays//4]=0
+    msk_sino[num_rays//4*3+1:]=0
+    msk_sino.shape=(1,1,num_rays)
+    
+    xx=xp.array([range(-num_rays//2, num_rays//2),])
+    xx=xx**2
+    rr2=xx+xx.T
+    msk_tomo=rr2<(num_rays//4)**2
+    msk_tomo.shape=(1,num_rays,num_rays)
+    
+    deapodization_factor*=msk_tomo
     
     dpr= deapodization_factor/num_rays/3.5*1.046684
     
     R  = lambda tomo:  radon(tomo, dpr , ST, k_r, num_angles )
     
     
-    IR = lambda sino: iradon(sino, deapodization_factor, S,  k_r, ramlak_filter )
+    IR = lambda sino: iradon(sino, deapodization_factor, S,  k_r, ramlak_filter)
     
     
     return R,IR
@@ -686,7 +707,7 @@ def iradon(sinogram_stack, deapodization_factor, S, k_r , hfilter):
     num_slices = sinogram_stack.shape[0]
     num_angles = sinogram_stack.shape[1]
     num_rays   = sinogram_stack.shape[2]
-
+    """
     #-----------------------------------------------------------#  
     #          vectorized code                                  #  
     
@@ -732,6 +753,7 @@ def iradon(sinogram_stack, deapodization_factor, S, k_r , hfilter):
 
     #         end vectorized code                                  #  
     #-----------------------------------------------------------#  
+    """
     
     #tomo_stack = xp.zeros((num_slices, num_rays , num_rays ),dtype=xp.complex64)
     tomo_stack = xp.zeros((num_slices, num_rays , num_rays ),dtype=xp.float32)
@@ -818,7 +840,7 @@ def radon(tomo_stack, deapodization_factor, ST, k_r, num_angles ):
     sinogram_stack = np.zeros((num_slices, num_angles, num_rays),dtype=np.complex64)
 
 
-    qxy = np.zeros((num_rays+2*k_r+1, num_rays+2*k_r+1), dtype=np.complex64)
+    #qxy = np.zeros((num_rays+2*k_r+1, num_rays+2*k_r+1), dtype=np.complex64)
     
     for i in range(num_slices):
         
@@ -834,7 +856,7 @@ def radon(tomo_stack, deapodization_factor, ST, k_r, num_angles ):
         #sinogram = np.fft.ifftshift(sinogram,axes=1)  
         
         # we shifted the ST array
-        sinogram[:,num_rays//2]=0
+        #sinogram[:,num_rays//2]=0
         
         # inverse fft centered
         

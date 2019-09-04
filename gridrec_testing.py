@@ -14,9 +14,8 @@ Created on Thu Jul 25 19:14:36 2019
 @author: anu
 """
 
-import gridrec
 import numpy as np
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import tomopy
 import h5py
 import dxchange
@@ -28,9 +27,14 @@ import subprocess
 import operator
 import os
 
-#from timeit import default_timer as timer
+import numpy
+import gridrec
+
+from timeit import default_timer as timer
 #from timeit import timer as timer
-from time import process_time as timer
+#from time import process_time as timer
+#from time import perf_counter as timer
+
 
 
 #from mpi4py import *
@@ -151,8 +155,9 @@ print("tomopy simulation time=",end - start)
 #if(MPI.COMM_WORLD.Get_rank() == 0): gridrec.save_cube(simulation, base_folder + "sim_project")
 
 #simulation = np.swapaxes(simulation,0,1)
-plt.imshow(simulation[num_slices//2])
-plt.show()
+
+#plt.imshow(simulation[num_slices//2])
+#plt.show()
 
 import numpy as xp
 kernel_type = 'gaussian'
@@ -162,6 +167,18 @@ mode = "python"
 
 start = timer()
 simulation1=radon(true_obj)
+#msk_sino=np.ones(num_rays)
+#msk_sino[0:num_rays//4]=0
+#msk_sino[num_rays//4*3+4:]=0
+#msk_sino.shape=(1,1,num_rays)
+#simulation1*=msk_sino
+#xx=xp.array([range(-num_rays//2, num_rays//2),])
+#xx=xx**2
+#rr2=xx+xx.T
+#msk_tomo=rr2<(num_rays//4)**2
+#msk_tomo.shape=(1,num_rays,num_rays)
+#simulation1*=msk_sino
+
 end = timer()
 #
 simulation1s=simulation1[num_slices//2:num_slices//2+1]
@@ -170,13 +187,13 @@ print("new simulation time=",end - start)
 
 
 #simulation1 = gridrec.gridrec_transpose(true_obj, theta, num_rays, k_r, kernel_type, xp, mode)
-#print("ratio gridrec_transpose i/r=", np.max(np.abs(np.imag(simulation1s[0])))/np.max(np.real(simulation1[0])))
+print("ratio gridrec_transpose i/r=",  np.max(np.imag(simulation1[num_slices//2]))/np.max(np.abs(np.real(simulation1[num_slices//2]))))
 simulation1s=simulation1s.real
 scaling_1_0=(np.sum(simulation * simulation1s))/np.sum(simulation1s *simulation1s)
 
 #simulation = np.swapaxes(simulation,0,1)
-plt.imshow(np.real(simulation1s[0]))
-plt.show()
+#plt.imshow(np.real(simulation1s[0]))
+#plt.show()
 
 
 #tomo_stack = tomopy.recon(simulation, theta, center=None, sinogram_order=True, algorithm="gridrec")
@@ -186,30 +203,26 @@ plt.show()
 start = timer()
 #tomo_stack = tomopy.recon(simulation[num_slices//2:num_slices//2+1], theta, center=None, sinogram_order=True, algorithm="gridrec", filter_name='ramlak')
 tomo_stack = tomopy.recon(simulation, theta, center=None, sinogram_order=True, algorithm="gridrec", filter_name='ramlak')
-tomo_stack = tomopy.recon(simulation, theta, center=None, sinogram_order=True, algorithm="gridrec", filter_name='ramlak')
-tomo_stack = tomopy.recon(simulation, theta, center=None, sinogram_order=True, algorithm="gridrec", filter_name='ramlak')
 end = timer()
-tomopy_time=(end - start)/3
+tomopy_time=(end - start)
 print("tomopy recon time=",tomopy_time)
 
 simulation1=simulation1.real
 
 start = timer()
 tomo_stack_g = iradon(simulation1)
-tomo_stack_g = iradon(simulation1)
-tomo_stack_g = iradon(simulation1)
+tomo_stack_g
 #tomo_stack_g = iradon(simulation[num_slices//2:num_slices//2+1])
 end = timer()
-spmv_time=(end - start)/3
+spmv_time=(end - start)
 
 #print("tomopy recon time=",tomopy_time)
 print("spmv recon time  =",spmv_time)
 
 tomo_stack = tomopy.recon(simulation[num_slices//2:num_slices//2+1], theta, center=None, sinogram_order=True, algorithm="gridrec", filter_name='ramlak')
 
-
-plt.imshow(tomo_stack[0])
-plt.show()
+#plt.imshow(tomo_stack[0])
+#plt.show()
 
 
 
@@ -223,14 +236,17 @@ sim=simulation[num_slices//2:num_slices//2+1,:]
 
 #tomo_stack1 = iradon(simulation1)
 tomo_stack1 = tomo_stack_g
+#tomo_stack1*=msk_tomo
+
+
 #tomo_stack1 = iradon(sim1)
 
 
 #tomo_stack1 = gridrec.gridrec(sim1, theta, num_rays, k_r,kernel_type="gaussian", xp,  algorithm="gridrec")
-plt.imshow((tomo_stack1[num_slices//2]).real)
+#plt.imshow((tomo_stack1[num_slices//2]).real)
 
 #plt.imshow((tomo_stack1[0,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3]).real)
-plt.show()
+#plt.show()
 
 print("gridrec i/r=", np.max(abs(tomo_stack1.imag))/np.max(abs(tomo_stack1.real)))
 
@@ -238,10 +254,10 @@ tomo_stackc=tomo_stack[0,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3]
 tomo_stack1c=(tomo_stack1[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3]).real
 tomo_stack0c=true_obj[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3]
 
-plt.imshow(tomo_stackc)
-plt.show()
-plt.imshow(tomo_stack1c.real)
-plt.show()
+#plt.imshow(tomo_stackc)
+#plt.show()
+#plt.imshow(tomo_stack1c.real)
+#plt.show()
 
 
 #
@@ -378,9 +394,9 @@ image2 = (image2-image2.min())/(image2.max()-image2.min())
 diff1 = abs(image1**2 - image2**2)
 #diff2 = image3**2 - image3**2
 
-plt.imshow(diff1,cmap='Greys')
-plt.colorbar()
-plt.show()
+#plt.imshow(diff1,cmap='Greys')
+#plt.colorbar()
+#plt.show()
 
 #plt.imshow(diff2,cmap='Greys')
 #plt.show()
