@@ -31,6 +31,7 @@ import numpy
 import gridrec
 
 from timeit import default_timer as timer
+
 #from timeit import timer as timer
 #from time import process_time as timer
 #from time import perf_counter as timer
@@ -114,7 +115,9 @@ except:
 size = 64*2
 
 num_slices = size//2
-num_angles = int(np.ceil(size//2*np.pi*2))
+#num_angles = int(np.ceil(size//2*np.pi*2))
+num_angles = int(60)
+
 #num_angles = 180
 #num_angles = 512
 num_rays   = size
@@ -141,7 +144,12 @@ true_obj = np.lib.pad(true_obj, padding_array, 'constant', constant_values=0)
 theta = np.arange(0, 180, 180. / num_angles)*np.pi/180.
 
 
-radon,iradon=gridrec.radon_setup(num_rays, theta, xp=np, kernel_type = 'gaussian', k_r =1)
+radon,iradon,radont=gridrec.radon_setup(num_rays, theta, xp=np, kernel_type = 'gaussian', k_r =1)
+
+def R(tomo):
+    radon(tomo)
+def RT(sino):
+    radont(sino)
 
 
 
@@ -265,7 +273,7 @@ scaling1c=(np.sum(tomo_stack0c * tomo_stack1c))/np.sum(tomo_stack1c *tomo_stack1
 #tomo_stackc*=scalingc
 print("forward tomopy/nufft scaling=", scaling_1_0)
 
-print("scaling tomopy/nufft",scaling1c)
+print("backward truth/nufft scaling=",scaling1c)
 
 snr_tomopy=np.sum(tomo_stack0c**2)/np.sum(abs(tomo_stackc*scalingc-tomo_stack0c)**2)
 snr_spmv  =np.sum(tomo_stack0c**2)/np.sum(abs(tomo_stack1c*scaling1c-tomo_stack0c)**2)
@@ -273,10 +281,53 @@ snr_spmv  =np.sum(tomo_stack0c**2)/np.sum(abs(tomo_stack1c*scaling1c-tomo_stack0
 
 #print("tomopy simulation time=", time_tomopy_forward)
 #print("new simulation time=",time_radon)
-print("tomopy rec time =%g, sim time %g, snr=%g " %(tomopy_time, time_tomopy_forward, snr_tomopy))
+print("tomopy sim time= %3.3g,\t rec time =%3.3g,\t snr=%3.3g " %(time_tomopy_forward, tomopy_time, snr_tomopy))
 
 #print("tomopy rec time  = ",tomopy_time, "sim time", time_tomopy_forward, "srn", snr_tomopy)
-print("spmv   rec time =%g, sim time %g, snr %g"% (spmv_time, time_radon, snr_spmv))
+print("spmv   sim time= %3.3g,\t rec time =%3.3g,\t snr=%3.3g"% ( time_radon, spmv_time, snr_spmv))
+
+##
+# solve by conjugate gradient
+print("setting up the CG-LS")
+
+radon,iradon,radont=gridrec.radon_setup(num_rays, theta, xp=np, kernel_type = 'gaussian', k_r =1)
+
+# we need to fix dimensions and use vectors and inputs
+mradon  = lambda tomo_stack: np.reshape(radon (np.reshape(tomo_stack,(num_slices,num_rays  ,num_rays))),(num_slices*num_angles*num_rays,1))
+mradont = lambda sino_stack: np.reshape(radont(np.reshape(sino_stack,(num_slices,num_angles,num_rays))),(num_slices*num_rays  *num_rays,1))
+mradon2 = lambda x: mradont(mradon(x))
+miradon = lambda sino_stack: np.reshape(iradon(np.reshape(sino_stack,(num_slices,num_angles,num_rays))),(num_slices*num_rays  *num_rays,1))
+
+from scipy.sparse.linalg import LinearOperator
+RRshape = (num_slices*num_rays*num_rays,num_slices*num_rays*num_rays)
+RR = LinearOperator(RRshape, dtype='float32', matvec=mradon2, rmatvec=mradon2)
+from scipy.sparse.linalg import cgs as cgs
+
+b =np.reshape(mradont(simulation1),(num_slices*num_rays*num_rays,1))
+tomo0=np.reshape(miradon(simulation1),(num_slices*num_rays*num_rays,1))
+
+print("solving CG-LS")
+
+start = timer()
+tomocg,info = cgs(RR,b,x0=tomo0,tol=5e-4) 
+tomocg.shape=(num_slices,num_rays,num_rays)
+
+end = timer()
+cgls_time=(end - start)
+print("cg time=",cgls_time)
+# cropped
+tomocgc=tomocg[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3]
+scalingcgls=(np.sum(tomo_stack0c * tomocgc))/np.sum(tomocgc *tomocgc)
+snr_cgls  =np.sum(tomo_stack0c**2)/np.sum(abs(tomocgc*scalingcgls-tomo_stack0c)**2)
+
+plt.imshow(tomocgc)
+plt.show()
+
+print("tomopy rec time =%3.3g, \t snr=%3.3g " %( tomopy_time, snr_tomopy))
+#print("tomopy rec time  = ",tomopy_time, "sim time", time_tomopy_forward, "srn", snr_tomopy)
+print("spmv   rec time =%3.3g, \t snr=%3.3g"% (  spmv_time, snr_spmv))
+
+print("cgls   rec time =%3.4g, \t snr=%3.3g"% ( cgls_time, snr_cgls))
 
 
 #

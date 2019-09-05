@@ -384,12 +384,9 @@ def gridding_setup(num_rays, theta_array, xp=np, kernel_type = 'gaussian', k_r =
     rays=xp.reshape(np.arange(num_rays),[1,num_rays,1,1])
     rays=(-1)**rays     #fftshift
     rays[:,num_rays//2,:,:]=0 # removing highest frequency
-    # fftshift2 the output
+    # fftshift2 the output and and fftshift1 the input
     Kval*=((-1)**kx)*((-1)**ky)*(rays)
     
-    xp.reshape((-1)**np.arange(num_rays),[1,num_rays,1,1])
-    #kx=np.mod(kx+num_rays//2,num_rays)
-    #ky=np.mod(kx+num_rays//2,num_rays)
     
 
   # row  index (where the output goes)
@@ -457,13 +454,15 @@ def radon_setup(num_rays, theta_array, xp=np, kernel_type = 'gaussian', k_r = 2)
     
     
     # removing the highest frequency
-    ramlak_filter[0]=0;
+    #ramlak_filter[0]=0;
+    
     
     # we shiftet the sparse matrix output
     ramlak_filter=xp.fft.fftshift(ramlak_filter)
 
     #ramlak_filter = ramlak_filter.reshape((1, ramlak_filter.size))
     ramlak_filter = ramlak_filter.reshape((1, 1, ramlak_filter.size))
+    none_filter=ramlak_filter*0+1
     
     
 #    msk_sino=np.ones(num_rays)
@@ -486,13 +485,18 @@ def radon_setup(num_rays, theta_array, xp=np, kernel_type = 'gaussian', k_r = 2)
     
     
     R  = lambda tomo:  radon(tomo, deapodization_factor , ST, k_r, num_angles )
+    # the transpose:
+    RT = lambda sino: iradon(sino, dpr, S,  k_r, none_filter)
     
+    # inverse Radon (pseudo inverse)
     dpr= deapodization_factor*num_rays*154.10934
-
     IR = lambda sino: iradon(sino, dpr, S,  k_r, ramlak_filter)
     
     
-    return R,IR
+    
+    
+    
+    return R,IR,RT
     
 
     
@@ -768,7 +772,7 @@ def iradon(sinogram_stack, deapodization_factor, S, k_r , hfilter):
     
     tomo_stack = xp.empty((num_slices, num_rays , num_rays ),dtype=xp.float32)
     
-    
+    # two slices at once    
     for i in range(0,num_slices,2):
         # merge two sinograms into one complex
         if i > num_slices-2:
@@ -780,16 +784,18 @@ def iradon(sinogram_stack, deapodization_factor, S, k_r , hfilter):
         # radon (r-theta) to Fourier (q-theta) space        
         qt = xp.fft.fft(qt)  
         
-        # non uniform iifft:
+        # non uniform IFFT:
         
         # density compensation
         qt *= hfilter[0,0]
-        qt.shape=(num_rays * num_angles)
-
+        
+        # inverse gridding (polar (q-theta) to cartesian)
+        # qt.shape=(num_rays * num_angles)
+        qt.shape=(-1)        
         tomogram=qt*S
         tomogram.shape=(num_rays,num_rays)
 
-        # back to (xy) space
+        # Fourier (cartesian) to real (xy) space
 
         tomogram=xp.fft.ifft2(tomogram)
 
@@ -810,16 +816,15 @@ def radon(tomo_stack, deapodization_factor, ST, k_r, num_angles ):
     
     xp=np
     num_slices = tomo_stack.shape[0]
-    
     num_rays   = tomo_stack.shape[2]
 
     sinogram_stack = np.empty((num_slices, num_angles, num_rays),dtype=np.complex64)
  
-
+    #go through each slice
     #for i in range(0,num_slices):
     #    tomo_slice = tomo_stack[i] 
         
-        
+    # two slices at once    
     for i in range(0,num_slices,2):
         
         # merge two slices into complex
@@ -830,19 +835,24 @@ def radon(tomo_stack, deapodization_factor, ST, k_r, num_angles ):
             tomo_slice = tomo_stack[i]+1j*tomo_stack[i+1]
         
         
-        # non uniform fft:
+        # non uniform FFT cartesian (x,y) to Fourier polar (q,theta):
         
         tomo_slice = np.fft.fft2(tomo_slice*deapodization_factor[0])
-        tomo_slice.shape = (num_rays **2)
+        
+        # gridding from cartiesian (qx,qy) to polar (q-theta)
+        # tomo_slice.shape = (num_rays **2)        
+        tomo_slice.shape = (-1)        
         sinogram=tomo_slice * ST
         sinogram.shape=(num_angles,num_rays)
 
-        # 1D fft:
-              
-        sinogram = np.fft.ifft(sinogram)        
+        # end of non uniform FFT
 
-        #sinogram_stack[i]=sinogram
+
+        # (q-theta) to radon (r-theta) :              
+        sinogram = np.fft.ifft(sinogram)        
         
+        # put the sinogram in the stack
+        #sinogram_stack[i]=sinogram        
         # extract two slices out of complex
         if i > num_slices-2:
             print("ratio gridrec_transpose i/r=",  np.max(np.abs(sinogram.imag)/np.max(np.abs(sinogram.real))))
@@ -852,8 +862,7 @@ def radon(tomo_stack, deapodization_factor, ST, k_r, num_angles ):
             sinogram_stack[i]=sinogram.real
             sinogram_stack[i+1]=sinogram.imag
         
-    #print("tomo_slice shape",tomo_slice.shape, (tomo_slice.ravel()).shape)
-    
+     
     return sinogram_stack
         
         
