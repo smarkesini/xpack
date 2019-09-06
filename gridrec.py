@@ -485,7 +485,7 @@ def radon_setup(num_rays, theta_array, xp=np, kernel_type = 'gaussian', k_r = 2)
     
     
     R  = lambda tomo:  radon(tomo, deapodization_factor , ST, k_r, num_angles )
-    # the transpose:
+    # the transpose (for least squares solvers):
     RT = lambda sino: iradon(sino, dpr, S,  k_r, none_filter)
     
     # inverse Radon (pseudo inverse)
@@ -493,13 +493,9 @@ def radon_setup(num_rays, theta_array, xp=np, kernel_type = 'gaussian', k_r = 2)
     IR = lambda sino: iradon(sino, dpr, S,  k_r, ramlak_filter)
     
     
-    
-    
-    
     return R,IR,RT
     
 
-    
 
 def grid_rec_one_slice_transposeSpMV(qxy, theta_array, num_rays, k_r, kernel_type, xp, mode): #use for backward proj
     
@@ -1024,3 +1020,4 @@ def sirt(A,At,b,end): #A is forward projection, b is the projections
         x = x + CATR * (b - A * x)
         
     return x
+

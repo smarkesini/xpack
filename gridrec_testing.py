@@ -146,10 +146,7 @@ theta = np.arange(0, 180, 180. / num_angles)*np.pi/180.
 
 radon,iradon,radont=gridrec.radon_setup(num_rays, theta, xp=np, kernel_type = 'gaussian', k_r =1)
 
-def R(tomo):
-    radon(tomo)
-def RT(sino):
-    radont(sino)
+
 
 
 
@@ -286,30 +283,55 @@ print("tomopy sim time= %3.3g,\t rec time =%3.3g,\t snr=%3.3g " %(time_tomopy_fo
 #print("tomopy rec time  = ",tomopy_time, "sim time", time_tomopy_forward, "srn", snr_tomopy)
 print("spmv   sim time= %3.3g,\t rec time =%3.3g,\t snr=%3.3g"% ( time_radon, spmv_time, snr_spmv))
 
-##
-# solve by conjugate gradient
-print("setting up the CG-LS")
+##======= CG-Least Squares
+# solve by conjugate gradient  
+# min_tomo || R tomo - data ||**2
+# which is eqiova;ent to
+#         R.T R tomo = R.T dat
 
-radon,iradon,radont=gridrec.radon_setup(num_rays, theta, xp=np, kernel_type = 'gaussian', k_r =1)
+data=simulation1
+print("setting up the CG-LS") 
 
-# we need to fix dimensions and use vectors and inputs
-mradon  = lambda tomo_stack: np.reshape(radon (np.reshape(tomo_stack,(num_slices,num_rays  ,num_rays))),(num_slices*num_angles*num_rays,1))
-mradont = lambda sino_stack: np.reshape(radont(np.reshape(sino_stack,(num_slices,num_angles,num_rays))),(num_slices*num_rays  *num_rays,1))
-mradon2 = lambda x: mradont(mradon(x))
-miradon = lambda sino_stack: np.reshape(iradon(np.reshape(sino_stack,(num_slices,num_angles,num_rays))),(num_slices*num_rays  *num_rays,1))
+# we are solving min_x ||R x-data||^2
+# the gradient w.r.t x is:  R.T R x -R.T data
+# setting the gradient to 0:  R.T R x = R.T data    
 
-from scipy.sparse.linalg import LinearOperator
-RRshape = (num_slices*num_rays*num_rays,num_slices*num_rays*num_rays)
-RR = LinearOperator(RRshape, dtype='float32', matvec=mradon2, rmatvec=mradon2)
+# let's setup R.T R as an operator
+# setting radont(radon(x)) as a linear operator
+
+def RTR_setup(radon,radont,num_slices, num_rays):
+    shape_tomo=(num_slices, num_rays, num_rays)
+    
+    reshape_t= lambda x: xp.reshape(x,shape_tomo)
+    
+    #shape_sino=(num_slices,num_angles,num_rays)
+    # we need to fix dimensions and use vectors and inputs
+    #mradon  = lambda x: radon(np.reshape(x, shape_tomo))
+    #mradont = lambda sino_stack: np.reshape(radont(sino_stack),(-1))
+    
+    mradon2 = lambda x: xp.reshape(radont(radon(reshape_t(x))),(-1))
+    
+    #mradon2 = lambda x: mradont(mradon(x))
+    # now let's setup the operator
+    from scipy.sparse.linalg import LinearOperator
+    RRshape = (num_slices*num_rays*num_rays,num_slices*num_rays*num_rays)
+    RTR = LinearOperator(RRshape, dtype='float32', matvec=mradon2, rmatvec=mradon2)
+    return RTR
+
+
+RTR=RTR_setup(radon,radont,num_slices,num_rays)
+# R.T data  (as a long vector)
+RTdata =np.reshape(radont(data),(-1))
+
+# initial guess (as a vector)
+tomo0=np.reshape(iradon(data),(-1))
+tolerance=np.linalg.norm(tomo0)*1e-4
+
 from scipy.sparse.linalg import cgs as cgs
-
-b =np.reshape(mradont(simulation1),(num_slices*num_rays*num_rays,1))
-tomo0=np.reshape(miradon(simulation1),(num_slices*num_rays*num_rays,1))
-
 print("solving CG-LS")
 
 start = timer()
-tomocg,info = cgs(RR,b,x0=tomo0,tol=5e-4) 
+tomocg,info = cgs(RTR,RTdata,x0=tomo0,tol=tolerance) 
 tomocg.shape=(num_slices,num_rays,num_rays)
 
 end = timer()
@@ -328,6 +350,121 @@ print("tomopy rec time =%3.3g, \t snr=%3.3g " %( tomopy_time, snr_tomopy))
 print("spmv   rec time =%3.3g, \t snr=%3.3g"% (  spmv_time, snr_spmv))
 
 print("cgls   rec time =%3.4g, \t snr=%3.3g"% ( cgls_time, snr_cgls))
+
+
+
+
+# ========== TV regularization ===============
+# let's do TV-reg by Split Bregman method
+
+# define finite difference in 1D, transpose and D.T * D
+D1   = lambda x,ax: np.roll(x,-1,axis=ax)-x
+Dt1  = lambda x,ax: x-np.roll(x, 1,axis=ax)
+
+# gradient in 3D
+def Grad(x): return np.stack((D1(x,0),D1(x,1),D1(x,2))) 
+# divergence
+def Div(x):  return Dt1(x[0,:,:,:],0)+Dt1(x[1,:,:,:],1)+Dt1(x[2,:,:,:],2)
+# Laplacian
+def Lap(x): return -6*x+np.roll(x,1,axis=0)+np.roll(x,-1,axis=0)+np.roll(x,1,axis=1)+np.roll(x,-1,axis=1)+np.roll(x,1,axis=2)+np.roll(x,-1,axis=2)
+
+# vector to tomo
+#def v2t(x): np.reshape(x,(num_slices,num_rays,num_rays))
+shape_tomo=(num_slices,num_rays  ,num_rays)
+v2t = lambda x: np.reshape(x,(num_slices,num_rays,num_rays))
+
+# we need RTR(x)+r*Lap as an operator acting on a vector
+#def RtRpDtD (x):
+
+
+#np.max(radont(data)[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3])
+
+
+# let's scale the Radon trasform so that RT (data)~1
+Rsf=1./np.mean(radont(data)[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3])
+
+# scale the RT(data) accordingly and make it into a vector
+RTdata=Rsf*radont(data).ravel()
+
+# setup linear operator for CGS
+def RTRpLap_setup(radon,radont,Lap, num_slices,num_rays,r):
+    
+    mradon2 = lambda x: Rsf*radont(radon(x))
+    #Lapf = lambda x: Lap(x)
+
+    # add the two functions    
+    RTRpLapf = lambda x: (mradon2(x)+r*Lap(x)).ravel()
+    #
+    RTRpLapfv= lambda x: RTRpLapf(np.reshape(x,shape_tomo))
+    
+    
+    # now let's setup the operator
+    from scipy.sparse.linalg import LinearOperator
+    RRshape = (num_slices*num_rays*num_rays,num_slices*num_rays*num_rays)
+    RTRpLap = LinearOperator(RRshape, dtype='float32', matvec=RTRpLapfv, rmatvec=RTRpLapfv)
+    return RTRpLap
+
+
+
+r = 10e-1
+reg = 10e-2 
+#mu = reg*r
+
+# Setup R_T R x+ r* Laplacian(x)
+RTRpLap = RTRpLap_setup(radon,radont,Lap, num_slices,num_rays,r)
+
+# also need max(|a|-t,0)*sign(x)
+def Pl1(x,reg): return xp.clip(np.abs(x)-reg,0,None)*np.sign(x)
+
+
+# initial
+
+#u=iradon(data).ravel()
+u=tomocg.ravel()
+
+Lambda=0
+
+start=timer()
+
+maxit=5
+for ii in range(maxit):
+    
+    p=Pl1(Grad(v2t(u))-Lambda,reg)
+    
+    u,info = cgs(RTRpLap, RTdata+r*Div(Lambda+p).ravel(),x0=u,tol=tolerance*10) 
+    
+    Lambda = Lambda +(p-Grad(v2t(u)))
+#    plt.imshow(v2t(u)[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3])
+#    plt.show()
+    print("TV iter", ii)
+    
+end = timer()
+TV_time=(end - start)
+
+plt.imshow(v2t(u)[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3])
+plt.show()
+    
+    
+tomotv=v2t(u)
+tomotvc=tomocg[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3]
+
+scalingtv=(np.sum(tomo_stack0c * tomotvc))/np.sum(tomotvc *tomotvc)
+#snr_TV  =np.sum(tomo_stack0c**2)/np.sum(abs(tomotvc*scalingtv-tomo_stack0c)**2)
+snr_TV  =np.sum(tomo_stack0c**2)/np.sum(abs(tomotvc-tomo_stack0c)**2)
+
+
+print("tomopy rec time =%3.3g, \t snr=%3.3g " %( tomopy_time, snr_tomopy))
+#print("tomopy rec time  = ",tomopy_time, "sim time", time_tomopy_forward, "srn", snr_tomopy)
+print("spmv   rec time =%3.3g, \t snr=%3.3g"% (  spmv_time, snr_spmv))
+
+print("cgls   rec time =%3.4g, \t snr=%3.3g"% ( cgls_time, snr_cgls))
+
+print("TV     rec time =%3.4g, \t snr=%3.3g"% ( TV_time, snr_TV))
+
+## fix the dimension`None`s
+#mD3    = lambda x:  np.reshape(  D3(np.reshape(x,(num_slices,num_rays,num_rays))),(-1))
+#mDt3   = lambda x:  np.reshape( Dt3(np.reshape(x,(num_slices,num_rays,num_rays))),(-1))
+#mDtD3  = lambda x:  np.reshape(DtD3(np.reshape(x,(num_slices,num_rays,num_rays))),(-1))
 
 
 #
