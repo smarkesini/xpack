@@ -115,8 +115,13 @@ except:
 size = 64*2
 
 num_slices = size//2
+#num_angles = int(180)
+
 #num_angles = int(np.ceil(size//2*np.pi*2))
-num_angles = int(60)
+
+#num_angles = int(45)
+num_angles = int(24)
+#num_angles = int(20)
 
 #num_angles = 180
 #num_angles = 512
@@ -140,11 +145,13 @@ print("True obj shape", true_obj.shape)
 true_obj = np.lib.pad(true_obj, padding_array, 'constant', constant_values=0)
 
 #angles in radians
-#theta = np.arange(-90, 90., 180. / num_angles)*np.pi/180.
-theta = np.arange(0, 180, 180. / num_angles)*np.pi/180.
+theta = np.arange(-90, 90., 180. / num_angles)*np.pi/180.
+#theta = np.arange(0, 180, 180. / num_angles,dtype='float128')*np.pi/180.
 
 
-radon,iradon,radont=gridrec.radon_setup(num_rays, theta, xp=np, kernel_type = 'gaussian', k_r =1)
+#radon,iradon,radont=gridrec.radon_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian', k_r =1)
+radon,iradon,radont=gridrec.radon_setup(num_rays, theta, center=num_rays//2, xp=np, kernel_type = 'gaussian', k_r =1)
+
 
 
 
@@ -164,6 +171,9 @@ print("tomopy simulation time=", time_tomopy_forward)
 
 plt.imshow(simulation[num_slices//2])
 plt.show()
+
+#simulations=np.roll(simulation,10,axis=2)
+#np.roll(simulation[32],10)
 
 import numpy as xp
 kernel_type = 'gaussian'
@@ -242,7 +252,10 @@ tomo_stack1 = tomo_stack_g
 
 
 #tomo_stack1 = iradon(sim1)
-
+# tomo to cropped image
+t2i = lambda x: x[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3].real
+    
+    
 
 #tomo_stack1 = gridrec.gridrec(sim1, theta, num_rays, k_r,kernel_type="gaussian", xp,  algorithm="gridrec")
 plt.imshow((tomo_stack1[num_slices//2]).real)
@@ -290,6 +303,20 @@ print("spmv   sim time= %3.3g,\t rec time =%3.3g,\t snr=%3.3g"% ( time_radon, sp
 #         R.T R tomo = R.T dat
 
 data=simulation1
+
+runfile('cgls.py')
+
+# tomogram to cropped image
+t2i = lambda x: x[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3].real
+
+plt.imshow(t2i(true_obj))
+plt.title('truth')
+plt.show()
+
+
+runfile('TV-reg.py')
+
+"""
 print("setting up the CG-LS") 
 
 # we are solving min_x ||R x-data||^2
@@ -300,18 +327,11 @@ print("setting up the CG-LS")
 # setting radont(radon(x)) as a linear operator
 
 def RTR_setup(radon,radont,num_slices, num_rays):
-    shape_tomo=(num_slices, num_rays, num_rays)
     
-    reshape_t= lambda x: xp.reshape(x,shape_tomo)
+    # reshape vector to tomogram 
+    v2t= lambda x: xp.reshape(x,(num_slices, num_rays, num_rays))
+    mradon2 = lambda x: xp.reshape(radont(radon(v2t(x))),(-1))
     
-    #shape_sino=(num_slices,num_angles,num_rays)
-    # we need to fix dimensions and use vectors and inputs
-    #mradon  = lambda x: radon(np.reshape(x, shape_tomo))
-    #mradont = lambda sino_stack: np.reshape(radont(sino_stack),(-1))
-    
-    mradon2 = lambda x: xp.reshape(radont(radon(reshape_t(x))),(-1))
-    
-    #mradon2 = lambda x: mradont(mradon(x))
     # now let's setup the operator
     from scipy.sparse.linalg import LinearOperator
     RRshape = (num_slices*num_rays*num_rays,num_slices*num_rays*num_rays)
@@ -331,7 +351,8 @@ from scipy.sparse.linalg import cgs as cgs
 print("solving CG-LS")
 
 start = timer()
-tomocg,info = cgs(RTR,RTdata,x0=tomo0,tol=tolerance) 
+#tomocg,info = cgs(RTR,RTdata,x0=tomo0,tol=tolerance) 
+tomocg,info = cgs(RTR,RTdata,tol=tolerance) 
 tomocg.shape=(num_slices,num_rays,num_rays)
 
 end = timer()
@@ -344,20 +365,22 @@ snr_cgls  =np.sum(tomo_stack0c**2)/np.sum(abs(tomocgc*scalingcgls-tomo_stack0c)*
 
 plt.imshow(tomocgc)
 plt.show()
+"""
 
+"""
 print("tomopy rec time =%3.3g, \t snr=%3.3g " %( tomopy_time, snr_tomopy))
 #print("tomopy rec time  = ",tomopy_time, "sim time", time_tomopy_forward, "srn", snr_tomopy)
 print("spmv   rec time =%3.3g, \t snr=%3.3g"% (  spmv_time, snr_spmv))
 
 print("cgls   rec time =%3.4g, \t snr=%3.3g"% ( cgls_time, snr_cgls))
+"""
 
-
-
+"""
 
 # ========== TV regularization ===============
 # let's do TV-reg by Split Bregman method
 
-# define finite difference in 1D, transpose and D.T * D
+# define finite difference in 1D, -transpose 
 D1   = lambda x,ax: np.roll(x,-1,axis=ax)-x
 Dt1  = lambda x,ax: x-np.roll(x, 1,axis=ax)
 
@@ -393,7 +416,7 @@ def RTRpLap_setup(radon,radont,Lap, num_slices,num_rays,r):
     #Lapf = lambda x: Lap(x)
 
     # add the two functions    
-    RTRpLapf = lambda x: (mradon2(x)+r*Lap(x)).ravel()
+    RTRpLapf = lambda x: (mradon2(x)-r*Lap(x)).ravel()
     #
     RTRpLapfv= lambda x: RTRpLapf(np.reshape(x,shape_tomo))
     
@@ -407,14 +430,14 @@ def RTRpLap_setup(radon,radont,Lap, num_slices,num_rays,r):
 
 
 r = 10e-1
-reg = 10e-2 
+reg = 10e-1 
 #mu = reg*r
 
 # Setup R_T R x+ r* Laplacian(x)
 RTRpLap = RTRpLap_setup(radon,radont,Lap, num_slices,num_rays,r)
 
 # also need max(|a|-t,0)*sign(x)
-def Pl1(x,reg): return xp.clip(np.abs(x)-reg,0,None)*np.sign(x)
+def Pell1(x,reg): return xp.clip(np.abs(x)+reg,0,None)*np.sign(x)
 
 
 # initial
@@ -426,17 +449,20 @@ Lambda=0
 
 start=timer()
 
-maxit=5
+maxit=10
 for ii in range(maxit):
     
-    p=Pl1(Grad(v2t(u))-Lambda,reg)
+    p=Pell1(Grad(v2t(u))-Lambda,reg)
     
-    u,info = cgs(RTRpLap, RTdata+r*Div(Lambda+p).ravel(),x0=u,tol=tolerance*10) 
+    u,info = cgs(RTRpLap, RTdata-r*Div(Lambda+p).ravel(),x0=u,tol=tolerance*10) 
     
     Lambda = Lambda +(p-Grad(v2t(u)))
-#    plt.imshow(v2t(u)[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3])
-#    plt.show()
-    print("TV iter", ii)
+    #plt.imshow(v2t(u)[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3])
+    plt.imshow(v2t(u)[num_slices//2,:,:])
+    stitle = "TV iter=%d" %(ii)
+    plt.title(stitle)
+    plt.show()
+    print(stitle)
     
 end = timer()
 TV_time=(end - start)
@@ -461,6 +487,7 @@ print("cgls   rec time =%3.4g, \t snr=%3.3g"% ( cgls_time, snr_cgls))
 
 print("TV     rec time =%3.4g, \t snr=%3.3g"% ( TV_time, snr_TV))
 
+"""
 ## fix the dimension`None`s
 #mD3    = lambda x:  np.reshape(  D3(np.reshape(x,(num_slices,num_rays,num_rays))),(-1))
 #mDt3   = lambda x:  np.reshape( Dt3(np.reshape(x,(num_slices,num_rays,num_rays))),(-1))
