@@ -1,43 +1,61 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Fri Sep  6 08:48:37 2019
+Created on Sat Sep  7 17:42:33 2019
 
 @author: smarchesini
 """
-# ========== TV regularization ===============
-# let's do TV-reg by Split Bregman method
+
+# make ring artifacts: dead pixels
 
 
-# define finite difference in 1D, -transpose 
-D1   = lambda x,ax: np.roll(x,-1,axis=ax)-x
-Dt1  = lambda x,ax: x-np.roll(x, 1,axis=ax)
+sino=simulation1+0.
 
-# gradient in 3D
-def Grad(x): return np.stack((D1(x,0),D1(x,1),D1(x,2))) 
-# divergence
-def Div(x):  return Dt1(x[0,:,:,:],0)+Dt1(x[1,:,:,:],1)+Dt1(x[2,:,:,:],2)
-# Laplacian
-#def Lap(x): return -6*x+np.roll(x,1,axis=0)+np.roll(x,-1,axis=0)+np.roll(x,1,axis=1)+np.roll(x,-1,axis=1)+np.roll(x,1,axis=2)+np.roll(x,-1,axis=2)
-def Lap(x): return Div(Grad(x))
+tomo0=iradon(simulation1)
+tmax=np.max(t2i(tomo0))
 
-# soft thersholding ell1 operrator max(|a|-t,0)*sign(x)
-def Pell1(x,reg): return xp.clip(np.abs(x)-reg,0,None)*np.sign(x)
+# random missing pixel
+ndeadpix=2
+deadpix=np.ones((num_slices*num_rays))
+ii=numpy.random.randint(-num_rays//4/1.5,high=num_rays//4/1.5-1,size=(num_slices,ndeadpix))+num_rays//2
+slicei=np.arange(num_slices)
+slicei.shape=(64,1)
+iii=slicei*num_rays+ii
 
 
-# vector to tomo
-shape_tomo=(num_slices,num_rays  ,num_rays)
-v2t = lambda x: np.reshape(x,(num_slices,num_rays,num_rays))
+deadpix[iii]=np.random.rand(ndeadpix)
+deadpix[iii]=0
+deadpix.shape=(num_slices,1,num_rays)
 
-# we need to solve RT R(x)+r*Lap(x)= RT(data)+r*Div(Lambda+p)
-# we can precompute RT(data) for the r.h.s term
-# we need RTR(x)+r*Lap(x) as an operator acting on a vector
+# fix central slice
+deadpix[32,:,:]=1
+deadpix[32,:,(110,170)]=0
+
+
+sino*=deadpix
+
+tomo=iradon(sino)
+
+
+plt.imshow(sino[num_slices//2,:,:])
+plt.show()
+tomo=iradon(sino)
+tmax
+plt.imshow(np.concatenate((t2i(tomo0),t2i(tomo)),axis=1))
+plt.clim(0,tmax)
+plt.title('no ring vs ring')
+
+# set up the tv
+fradon=lambda x: deadpix*radon(x)
+fradont=lambda x: radont(x*deadpix)
+
+fdata = sino
 
 # let's scale the Radon trasform so that RT (data)~1
-Rsf=1./np.mean(radont(data)[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3])
+Rsf=1./np.mean(radont(fdata)[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3])
 
 # scale the RT(data) accordingly and make it into a vector
-RTdata=Rsf*radont(data).ravel()
+RTdata=Rsf*fradont(fdata).ravel()
 
 # setup linear operator for CGS
 def RTRpLap_setup(radon,radont,Lap, num_slices,num_rays,r):
@@ -56,38 +74,38 @@ def RTRpLap_setup(radon,radont,Lap, num_slices,num_rays,r):
     return RTRpLap
 
 
-p=Grad(tomocg)
+p=Grad(tomo)
 
-reg=0.07*np.max(np.abs(p))
+reg=5e-3*np.max(np.abs(Grad(tomo)))
 
 #p=Grad(true_obj)
 #ii=np.where(np.abs(p)>0)
 #reg=0.7*np.min(np.abs(p[ii]))
 print("reg",reg)
 
-r = .8
+r = 0.8
 #reg = 10e-3 
 #mu = reg*r
 
 # Setup R_T R x+ r* Laplacian(x)
-RTRpLap = RTRpLap_setup(radon,radont,Lap, num_slices,num_rays,r)
+RTRpLap = RTRpLap_setup(fradon,fradont,Lap, num_slices,num_rays,r)
 
 
 
 # initial
 
 #u=iradon(data).ravel()
-u=tomocg.ravel()
+u=tomo.ravel()
 Lambda=0
 
-plt.imshow(tomocg[num_slices//2,:,:])
-plt.title("CG init")
+plt.imshow(tomo[num_slices//2,:,:])
+plt.title(" init")
 plt.show()
 
 start=timer()
-cgsmaxit=4
+cgsmaxit=3
 
-maxit=5
+maxit=30
 # tomo to image
 t2i = lambda x: x[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3].real
 
@@ -103,7 +121,8 @@ for ii in range(1,maxit+1):
     #plt.imshow(v2t(u)[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3])
     stitle = "TV iter=%d" %(ii)
     
-    plt.imshow(v2t(u)[num_slices//2,:,:])    
+    plt.imshow(t2i(v2t(u)))    
+    plt.clim(0,tmax)
     plt.title(stitle)
     plt.show()
     print(stitle)
@@ -115,11 +134,16 @@ TV_time=(end - start)
 
 tomotv=v2t(u)
 
+tmax=np.max(t2i(tomotv))
+
 #plt.imshow(t2i(tomotv))
-plt.imshow(np.concatenate((t2i(tomotv),t2i(tomocg)),axis=1))
-plt.title("TV vs CG")
+plt.imshow(np.concatenate((t2i(tomotv),t2i(tomo)),axis=1))
+plt.title("TV vs iradon")
+plt.clim(0,tmax)
 plt.show()
 
+
+"""
 fig, axs = plt.subplots(1,3)
 
 
@@ -146,3 +170,8 @@ print("spmv   rec time =%3.3g, \t snr=%3.3g"% (  spmv_time, snr_spmv))
 print("cgls   rec time =%3.4g, \t snr=%3.3g"% ( cgls_time, snr_cgls))
 
 print("TV     rec time =%3.4g, \t snr=%3.3g"% ( TV_time, snr_TV))
+
+
+"""
+
+

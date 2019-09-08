@@ -112,6 +112,13 @@ except:
     base_folder = gridrec.create_unique_folder("shepp_logan")
     
 
+scale   = lambda x,y: xp.sum(x * y)/xp.sum(x *x)
+rescale = lambda x,y: scale(x,y)*x
+ssnr2   = lambda x,y: xp.sum(y**2)/xp.sum((y-rescale(x,y))**2)
+ssnr    = lambda x,y: xp.sqrt(ssnr2(x,y))
+
+
+
 size = 64*2
 
 num_slices = size//2
@@ -119,7 +126,9 @@ num_slices = size//2
 
 #num_angles = int(np.ceil(size//2*np.pi*2))
 
-#num_angles = int(45)
+#num_angles = int(90)
+num_angles = int(45)
+
 num_angles = int(24)
 #num_angles = int(20)
 
@@ -145,7 +154,10 @@ print("True obj shape", true_obj.shape)
 true_obj = np.lib.pad(true_obj, padding_array, 'constant', constant_values=0)
 
 #angles in radians
-theta = np.arange(-90, 90., 180. / num_angles)*np.pi/180.
+#theta = np.arange(-90, 90., 180. / num_angles)*np.pi/180.
+num_angles+=1
+theta = np.linspace(0,180, num=num_angles)*np.pi/180
+
 #theta = np.arange(0, 180, 180. / num_angles,dtype='float128')*np.pi/180.
 
 
@@ -205,7 +217,8 @@ simulation1s=radon(true_obj[num_slices//2:num_slices//2+1])[0]
 
 #simulation1 = gridrec.gridrec_transpose(true_obj, theta, num_rays, k_r, kernel_type, xp, mode)
 simulation1s=simulation1s.real
-scaling_1_0=(np.sum(simulation * simulation1s))/np.sum(simulation1s *simulation1s)
+#scaling_1_0=(np.sum(simulation * simulation1s))/np.sum(simulation1s *simulation1s)
+scaling_1_0=scale(simulation1s,simulation)
 
 #simulation = np.swapaxes(simulation,0,1)
 plt.imshow(np.real(simulation1s))
@@ -276,17 +289,26 @@ plt.show()
 
 
 #
-scalingc=(np.sum(tomo_stack0c * tomo_stackc))/np.sum(tomo_stackc *tomo_stackc)
+#scalingc=(np.sum(tomo_stack0c * tomo_stackc))/np.sum(tomo_stackc *tomo_stackc)
+scalingc=scale(tomo_stackc,tomo_stack0c)
+
+
 ##scaling1c=(np.sum(tomo_stackc * tomo_stack1c))/np.sum(tomo_stack1c *tomo_stack1c)
-scaling1c=(np.sum(tomo_stack0c * tomo_stack1c))/np.sum(tomo_stack1c *tomo_stack1c)
+#scaling1c=(np.sum(tomo_stack0c * tomo_stack1c))/np.sum(tomo_stack1c *tomo_stack1c)
+scaling1c=scale(tomo_stack1c,tomo_stack0c)
+
 #tomo_stack1c*=scaling1c
 #tomo_stackc*=scalingc
 print("forward tomopy/nufft scaling=", scaling_1_0)
 
 print("backward truth/nufft scaling=",scaling1c)
 
-snr_tomopy=np.sum(tomo_stack0c**2)/np.sum(abs(tomo_stackc*scalingc-tomo_stack0c)**2)
-snr_spmv  =np.sum(tomo_stack0c**2)/np.sum(abs(tomo_stack1c*scaling1c-tomo_stack0c)**2)
+#snr_tomopy=np.sum(tomo_stack0c**2)/np.sum(abs(tomo_stackc*scalingc-tomo_stack0c)**2)
+snr_tomopy=ssnr2(tomo_stack0c,tomo_stackc)
+
+#snr_spmv  =np.sum(tomo_stack0c**2)/np.sum(abs(tomo_stack1c*scaling1c-tomo_stack0c)**2)
+snr_spmv  = ssnr2(tomo_stack0c,tomo_stack1c)
+
 #print("snr tomopy",snr_tomopy,snr_spmv)
 
 #print("tomopy simulation time=", time_tomopy_forward)
@@ -315,6 +337,9 @@ plt.show()
 
 
 runfile('TV-reg.py')
+
+runfile('rings.py')
+
 
 """
 print("setting up the CG-LS") 

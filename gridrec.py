@@ -371,7 +371,15 @@ def gridding_setup(num_rays, theta_array, center=None, xp=np, kernel_type = 'gau
     qray[:,num_rays//2,:,:]=0 # removing highest frequency from the data
 
     Kval=(kx*ky)*(qray)
-  
+
+    
+    # check if theta goes to 180, then assign 1/2 weight to each
+    theta=theta_array
+    if xp.abs(xp.abs(theta[0]-theta[-1])-np.pi)<xp.abs(theta[1]-theta[0])*1e-5:
+        tscale=np.ones(num_angles)
+        tscale[([0,-1])]=.5
+        tscale.shape=[num_angles,1,1,1]
+        Kval*=tscale
     
     
     # move the grid to the middle and add stencils
@@ -459,19 +467,20 @@ def radon_setup(num_rays, theta_array, center=None,xp=np, kernel_type = 'gaussia
     ramlak_filter[0]=0;
     
     
-    # we shiftet the sparse matrix output
+    # we shifted the sparse matrix output so we work directly with shifted fft
     ramlak_filter=xp.fft.fftshift(ramlak_filter)
 
-    #ramlak_filter = ramlak_filter.reshape((1, ramlak_filter.size))
+    # reshape so that we can broadcast to the whole stack
     ramlak_filter = ramlak_filter.reshape((1, 1, ramlak_filter.size))
-    none_filter=ramlak_filter*0+1
+    none_filter=ramlak_filter*0+1./(num_rays**3)/num_angles
     
-    
+    # this is to mask out the outer sinogram
 #    msk_sino=np.ones(num_rays)
 #    msk_sino[0:num_rays//4]=0
 #    msk_sino[num_rays//4*3+1:]=0
 #    msk_sino.shape=(1,1,num_rays)
 
+    # mask out outer tomogram
     xx=xp.array([range(-num_rays//2, num_rays//2),])
     xx=xx**2
     
@@ -490,7 +499,7 @@ def radon_setup(num_rays, theta_array, center=None,xp=np, kernel_type = 'gaussia
     
     
     R  = lambda tomo:  radon(tomo, deapodization_factor , ST, k_r, num_angles )
-    # the transpose (for least squares solvers):
+    # the conjugate transpose (for least squares solvers):
     RT = lambda sino: iradon(sino, dpr, S,  k_r, none_filter)
     
     # inverse Radon (pseudo inverse)
@@ -781,25 +790,28 @@ def iradon(sinogram_stack, deapodization_factor, S, k_r , hfilter):
         else:
             qt=sinogram_stack[i]+1j*sinogram_stack[i+1]
             
-
+       
         # radon (r-theta) to Fourier (q-theta) space        
         qt = xp.fft.fft(qt)  
         
-        # non uniform IFFT:
-        
+         ###################################
+        # non uniform IFFT: Fourier polar (q,theta) to cartesian (x,y):
+       
         # density compensation
         qt *= hfilter[0,0]
         
-        # inverse gridding (polar (q-theta) to cartesian)
-        # qt.shape=(num_rays * num_angles)
+        # inverse gridding (polar (q,theta) to cartesian (qx,qy))
         qt.shape=(-1)        
-        tomogram=qt*S
+        tomogram=qt*S #SpMV
         tomogram.shape=(num_rays,num_rays)
 
-        # Fourier (cartesian) to real (xy) space
+        # Fourier cartesian (qx,qy) to real (xy) space
 
-        tomogram=xp.fft.ifft2(tomogram)
-
+        tomogram=xp.fft.ifft2(tomogram)*deapodization_factor[0]
+        
+        
+        # end of non uniform FFT 
+        ###################################
         # extract two slices out of complex
         if i > num_slices-2:
             tomo_stack[i]=tomogram.real
@@ -807,7 +819,6 @@ def iradon(sinogram_stack, deapodization_factor, S, k_r , hfilter):
             tomo_stack[i]=tomogram.real
             tomo_stack[i+1]=tomogram.imag
     
-    tomo_stack*=deapodization_factor
 
     return tomo_stack
     
@@ -820,12 +831,14 @@ def radon(tomo_stack, deapodization_factor, ST, k_r, num_angles ):
     num_rays   = tomo_stack.shape[2]
 
     sinogram_stack = np.empty((num_slices, num_angles, num_rays),dtype=np.complex64)
- 
+    
+    deapodization_factor.shape=(num_rays,num_rays)
+
     #go through each slice
     #for i in range(0,num_slices):
     #    tomo_slice = tomo_stack[i] 
         
-    # two slices at once    
+    # two slices at once by merrging into a complex   
     for i in range(0,num_slices,2):
         
         # merge two slices into complex
@@ -835,22 +848,24 @@ def radon(tomo_stack, deapodization_factor, ST, k_r, num_angles ):
         else:
             tomo_slice = tomo_stack[i]+1j*tomo_stack[i+1]
         
-        
+        #sinogram = radon_oneslice(tomo_slice)
+        ###################################
         # non uniform FFT cartesian (x,y) to Fourier polar (q,theta):
         
-        tomo_slice = np.fft.fft2(tomo_slice*deapodization_factor[0])
+        tomo_slice = np.fft.fft2(tomo_slice*deapodization_factor)
         
         # gridding from cartiesian (qx,qy) to polar (q-theta)
         # tomo_slice.shape = (num_rays **2)        
         tomo_slice.shape = (-1)        
-        sinogram=tomo_slice * ST
+        sinogram=tomo_slice * ST #SpMV
         sinogram.shape=(num_angles,num_rays)
 
         # end of non uniform FFT
-
-
-        # (q-theta) to radon (r-theta) :              
-        sinogram = np.fft.ifft(sinogram)        
+        ###################################
+        
+        # (q-theta) to radon (r-theta) :       
+        sinogram = np.fft.ifft(sinogram)  
+        
         
         # put the sinogram in the stack
         #sinogram_stack[i]=sinogram        
