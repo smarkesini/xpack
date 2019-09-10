@@ -6,10 +6,12 @@ Created on Fri Sep  6 08:48:37 2019
 @author: smarchesini
 """
 # ========== TV regularization ===============
-# let's do TV-reg by Split Bregman method
+#  TV-reg by Split Bregman method
+#  min ||R x - data||^2+ mu ||Grad x||_1
+#
+# 
 
-
-# define finite difference in 1D, -transpose 
+# define finite difference in 1D, and -transpose 
 D1   = lambda x,ax: np.roll(x,-1,axis=ax)-x
 Dt1  = lambda x,ax: x-np.roll(x, 1,axis=ax)
 
@@ -22,96 +24,65 @@ def Div(x):  return Dt1(x[0,:,:,:],0)+Dt1(x[1,:,:,:],1)+Dt1(x[2,:,:,:],2)
 def Lap(x): return Div(Grad(x))
 
 # soft thersholding ell1 operrator max(|a|-t,0)*sign(x)
-def Pell1(x,reg): return xp.clip(np.abs(x)-reg,0,None)*np.sign(x)
+def Pell1(x,reg): return xp.clip(np.abs(x)-tau,0,None)*np.sign(x)
 
-
-# vector to tomo
-shape_tomo=(num_slices,num_rays  ,num_rays)
-v2t = lambda x: np.reshape(x,(num_slices,num_rays,num_rays))
-
-# we need to solve RT R(x)+r*Lap(x)= RT(data)+r*Div(Lambda+p)
-# we can precompute RT(data) for the r.h.s term
-# we need RTR(x)+r*Lap(x) as an operator acting on a vector
-
-# let's scale the Radon trasform so that RT (data)~1
-Rsf=1./np.mean(radont(data)[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3])
-
-# scale the RT(data) accordingly and make it into a vector
-RTdata=Rsf*radont(data).ravel()
-
-# setup linear operator for CGS
-def RTRpLap_setup(radon,radont,Lap, num_slices,num_rays,r):
-
-    
-    # add the two functions    
-    RTRpLapf = lambda x: (Rsf*radont(radon(x))-r*Lap(x)).ravel()
-    #
-    RTRpLapfv= lambda x: RTRpLapf(np.reshape(x,shape_tomo))
-    
-    
-    # now let's setup the operator
-    from scipy.sparse.linalg import LinearOperator
-    RRshape = (num_slices*num_rays*num_rays,num_slices*num_rays*num_rays)
-    RTRpLap = LinearOperator(RRshape, dtype='float32', matvec=RTRpLapfv, rmatvec=RTRpLapfv)
-    return RTRpLap
-
-
-p=Grad(tomocg)
-
-reg=0.07*np.max(np.abs(p))
-
-#p=Grad(true_obj)
-#ii=np.where(np.abs(p)>0)
-#reg=0.7*np.min(np.abs(p[ii]))
-print("reg",reg)
-
-r = .8
-#reg = 10e-3 
-#mu = reg*r
-
-# Setup R_T R x+ r* Laplacian(x)
-RTRpLap = RTRpLap_setup(radon,radont,Lap, num_slices,num_rays,r)
-
-
-
-# initial
-
-#u=iradon(data).ravel()
-u=tomocg.ravel()
-Lambda=0
 
 plt.imshow(tomocg[num_slices//2,:,:])
 plt.title("CG init")
 plt.show()
 
-start=timer()
-cgsmaxit=4
 
-maxit=5
-# tomo to image
-t2i = lambda x: x[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3].real
+# we need to solve RT R(x)+r*Lap(x)= RT(data)+r*Div(Lambda+p)
+# we can precompute RT(data) for the r.h.s term
+
+# let's scale the Radon trasform so that RT (data)~1 in the central slice
+Rsf=1./np.mean(t2i(radont(data)))
+
+# scale the RT(data) accordingly and make it into a vector
+RTdata=Rsf*radont(data).ravel()
+
+# we need RTR(x)+r*Lap(x) as an operator acting on a vector
+RTRpLapt= lambda x: Rsf*radont(radon(x))- r*Lap(x)
+RTRpLap = lambda x: RTRpLapt(v2t(x)).ravel() #i/o vectors
+
+p=Grad(tomocg)
+tau=0.06*np.max(np.abs(p)) # soft thresholding 
+print("tau",tau)
+
+r = .8     # regularization weight 
+# initial
+u=tomocg.ravel()
+Lambda=0
+
+cgsmaxit=4 # internal cg solver 
+maxit=5    # TV iterations
+verbose=True # pring and plot figures
 
 start=timer()
 for ii in range(1,maxit+1):
     
-    p=Pell1(Grad(v2t(u))-Lambda,reg)
+    # soft thresholding p
+    p=Pell1(Grad(v2t(u))-Lambda,tau)
     
-    u,info = cgs(RTRpLap, RTdata-r*Div(Lambda+p).ravel(),x0=u,tol=tolerance*10,maxiter=cgsmaxit) 
+    # update tomogram
+    u,info, imax, resnrm = cgs(RTRpLap, RTdata-r*Div(Lambda+p).ravel(),x0=u,tol=tolerance,maxiter=cgsmaxit)
     
+    # update multiplier
     Lambda = Lambda + (p-Grad(v2t(u)))
     
-    #plt.imshow(v2t(u)[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3])
-    stitle = "TV iter=%d" %(ii)
-    
-    plt.imshow(v2t(u)[num_slices//2,:,:])    
-    plt.title(stitle)
-    plt.show()
-    print(stitle)
+    if verbose:
+#        stitle = "TV iter=%d" %(ii)    
+        title = "TV iter=%d, cgs(inf=%g,ii=%g,rnrm=%g)" %(ii,info,imax,resnrm)
+        print(stitle)
+        plt.imshow(v2t(u)[num_slices//2,:,:])    
+        plt.title(stitle)
+        plt.show()
+
     
 end = timer()
 TV_time=(end - start)
 
-#D1   = lambda x,ax: np.roll(x,-1,axis=ax)-x
+
 
 tomotv=v2t(u)
 
@@ -132,11 +103,15 @@ axs[2].set_title('truth')
 plt.show()
     
     
-tomotvc=tomocg[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3]
+tomotvc=t2i(tomotv)
 
-scalingtv=(np.sum(tomo_stack0c * tomotvc))/np.sum(tomotvc *tomotvc)
+#scalingtv=(np.sum(tomo_stack0c * tomotvc))/np.sum(tomotvc *tomotvc)
+scalingtv=scale(tomotvc,tomo_stack0c)
+
 #snr_TV  =np.sum(tomo_stack0c**2)/np.sum(abs(tomotvc*scalingtv-tomo_stack0c)**2)
-snr_TV  =np.sum(tomo_stack0c**2)/np.sum(abs(tomotvc-tomo_stack0c)**2)
+snr_TV  = ssnr2(tomotvc,tomo_stack0c)#np.sum(tomo_stack0c**2)/np.sum(abs(tomotvc-tomo_stack0c)**2)
+snr_cgls  = ssnr2(tomocgc,tomo_stack0c)
+
 
 
 print("tomopy rec time =%3.3g, \t snr=%3.3g " %( tomopy_time, snr_tomopy))

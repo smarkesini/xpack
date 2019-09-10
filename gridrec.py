@@ -160,27 +160,6 @@ def clip(a, lower, upper):
 
     return min(max(lower, a), upper)  
 
-def cg(A,b,tol,maxiter,x0=0):
-    xp=np
-    flag = 0
-    x = x0
-    if x0==0:
-        r0=b
-    else:
-        r0=b-A(b)
-    p=r0
-    
-    for ii in range(maxiter):
-        a  = xp.inner(r0,r0)/ xp.inner(p,A(p))
-        x += a*p
-        r1 = r0 - a*A(p)
-        if xp.linalg.norm(r1) < tol:
-            return  x, flag
-        b = xp.inner(r1,r1) / xp.inner(r0,r0)
-        p = r1 + b*p
-        r0 = r1
-    print("reached maxit, residual norm=", xp.linalg.norm(r1))
-    return x, flag
     
 
 def grid_rec_one_slice(qt, theta_array, num_rays, k_r, kernel_type, xp, mode): #use for backward proj

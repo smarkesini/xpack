@@ -127,9 +127,9 @@ num_slices = size//2
 #num_angles = int(np.ceil(size//2*np.pi*2))
 
 #num_angles = int(90)
-num_angles = int(45)
+#num_angles = int(45)
 
-#num_angles = int(24)
+num_angles = int(24)
 #num_angles = int(20)
 
 #num_angles = 180

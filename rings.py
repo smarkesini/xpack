@@ -32,6 +32,7 @@ deadpix[32,:,:]=1
 deadpix[32,:,(110,170)]=0
 
 
+# multiply data with dead pixel mask
 sino*=deadpix
 
 print("Ring removeal by TV")
@@ -44,8 +45,6 @@ plt.title("bad pixels")
 
 
 tomo=iradon(sino)
-
-
 plt.imshow(sino[num_slices//2,:,:])
 plt.show()
 tomo=iradon(sino)
@@ -54,7 +53,8 @@ plt.imshow(np.concatenate((t2i(tomo0),t2i(tomo)),axis=1))
 plt.clim(0,tmax)
 plt.title('no ring vs ring')
 
-# set up the tv
+
+# set up the tv with missing pixels
 fradon=lambda x: deadpix*radon(x)
 fradont=lambda x: radont(x*deadpix)
 
@@ -63,46 +63,22 @@ fdata = sino
 # let's scale the Radon trasform so that RT (data)~1
 Rsf=1./np.mean(radont(fdata)[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3])
 
+
 # scale the RT(data) accordingly and make it into a vector
 RTdata=Rsf*fradont(fdata).ravel()
 
-# setup linear operator for CGS
-def RTRpLap_setup(radon,radont,Lap, num_slices,num_rays,r):
-
-    
-    # add the two functions    
-    RTRpLapf = lambda x: (Rsf*radont(radon(x))-r*Lap(x)).ravel()
-    #
-    RTRpLapfv= lambda x: RTRpLapf(np.reshape(x,shape_tomo))
-    
-    
-    # now let's setup the operator
-    from scipy.sparse.linalg import LinearOperator
-    RRshape = (num_slices*num_rays*num_rays,num_slices*num_rays*num_rays)
-    RTRpLap = LinearOperator(RRshape, dtype='float32', matvec=RTRpLapfv, rmatvec=RTRpLapfv)
-    return RTRpLap
+# Setup R_T R x+ r* Laplacian(x)
+RTRpLapt= lambda x: (Rsf*fradont(fradon(x))- r*Lap(x))
+RTRpLap = lambda x: RTRpLapt(v2t(x)).ravel() # taking a vector as input
 
 
 p=Grad(tomo)
-
 reg=5e-3*np.max(np.abs(Grad(tomo)))
-
-#p=Grad(true_obj)
-#ii=np.where(np.abs(p)>0)
-#reg=0.7*np.min(np.abs(p[ii]))
 print("reg",reg)
 
 r = 0.8
-#reg = 10e-3 
-#mu = reg*r
-
-# Setup R_T R x+ r* Laplacian(x)
-RTRpLap = RTRpLap_setup(fradon,fradont,Lap, num_slices,num_rays,r)
-
-
 
 # initial
-
 #u=iradon(data).ravel()
 u=tomo.ravel()
 Lambda=0
@@ -113,18 +89,15 @@ plt.show()
 
 start=timer()
 cgsmaxit=3
-
 maxit=30
-# tomo to image
-t2i = lambda x: x[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3].real
 
 start=timer()
 for ii in range(1,maxit+1):
     
     p=Pell1(Grad(v2t(u))-Lambda,reg)
-    
-    u,info = cgs(RTRpLap, RTdata-r*Div(Lambda+p).ravel(),x0=u,tol=tolerance*10,maxiter=cgsmaxit) 
-    
+        
+    u,info, imax, resnrm = cgs(RTRpLap, RTdata-r*Div(Lambda+p).ravel(),x0=u,tol=tolerance,maxiter=cgsmaxit)
+
     Lambda = Lambda + (p-Grad(v2t(u)))
     
     #plt.imshow(v2t(u)[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3])

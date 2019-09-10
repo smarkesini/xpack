@@ -28,7 +28,7 @@ print("solving CG-LS")
 # tomo0=np.reshape(iradon(data),(-1))
 
 start = timer()
-tomocg,info, imax, resnrm = cgs(RTR, RTdata, x0=0, maxit=100, tol=tolerance)
+tomocg,info, imax, resnrm = cgs(RTR, RTdata, x0=0, maxiter=100, tol=tolerance)
 tomocg.shape=(num_slices,num_rays,num_rays)
 end = timer()
 cgls_time=(end - start)
@@ -65,7 +65,7 @@ RTdata =np.reshape(iradon(data),(-1))
 print("solving  CG-weighted LS")
 
 start = timer()
-tomowcg,info, imax, resnrm = cgs(RTR, RTdata, x0=0, maxit=100, tol=tolerance)
+tomowcg,info, imax, resnrm = cgs(RTR, RTdata, x0=0, maxiter=100, tol=tolerance)
 # reshape the output
 tomowcg.shape=(num_slices,num_rays,num_rays)
 end = timer()

@@ -1,13 +1,13 @@
-def cg(A,b, maxiter=0, tol=1e-4, x0=0):
+def cg(A,b, x0=0, maxiter=100, tol=1e-4):
     xp=np
     flag = 0
-    x = x0
-    if x0==0:
+
+    if np.isscalar(x0):
         r0=b
     else:
         r0=b-A(b)
     p=r0
-    
+    x = x0
     for ii in range(maxiter):
         a  = xp.inner(r0,r0)/ xp.inner(p,A(p))
         x += a*p
@@ -21,23 +21,24 @@ def cg(A,b, maxiter=0, tol=1e-4, x0=0):
     return x, flag, ii, xp.linalg.norm(r1)
 
 # conjugate gradient squared
-def cgs(A, b, x0=0, maxit=100, tol=1e-4):
+def cgs(A, b, x0=0, maxiter=100, tol=1e-4):
     bnrm2 = xp.linalg.norm( b );
     
     if  ( bnrm2 == 0.0 ):
         bnrm2 = 1.0
     
     # r = b - A(x);
-    if x0==0:
+    if np.isscalar(x0):
+        # x0==0:
         r=b
     else: 
-        r = b - A(x)
+        r = b - A(x0)
         
     res = xp.linalg.norm( r ) / bnrm2;
     x=x0
     
     r_tld = r;
-    for ii in range(1,maxit+1)  :
+    for ii in range(1,maxiter+1)  :
         rho = xp.inner(r_tld,r );
         if rho==0:  break
         
