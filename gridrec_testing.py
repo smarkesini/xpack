@@ -129,7 +129,7 @@ num_slices = size//2
 #num_angles = int(90)
 num_angles = int(45)
 
-num_angles = int(24)
+#num_angles = int(24)
 #num_angles = int(20)
 
 #num_angles = 180
@@ -326,19 +326,18 @@ print("spmv   sim time= %3.3g,\t rec time =%3.3g,\t snr=%3.3g"% ( time_radon, sp
 
 data=simulation1
 
+runfile('solvers.py')
 runfile('cgls.py')
 
-# tomogram to cropped image
-t2i = lambda x: x[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3].real
 
-plt.imshow(t2i(true_obj))
-plt.title('truth')
-plt.show()
+#plt.imshow(t2i(true_obj))
+#plt.title('truth')
+#plt.show()
 
 
-runfile('TV-reg.py')
+#runfile('TV-reg.py')
 
-runfile('rings.py')
+#runfile('rings.py')
 
 
 """

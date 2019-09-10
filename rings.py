@@ -34,6 +34,15 @@ deadpix[32,:,(110,170)]=0
 
 sino*=deadpix
 
+print("Ring removeal by TV")
+plt.imshow(sino[num_slices//2,:,:])
+plt.title("bad pixels")
+
+
+#plt.imshow(tomo[num_slices//2,:,:])
+#plt.title("bad pixels")
+
+
 tomo=iradon(sino)
 
 
