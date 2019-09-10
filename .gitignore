@@ -1,5 +1,6 @@
 *.egg-info
 *.py[co]
+*.img
 __pycache__
 dist/
 docs/_build/
