@@ -40,7 +40,7 @@ snr_cgls  = ssnr2(tomocgc,tomo_stack0c)
 
 tomo0=iradon(data)
 #tomo0c=v2t(tomo0)
-plt.imshow(t2i(tomo0c))
+plt.imshow(t2i(tomo0))
 plt.title('iradon')
 plt.show()
 

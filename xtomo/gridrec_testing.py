@@ -264,7 +264,9 @@ tomo_stack1 = tomo_stack_g
 #tomo_stack1*=msk_tomo
 
 
-#tomo_stack1 = iradon(sim1)
+#vector to tomo
+v2t= lambda x: xp.reshape(x,(num_slices, num_rays, num_rays))
+
 # tomo to cropped image
 t2i = lambda x: x[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3].real
     
@@ -335,7 +337,7 @@ runfile('cgls.py')
 #plt.show()
 
 
-#runfile('TV-reg.py')
+runfile('TV-reg.py')
 
 #runfile('rings.py')
 

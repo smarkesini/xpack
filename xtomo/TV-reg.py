@@ -5,12 +5,9 @@ Created on Fri Sep  6 08:48:37 2019
 
 @author: smarchesini
 """
-# ========== TV regularization ===============
-#  TV-reg by Split Bregman method
-#  min ||R x - data||^2+ mu ||Grad x||_1
-#
-# 
 
+
+"""
 # define finite difference in 1D, and -transpose 
 D1   = lambda x,ax: np.roll(x,-1,axis=ax)-x
 Dt1  = lambda x,ax: x-np.roll(x, 1,axis=ax)
@@ -24,9 +21,9 @@ def Div(x):  return Dt1(x[0,:,:,:],0)+Dt1(x[1,:,:,:],1)+Dt1(x[2,:,:,:],2)
 def Lap(x): return Div(Grad(x))
 
 # soft thersholding ell1 operrator max(|a|-t,0)*sign(x)
-def Pell1(x,reg): return xp.clip(np.abs(x)-tau,0,None)*np.sign(x)
-
-
+def Pell1(x,tau): return xp.clip(np.abs(x)-tau,0,None)*np.sign(x)
+"""
+print("TV regularization")
 plt.imshow(tomocg[num_slices//2,:,:])
 plt.title("CG init")
 plt.show()
@@ -37,7 +34,21 @@ plt.show()
 
 # let's scale the Radon trasform so that RT (data)~1 in the central slice
 Rsf=1./np.mean(t2i(radont(data)))
+data*=Rsf
 
+x0=tomocg
+p=Grad(tomocg)
+tau=0.06*np.max(np.abs(p)) # soft thresholding 
+print("tau",tau)
+
+r = .8     # regularization weight 
+
+start=timer()
+tomotv=solveTV(radon,radont, data, r, tau, x0=x0, tol=1e-2, maxiter=5, verbose=0)
+end = timer()
+TV_time=(end - start)
+
+"""
 # scale the RT(data) accordingly and make it into a vector
 RTdata=Rsf*radont(data).ravel()
 
@@ -45,9 +56,6 @@ RTdata=Rsf*radont(data).ravel()
 RTRpLapt= lambda x: Rsf*radont(radon(x))- r*Lap(x)
 RTRpLap = lambda x: RTRpLapt(v2t(x)).ravel() #i/o vectors
 
-p=Grad(tomocg)
-tau=0.06*np.max(np.abs(p)) # soft thresholding 
-print("tau",tau)
 
 r = .8     # regularization weight 
 # initial
@@ -56,7 +64,7 @@ Lambda=0
 
 cgsmaxit=4 # internal cg solver 
 maxit=5    # TV iterations
-verbose=True # pring and plot figures
+verbose=True # print and plot figures
 
 start=timer()
 for ii in range(1,maxit+1):
@@ -78,13 +86,13 @@ for ii in range(1,maxit+1):
         plt.title(stitle)
         plt.show()
 
-    
+"""
 end = timer()
 TV_time=(end - start)
 
 
 
-tomotv=v2t(u)
+#tomotv=v2t(u)
 
 #plt.imshow(t2i(tomotv))
 plt.imshow(np.concatenate((t2i(tomotv),t2i(tomocg)),axis=1))
@@ -111,7 +119,6 @@ scalingtv=scale(tomotvc,tomo_stack0c)
 #snr_TV  =np.sum(tomo_stack0c**2)/np.sum(abs(tomotvc*scalingtv-tomo_stack0c)**2)
 snr_TV  = ssnr2(tomotvc,tomo_stack0c)#np.sum(tomo_stack0c**2)/np.sum(abs(tomotvc-tomo_stack0c)**2)
 snr_cgls  = ssnr2(tomocgc,tomo_stack0c)
-
 
 
 print("tomopy rec time =%3.3g, \t snr=%3.3g " %( tomopy_time, snr_tomopy))

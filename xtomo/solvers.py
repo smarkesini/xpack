@@ -21,6 +21,14 @@ def cg(A,b, x0=0, maxiter=100, tol=1e-4):
     return x, flag, ii, xp.linalg.norm(r1)
 
 # conjugate gradient squared
+#%     Univ. of Tennessee and Oak Ridge National Laboratory
+#%     October 1, 1993
+#%     Details of this algorithm are described in "Templates for the
+#%     Solution of Linear Systems: Building Blocks for Iterative
+#%     Methods", Barrett, Berry, Chan, Demmel, Donato, Dongarra,
+#%     Eijkhout, Pozo, Romine, and van der Vorst, SIAM Publications,
+#%     1993. (ftp netlib2.cs.utk.edu; cd linalg; get templates.ps).
+
 def cgs(A, b, x0=0, maxiter=100, tol=1e-4):
     bnrm2 = xp.linalg.norm( b );
     
@@ -75,86 +83,102 @@ def cgs(A, b, x0=0, maxiter=100, tol=1e-4):
     
     return x, flag, ii, res
 
+###############################################
+# ========== TV regularization ===============
+#
+#  TV-reg by Split Bregman method
+#
+#  min ½ ‖ R u - data ‖² + µ ‖ ∇ u ‖₁
+#
+#  Augmented lagrangian:
+#
+#  L= µ ||p||₁+  ½ ‖ R u - data ‖² + r ⟨ p- ∇ u, Λ ⟩+ ½ r ‖ p-∇ u ‖²
+#
+#
+#  1) p:    µ ||p||_1+ r/2 || p - r (∇ u-Λ) ||^2
+#    
+#     p      <-- max(|∇ u-Λ |-µ/r,0) sign(∇ u-Λ)
+#
+#  2) u: ½ ||R u - data||²  + r/2 || ∇ u - (p+Λ) ||²
+#
+#     u      <-- (Rᵗ R - r ∇ᵗ ∇) u = Rᵗ data - r ∇ᵗ (p+Λ)
+#
+#  3) Λ <-- Λ + p - ∇ u
+#
+#  Grad =  ∇, Div = - ∇ᵗ, Lap = ∆= - ∇ᵗ ∇ᵗ
+#  τ=µ/r
+#------------------------------------------
 
 
-"""    
-    function [x, error, iter, flag] = cgs(A, x, b, M, max_it, tol)
-%  -- Iterative template routine --
-%     Univ. of Tennessee and Oak Ridge National Laboratory
-%     October 1, 1993
-%     Details of this algorithm are described in "Templates for the
-%     Solution of Linear Systems: Building Blocks for Iterative
-%     Methods", Barrett, Berry, Chan, Demmel, Donato, Dongarra,
-%     Eijkhout, Pozo, Romine, and van der Vorst, SIAM Publications,
-%     1993. (ftp netlib2.cs.utk.edu; cd linalg; get templates.ps).
-%
-%  [x, error, iter, flag] = cgs(A, x, b, M, max_it, tol)
-%
-% cgs.m solves the linear system Ax=b using the 
-% Conjugate Gradient Squared Method with preconditioning.
-%
-% input   A        REAL matrix
-%         x        REAL initial guess vector
-%         b        REAL right hand side vector
-%         M        REAL preconditioner
-%         max_it   INTEGER maximum number of iterations
-%         tol      REAL error tolerance
-%
-% output  x        REAL solution vector
-%         error    REAL error norm
-%         iter     INTEGER number of iterations performed
-%         flag     INTEGER: 0 = solution found to tolerance
-%                           1 = no convergence given max_it
+# define finite difference in 1D, and -transpose 
+D1   = lambda x,ax: np.roll(x,-1,axis=ax)-x
+Dt1  = lambda x,ax: x-np.roll(x, 1,axis=ax)
 
-  iter = 0;                               % initialization
-  flag = 0;
+# gradient in 3D
+def Grad(x): return np.stack((D1(x,0),D1(x,1),D1(x,2))) 
+# divergence
+def Div(x):  return Dt1(x[0,:,:,:],0)+Dt1(x[1,:,:,:],1)+Dt1(x[2,:,:,:],2)
+# Laplacian
+def Δ(x): return -6*x+np.roll(x,1,axis=0)+np.roll(x,-1,axis=0)+np.roll(x,1,axis=1)+np.roll(x,-1,axis=1)+np.roll(x,1,axis=2)+np.roll(x,-1,axis=2)
+def Lap(x): return Div(Grad(x))
 
-  bnrm2 = norm( b );
-  if  ( bnrm2 == 0.0 ), bnrm2 = 1.0; end
+# soft thersholding ell1 operrator max(|a|-t,0)*sign(x)
+def Pell1(x,τ): return xp.clip(np.abs(x)-τ,0,None)*np.sign(x)
 
-  r = b - A*x;
-  error = norm( r ) / bnrm2;
-  if ( error < tol ) return, end
 
-  r_tld = r;
+def solveTV(radon,radont, data, r, tau, x0=0, tol=1e-2, maxiter=5, verbose=0):
+    
+    # verbose=1: text output, 2: graphic output
+    
+    num_slices=data.shape[0]
+    num_rays = data.shape[2]
+    shapetomo=(num_slices,num_rays  ,num_rays)
+    
+    v2t = lambda x: np.reshape(x,(shapetomo))
+    t2i = lambda x: x[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3].real
+    
+    # (Rᵗ R + r ∇ᵗ ∇) ∆
+    RTRpLapt= lambda x: radont(radon(x))- r*Lap(x)
+    RTRpLap = lambda x: RTRpLapt(v2t(x)).ravel() #i/o vectors
 
-  for iter = 1:max_it,                    % begin iteration
 
-     rho = (r_tld'*r );
-     if (rho == 0.0), break, end
+    RTdata=radont(data).ravel()
+    # scale the data
+    Rsf=1./np.mean(t2i(v2t(RTdata)))
+    RTdata*=Rsf
 
-     if ( iter > 1 ),                     % direction vectors
-        beta = rho / rho_1;
-        u = r + beta*q;
-        p = u + beta*( q + beta*p );
-     else
-        u = r;
-        p = u;
-     end
+    Lambda=0
+    
 
-     p_hat = M \ p;
-     v_hat = A*p_hat;                     % adjusting scalars
-     alpha = rho / ( r_tld'*v_hat );
-     q = u - alpha*v_hat;
-     u_hat = M \ (u+q);
+    cgsmaxit=4 # internal cg solver 
+ 
+    if np.isscalar(x0):
+        RTR = lambda x: xp.reshape(radont(radon(v2t(x))),(-1))
+        #x0=radont(data)
+        u,info, imax, resnrm = cgs(RTR, RTdata, maxiter=cgsmaxit)
+    else: u=x0.ravel()
+    
+    for ii in range(1,maxiter+1):
+        
+        # soft thresholding p
+        p=Pell1(Grad(v2t(u))-Lambda,tau)
+        
+        # update tomogram
+        u,info, imax, resnrm = cgs(RTRpLap, RTdata-r*Div(Lambda+p).ravel(),x0=u,tol=tolerance,maxiter=cgsmaxit)
+        
+        # update multiplier
+        Lambda = Lambda + (p-Grad(v2t(u)))
+        
+        if verbose>0:   
+            title = "TV iter=%d, cgs(inf=%g,ii=%g,rnrm=%g)" %(ii,info,imax,resnrm)
+            print(stitle)
+            
+            if verbose ==2:
+                plt.imshow(v2t(u)[num_slices//2,:,:])    
+                plt.title(stitle)
+                plt.show()
 
-     x = x + alpha*u_hat;                 % update approximation
-
-     r = r - alpha*A*u_hat;
-     error = norm( r ) / bnrm2;           % check convergence
-     if ( error <= tol ), break, end
-
-     rho_1 = rho;
-
-  end 
-
-  if (error <= tol),                      % converged
-     flag =  0;
-  elseif ( rho == 0.0 ),                  % breakdown
-     flag = -1;
-  else                                    % no convergence
-     flag = 1;
-  end
-
-% END cgs.m
-"""
+    # rescale
+    u    *= 1./Rsf
+    
+    return v2t(u)
