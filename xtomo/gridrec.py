@@ -440,6 +440,18 @@ def gridding_setup(num_rays, theta_array, center=None, xp=np, kernel_type = 'gau
        
     return S, ST
 
+def masktomo(num_rays,xp,width=.65):
+    xx=xp.array([range(-num_rays//2, num_rays//2)])
+    msk_sino=np.float32(np.abs(xx)<(num_rays//2*width))
+    msk_sino.shape=(1,1,num_rays)
+    
+    xx=xx**2
+    rr2=xx+xx.T
+    msk_tomo=rr2<(num_rays//2*width*1.02)**2
+    msk_tomo.shape=(1,num_rays,num_rays)
+    return msk_tomo, msk_sino
+
+
 def radon_setup(num_rays, theta_array, center=None,xp=np, kernel_type = 'gaussian', k_r = 2):
 
     print("seting up gridding")
@@ -482,13 +494,15 @@ def radon_setup(num_rays, theta_array, center=None,xp=np, kernel_type = 'gaussia
 #    msk_sino.shape=(1,1,num_rays)
 
     # mask out outer tomogram
-    xx=xp.array([range(-num_rays//2, num_rays//2),])
-    xx=xx**2
+    msk_tomo,msk_sino=masktomo(num_rays,xp,width=.65)
     
-    rr2=xx+xx.T
-    msk_tomo=rr2<(num_rays//4*1.3)**2
-    
-    msk_tomo.shape=(1,num_rays,num_rays)
+#    xx=xp.array([range(-num_rays//2, num_rays//2),])
+#    xx=xx**2
+#    
+#    rr2=xx+xx.T
+#    msk_tomo=rr2<(num_rays//4*1.3)**2
+#    
+#    msk_tomo.shape=(1,num_rays,num_rays)
     
     
     deapodization_factor/=num_rays
@@ -696,7 +710,7 @@ def Overlap_CPU(image, frames, coord_x, coord_y, k_r):
 
 convolve_raw_kernel = None
 if convolve_raw_kernel is None:
-    with open("convolve.cu", 'r') as myfile:
+    with open("./src/convolve.cu", 'r') as myfile:
         convolve_raw_kernel = myfile.read()
 
 def Overlap_GPU(image, frames, coord_x, coord_y, k_r):
@@ -831,7 +845,7 @@ def radon(tomo_stack, deapodization_factor, ST, k_r, num_angles ):
     num_slices = tomo_stack.shape[0]
     num_rays   = tomo_stack.shape[2]
 
-    sinogram_stack = np.empty((num_slices, num_angles, num_rays),dtype=np.complex64)
+    sinogram_stack = np.empty((num_slices, num_angles, num_rays),dtype=np.float32)
     
     deapodization_factor.shape=(num_rays,num_rays)
 
@@ -874,7 +888,7 @@ def radon(tomo_stack, deapodization_factor, ST, k_r, num_angles ):
         if i > num_slices-2:
             print("ratio gridrec_transpose i/r=",  np.max(np.abs(sinogram.imag)/np.max(np.abs(sinogram.real))))
 
-            sinogram_stack[i]=sinogram
+            sinogram_stack[i]=sinogram.real
         else:
             sinogram_stack[i]=sinogram.real
             sinogram_stack[i+1]=sinogram.imag

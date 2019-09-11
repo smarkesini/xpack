@@ -23,7 +23,8 @@ def Lap(x): return Div(Grad(x))
 # soft thersholding ell1 operrator max(|a|-t,0)*sign(x)
 def Pell1(x,tau): return xp.clip(np.abs(x)-tau,0,None)*np.sign(x)
 """
-print("TV regularization")
+
+print("=========TV regularization=========")
 plt.imshow(tomocg[num_slices//2,:,:])
 plt.title("CG init")
 plt.show()
@@ -39,7 +40,7 @@ data*=Rsf
 x0=tomocg
 p=Grad(tomocg)
 tau=0.06*np.max(np.abs(p)) # soft thresholding 
-print("tau",tau)
+print("τ=",tau)
 
 r = .8     # regularization weight 
 
@@ -86,9 +87,10 @@ for ii in range(1,maxit+1):
         plt.title(stitle)
         plt.show()
 
-"""
+
 end = timer()
 TV_time=(end - start)
+"""
 
 
 
@@ -104,7 +106,7 @@ fig, axs = plt.subplots(1,3)
 
 axs[0].imshow(t2i(tomocg))
 axs[0].set_title('cg-ls')
-axs[1].imshow(t2i(v2t(u)))
+axs[1].imshow(t2i(v2t(tomotv)))
 axs[1].set_title('tv')
 axs[2].imshow(t2i(true_obj))
 axs[2].set_title('truth')

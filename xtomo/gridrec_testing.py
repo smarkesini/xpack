@@ -340,7 +340,9 @@ runfile('cgls.py')
 runfile('TV-reg.py')
 
 #runfile('rings.py')
+factor=1
 
+jk=sirt(sino_data, theta_array, num_rays, k_r, kernel_type, gpu_accelerated, max_iter, factor)
 
 """
 print("setting up the CG-LS") 
