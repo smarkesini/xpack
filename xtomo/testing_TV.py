@@ -1,4 +1,6 @@
-import gridrec
+#import gridrec
+import radon
+
 import numpy as np
 import matplotlib.pyplot as plt
 #import tomopy
@@ -53,7 +55,9 @@ Rsf=1./np.mean(t2i(radont(data)))
 data*=Rsf
 # set up thresholding tau
 p=Grad(tomo0)
-tau=0.014*np.max(np.abs(p))*Rsf # soft thresholding 
+#tau=0.008*np.max(np.abs(p))*Rsf # soft thresholding 
+tau=0.05
+
 print("τ=",tau)
 
 r = .8     # regularization weight 
@@ -61,7 +65,7 @@ r = .8     # regularization weight
 
 
 start=timer()
-tomotv=solveTV(radon,radont, data, r, tau, x0=tomo0, tol=1e-2, maxiter=5, verbose=1)
+tomotv=solveTV(radon,radont, data, r, tau, x0=tomo0, tol=1e-2, maxiter=10, verbose=1)
 end = timer()
 time_TV=(end - start)
 

@@ -1,3 +1,6 @@
+import numpy as xp
+
+
 def cg(A,b, x0=0, maxiter=100, tol=1e-4):
     
     bnrm = xp.linalg.norm( b );
@@ -117,7 +120,8 @@ def cgs(A, b, x0=0, maxiter=100, tol=1e-4):
 
 
 # define finite difference in 1D, and -transpose 
-import numpy as xp
+#
+
 D1   = lambda x,ax: xp.roll(x,-1,axis=ax)-x
 Dt1  = lambda x,ax: x-xp.roll(x, 1,axis=ax)
 

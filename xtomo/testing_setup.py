@@ -1,9 +1,11 @@
-import gridrec
+from radon import generate_Shepp_Logan as generate_Shepp_Logan
+from radon import radon_setup as radon_setup
+
 def setup_tomo (num_slices, num_angles, num_rays, xp, k_r=1, kernel_type = 'gaussian'):
 
     num_rays=num_rays//2
     true_obj_shape = (num_slices, num_rays, num_rays)
-    true_obj = gridrec.generate_Shepp_Logan(true_obj_shape)
+    true_obj = generate_Shepp_Logan(true_obj_shape)
     
     
     pad_1D        = num_rays//2
@@ -18,7 +20,7 @@ def setup_tomo (num_slices, num_angles, num_rays, xp, k_r=1, kernel_type = 'gaus
     kernel_type     = "gaussian"
     gpu_accelerated = False
     
-    radon,iradon,radont = gridrec.radon_setup(num_rays, theta, xp=xp, kernel_type = 'gaussian', k_r =1)
+    radon,iradon,radont = radon_setup(num_rays, theta, xp=xp, kernel_type = 'gaussian', k_r =1)
     
     ############################
     # generate data

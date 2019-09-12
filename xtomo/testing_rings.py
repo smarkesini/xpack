@@ -1,4 +1,6 @@
-import gridrec
+#import gridrec
+import radon
+
 import numpy as np
 import matplotlib.pyplot as plt
 #import tomopy
