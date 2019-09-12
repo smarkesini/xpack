@@ -417,7 +417,7 @@ def gridding_setup(num_rays, theta_array, center=None, xp=np, kernel_type = 'gau
     Krow=np.longlong(Krow)
     Kcol=np.longlong(Kcol)
     
-    print("Kval type",Kval.dtype,"Krow type",Krow.dtype)
+    # print("Kval type",Kval.dtype,"Krow type",Krow.dtype)
     
     # create sparse array   
     #S=scipy.sparse.csc_matrix((Kval.ravel(), (Krow.ravel(), Kcol.ravel())), shape=((num_rays)**2, num_angles*num_rays))
@@ -454,12 +454,12 @@ def masktomo(num_rays,xp,width=.65):
 
 def radon_setup(num_rays, theta_array, center=None,xp=np, kernel_type = 'gaussian', k_r = 2):
 
-    print("seting up gridding")
+    #print("setting up gridding")
     start = timer()
 
     S, ST = gridding_setup(num_rays, theta_array, center, xp, kernel_type , k_r)
     end = timer()
-    print("gridding setup time=",end - start)
+    #print("gridding setup time=",end - start)
 
     
     #deapodization_factor = deapodization(num_rays, kernel_type, xp, k_r)
@@ -468,7 +468,7 @@ def radon_setup(num_rays, theta_array, center=None,xp=np, kernel_type = 'gaussia
     
     # get the filter
     num_angles=theta_array.shape[0]
-    print("num_angles", num_angles)
+    #print("num_angles", num_angles)
     #ramlak_filter = (xp.abs(xp.array(range(num_rays)) - num_rays/2)+1./num_rays)/(num_rays**2)/num_angles/9.8
     ramlak_filter = (xp.abs(xp.array(range(num_rays)) - num_rays/2)+1./num_rays)/(num_rays**3)/num_angles
     

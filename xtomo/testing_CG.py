@@ -1,10 +1,41 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Fri Sep  6 14:47:38 2019
+import gridrec
+import numpy as np
+import matplotlib.pyplot as plt
+#import tomopy
+#import imageio
+#import os
 
-@author: smarchesini
-"""
+#from solvers import Grad
+#from solvers import solveTV
+from solvers import cgs
+from solvers import cg
+
+from timeit import default_timer as timer
+
+xp=np
+scale   = lambda x,y: xp.sum(x * y)/xp.sum(x *x)
+rescale = lambda x,y: scale(x,y)*x
+ssnr2   = lambda x,y: xp.sum(y**2)/xp.sum((y-rescale(x,y))**2)
+ssnr    = lambda x,y: xp.sqrt(ssnr2(x,y))
+
+from testing_setup import setup_tomo
+
+size = 64*2
+num_slices = size//2
+num_angles = 27
+num_rays   = size
+
+# tomo to image
+t2i = lambda x: x[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3].real
+# vector to tomo
+v2t= lambda x: xp.reshape(x,(num_slices, num_rays, num_rays))
+
+
+radon, iradon, radont, true_obj, data, theta=setup_tomo(num_slices, num_angles, num_rays, xp)
+#num_rays=num_rays
+
+
+print("=========GC Least Square by CGS=========")
 
 
 # we are solving min_x ||R x-data||^2
@@ -22,7 +53,6 @@ RTdata =np.reshape(radont(data),(-1))
 tolerance = 2e-2
 
 
-
 print("solving CG-LS")
 # initial guess (as a vector)
 # tomo0=np.reshape(iradon(data),(-1))
@@ -34,8 +64,9 @@ end = timer()
 cgls_time=(end - start)
 
 tomocgc=t2i(tomocg)
-scalingcgls=scale(tomocgc,tomo_stack0c) #(np.sum(tomo_stack0c * tomocgc))/np.sum(tomocgc *tomocgc)
-snr_cgls  = ssnr2(tomocgc,tomo_stack0c)
+truth=t2i(true_obj)
+scalingcgls=scale(tomocgc,truth) #(np.sum(truth * tomocgc))/np.sum(tomocgc *tomocgc)
+snr_cgls  = ssnr2(tomocgc,truth)
 
 
 tomo0=iradon(data)
@@ -65,7 +96,7 @@ RTdata =np.reshape(iradon(data),(-1))
 print("solving  CG-weighted LS")
 
 start = timer()
-tomowcg,info, imax, resnrm = cgs(RTR, RTdata, x0=0, maxiter=100, tol=tolerance)
+tomowcg,info, imax, resnrm = cg(RTR, RTdata, x0=0, maxiter=100, tol=tolerance)
 # reshape the output
 tomowcg.shape=(num_slices,num_rays,num_rays)
 end = timer()
@@ -73,10 +104,12 @@ end = timer()
 wcgls_time=(end - start)
 
 tomowcgc=t2i(tomowcg)#[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3]
-scalingwcgls=scale(tomowcgc,tomo_stack0c)
-#(np.sum(tomo_stack0c * tomowcgc))/np.sum(tomowcgc *tomowcgc)
-snr_wcgls  = ssnr2(tomowcgc,tomo_stack0c) 
-#np.sum(tomo_stack0c**2)/np.sum(abs(tomowcgc*scalingwcgls-tomo_stack0c)**2)
+truth=t2i(true_obj)
+
+scalingwcgls=scale(tomowcgc,truth)
+#(np.sum(truth * tomowcgc))/np.sum(tomowcgc *tomowcgc)
+snr_wcgls  = ssnr2(tomowcgc,truth) 
+#np.sum(truth**2)/np.sum(abs(tomowcgc*scalingwcgls-truth)**2)
 
 plt.imshow(tomowcgc)
 plt.title('weighted cgls')

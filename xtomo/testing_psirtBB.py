@@ -19,11 +19,16 @@ def masktomo(num_rays,xp,width=.65):
     msk_tomo.shape=(1,num_rays,num_rays)
     return msk_tomo, msk_sino
 
-def sirtMcalc(radon,radont,msk_sino,msk_tomo,shape,xp):
-    
+def sirtMcalc(radon,radont,shape,xp):
+    # compute the tomogram and sinogram of all ones
+    # if R (radon) is a matrix sum_rows R = R*1= radon(1) 
+    #                  sum_cols R = RT*1 = radont(1) 
+    # we need to clip outside a mask of interest
     
     num_rays=shape[2]
     num_angles=shape[1]
+    
+    msk_tomo,msk_sino=masktomo(num_rays,xp,width=.65)
     
     eps=xp.finfo(xp.float32).eps
     #t1=tomo0*0+1.
@@ -33,24 +38,23 @@ def sirtMcalc(radon,radont,msk_sino,msk_tomo,shape,xp):
     T1=1./np.clip(T1,eps,None)*msk_tomo
     return T1,S1
 
-def sirtBB(radon, iradon, sino_data, max_iter=30, alpha=1, verbose=0):
+
+def sirtBB(radon, radont, sino_data, max_iter=30, alpha=1, verbose=0, useRC=False):
 
     #image = np.zeros((sino_data.shape[0], sino_data.shape[1], sino_data.shape[2]))
     xp=np
-    
-    if gpu_accelerated == False:
-        mode = "python"
-        xp = __import__("numpy")
-        
-    
+      
     nrm0 = xp.linalg.norm(sino_data)
+
+    if useRC:
+        C,R=sirtMcalc(radon,radont,xp.shape(data),xp)
+        iradon= lambda x: C*radont(R*x)
+    else: 
+        iradon=radont
+
     tomo = iradon(sino_data)
     
-    num_slices=np.shape(sino_data)[0]
-    num_angles=np.shape(sino_data)[1]
-    num_rays=np.shape(sino_data)[2]
     
-    #print("image", image.shape)
 
     for i in range(max_iter):
         
@@ -60,7 +64,7 @@ def sirtBB(radon, iradon, sino_data, max_iter=30, alpha=1, verbose=0):
         rnrm=np.linalg.norm(residual)/nrm0
         
         if verbose >0:
-            title = "SIRT iter=%d, rnrm=%g" %(i, rnrm)
+            title = "SIRT-BB iter=%d, rnrm=%g" %(i, rnrm)
             print(title )
             if verbose >1:
                 plt.imshow(t2i(tomo))
@@ -84,69 +88,48 @@ def sirtBB(radon, iradon, sino_data, max_iter=30, alpha=1, verbose=0):
         
         grad_old=grad+0
         
-        
-        #plt.imshow(np.real(image[size//2]))
-        #plt.imshow(t2i(tomo))
-        #plt.show()
-
-#    return image[sino_data.shape[0]//2]
     return tomo,rnrm
 
+
 xp=np
-k_r = 1
-size = 64
-num_slices = size
-num_angles = 25 # size//2
+scale   = lambda x,y: xp.sum(x * y)/xp.sum(x *x)
+rescale = lambda x,y: scale(x,y)*x
+ssnr2   = lambda x,y: xp.sum(y**2)/xp.sum((y-rescale(x,y))**2)
+ssnr    = lambda x,y: xp.sqrt(ssnr2(x,y))
+
+from testing_setup import setup_tomo
+
+size = 64*2
+num_slices = size//2
+num_angles = 27
 num_rays   = size
-
+# tomo to image
 t2i = lambda x: x[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3].real
+# vector to tomo
+v2t= lambda x: xp.reshape(x,(num_slices, num_rays, num_rays))
 
-base_folder = gridrec.create_unique_folder("shepp_logan")
 
-true_obj_shape = (num_slices, num_rays, num_rays)
-true_obj = gridrec.generate_Shepp_Logan(true_obj_shape)
+radon, iradon, radont, true_obj, data, theta=setup_tomo(num_slices, num_angles, num_rays, xp)
 
-pad_1D        = size//2
-padding_array = ((0, 0), (pad_1D, pad_1D), (pad_1D, pad_1D))
-num_rays      = num_rays + pad_1D*2
-
-print("True obj shape", true_obj.shape)
-
-true_obj = np.lib.pad(true_obj, padding_array, 'constant', constant_values = 0)
-theta    = np.arange(0, 180., 180. / num_angles)*np.pi/180.
-
-t2i = lambda x: x[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3].real
-
-#simulation = gridrec.forward_project(true_obj, theta)
-#simulation = np.swapaxes(simulation,0,1)
-
-#xp              = __import__("numpy")
-#mode            = 'python'
-kernel_type     = "gaussian"
-gpu_accelerated = False
-
-radon,iradon,radont = gridrec.radon_setup(num_rays, theta, center=num_rays//2, xp=np, kernel_type = 'gaussian', k_r =1)
-
-simulation = radon(true_obj)
-
-tomo0=iradon(simulation)
+# check iradon as initial
+tomo0=iradon(data)
 
 scale   = lambda x,y: xp.sum(x * y)/xp.sum(x *x)
 factor=scale(tomo0,true_obj)
 
-msk_tomo,msk_sino=masktomo(num_rays,xp,width=.65)
-T1,S1=sirtMcalc(radon,radont,msk_sino,msk_tomo,xp.shape(simulation),xp)
+#msk_tomo,msk_sino=masktomo(num_rays,xp,width=.65)
+#T1,S1=sirtMcalc(radon,radont,xp.shape(data),xp)
 
-iradon1= lambda x: T1*radont(S1*x)
+#iradon1= lambda x: T1*radont(S1*x)
  
-#image = sirt(simulation, theta, num_rays, k_r, kernel_type, gpu_accelerated, 100, factor=factor)
+#image = sirt(data, theta, num_rays, k_r, kernel_type, gpu_accelerated, 100, factor=factor)
 start = timer()
-tomo_sirtBB,rnrm = sirtBB(radon, iradon1, simulation, max_iter=30, alpha=1.,verbose=0)
+tomo_sirtBB,rnrm = sirtBB(radon, radont, data, max_iter=30, alpha=1.,verbose=0,useRC=True)
 end = timer()
 time_sirtBB=end-start
 
 start = timer()
-tomo_psirtBB,rnrmp = sirtBB(radon, iradon, simulation, max_iter=30, alpha=1.,verbose=0)
+tomo_psirtBB,rnrmp = sirtBB(radon, iradon, data, max_iter=30, alpha=1.,verbose=0)
 end = timer()
 time_psirtBB=end-start
 
