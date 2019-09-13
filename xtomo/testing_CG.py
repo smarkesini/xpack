@@ -34,6 +34,8 @@ v2t= lambda x: xp.reshape(x,(num_slices, num_rays, num_rays))
 
 
 radon, iradon, radont, true_obj, data, theta=setup_tomo(num_slices, num_angles, num_rays, xp)
+#radon,iradon,radont = radon_setup(num_rays, theta, xp=xp, kernel_type = 'gaussian', k_r =1)
+    
 #num_rays=num_rays
 
 
