@@ -356,7 +356,7 @@ def gridding_setup(num_rays, theta_array, center=None, xp=np, kernel_type = 'gau
     # check if theta goes to 180, then assign 1/2 weight to each
     theta=theta_array
     if xp.abs(xp.abs(theta[0]-theta[-1])-np.pi)<xp.abs(theta[1]-theta[0])*1e-5:
-        tscale=np.ones(num_angles)
+        tscale=xp.ones(num_angles)
         tscale[([0,-1])]=.5
         tscale.shape=[num_angles,1,1,1]
         Kval*=tscale
@@ -392,9 +392,9 @@ def gridding_setup(num_rays, theta_array, center=None, xp=np, kernel_type = 'gau
     
 #    print("Kval type",Kval.dtype,"Krow type",Krow.dtype)
 #    Kval=np.float32(Kval)
-    Kval=np.complex64(Kval)
-    Krow=np.longlong(Krow)
-    Kcol=np.longlong(Kcol)
+    Kval=xp.complex64(Kval)
+    Krow=xp.longlong(Krow)
+    Kcol=xp.longlong(Kcol)
     
     # create sparse array   
     S=scipy.sparse.csr_matrix((Kval.ravel(),(Kcol.ravel(), Krow.ravel())), shape=(num_angles*num_rays, (num_rays)**2))
@@ -471,7 +471,7 @@ def radon_setup(num_rays, theta_array, center=None,xp=np, kernel_type = 'gaussia
     deapodization_factor*=msk_tomo
 
     deapodization_factor*=0.14652085
-    deapodization_factor=np.float32(deapodization_factor)
+    deapodization_factor=xp.float32(deapodization_factor)
     
     
     
