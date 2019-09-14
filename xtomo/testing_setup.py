@@ -1,5 +1,5 @@
-from radon import generate_Shepp_Logan as generate_Shepp_Logan
-from radon import radon_setup as radon_setup
+from fubini import generate_Shepp_Logan as generate_Shepp_Logan
+#from radon import radon_setup as radon_setup
 
 def setup_tomo (num_slices, num_angles, num_rays, xp, k_r=1, kernel_type = 'gaussian'):
 
@@ -13,16 +13,22 @@ def setup_tomo (num_slices, num_angles, num_rays, xp, k_r=1, kernel_type = 'gaus
     num_rays      = num_rays + pad_1D*2
     
     print("True obj shape", true_obj.shape)
-    
-    true_obj = xp.lib.pad(true_obj, padding_array, 'constant', constant_values = 0)
+    eps=xp.finfo(xp.float32).eps
+    #true_obj = xp.lib.pad(true_obj, padding_array, 'constant', constant_values = 0)
+    true_obj = xp.pad(true_obj, padding_array, 'constant', constant_values = 0)
     theta    = xp.arange(0, 180., 180. / num_angles)*xp.pi/180.
     
-    kernel_type     = "gaussian"
-    gpu_accelerated = False
+#    theta    = xp.linspace(0, 180., num= num_angles)*xp.pi/180.
+    #print("theta shape=",theta.shape,"num_angles=",num_angles)
+    theta+=eps
     
-    radon,iradon,radont = radon_setup(num_rays, theta, xp=xp, kernel_type = 'gaussian', k_r =1)
+    kernel_type     = "gaussian"
+
+    
+    #radon,iradon,radont = radon_setup(num_rays, theta, xp=xp, kernel_type = 'gaussian', k_r =1)
     
     ############################
     # generate data
-    data = radon(true_obj)
-    return radon, iradon, radont, true_obj, data, theta
+    #data = radon(true_obj)
+    #return radon, iradon, radont, true_obj, data, theta
+    return true_obj, theta

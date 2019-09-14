@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import numpy as xp
+#import numpy as xp
 
 # mask out outer tomogram and sinogram
 def masktomo(num_rays,xp,width=.65):
     
     xx=xp.array([range(-num_rays//2, num_rays//2)])
-    msk_sino=xp.float32(xp.abs(xx)<(num_rays//2*width))
+    msk_sino=(xp.abs(xx)<(num_rays//2*width)).astype('float32')
+    
     msk_sino.shape=(1,1,num_rays)
     
     xx=xx**2
@@ -36,13 +37,13 @@ def sirtMcalc(radon,radont,shape,xp):
     return T1,S1
 
 
-def sirtBB(radon, radont, sino_data, max_iter=30, alpha=1, verbose=0, useRC=False,BBstep=True):
+def sirtBB(radon, radont, sino_data, xp, max_iter=30, alpha=1, verbose=0, useRC=False,BBstep=True):
 
       
     nrm0 = xp.linalg.norm(sino_data)
 
     if useRC:
-        C,R=sirtMcalc(radon,radont,xp.shape(sino_data),xp)
+        C,R=sirtMcalc(radon,radont,(sino_data).shape,xp)
         iradon= lambda x: C*radont(R*x)
     else: 
         iradon=radont
