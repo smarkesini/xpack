@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 #import imageio
 #import os
 GPU=True
-GPU=False
+#GPU=False
 import fubini
 
 from timeit import default_timer as timer

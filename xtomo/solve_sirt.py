@@ -38,10 +38,16 @@ def sirtMcalc(radon,radont,shape,xp):
 
 
 def sirtBB(radon, radont, sino_data, xp, max_iter=30, alpha=1, verbose=0, useRC=False,BBstep=True):
-
       
     nrm0 = xp.linalg.norm(sino_data)
-
+    if nrm0 == 0:
+        nrm0=1
+        num_rays=xp.shape(sino_data)[2]
+        num_slices=xp.shape(sino_data)[0]
+        
+        tomo=xp.zeros((num_slices,num_rays,num_rays),dtype=(sino_data).dtype)
+        return tomo,0.
+        
     if useRC:
         C,R=sirtMcalc(radon,radont,(sino_data).shape,xp)
         iradon= lambda x: C*radont(R*x)
@@ -51,6 +57,7 @@ def sirtBB(radon, radont, sino_data, xp, max_iter=30, alpha=1, verbose=0, useRC=
     tomo = iradon(sino_data)
     
     
+    #print("verbose",verbose>0)
 
     for i in range(max_iter):
         

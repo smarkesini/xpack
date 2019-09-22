@@ -15,12 +15,12 @@ def setup_tomo (num_slices, num_angles, num_rays, k_r=1, kernel_type = 'gaussian
     padding_array = ((0, 0), (pad_1D, pad_1D), (pad_1D, pad_1D))
     num_rays      = num_rays + pad_1D*2
     
-    print("True obj shape", true_obj.shape, "num_angles", num_angles)
+    #print("obj shape before padding", true_obj.shape, "num_angles", num_angles)
     
     #true_obj = xp.lib.pad(true_obj, padding_array, 'constant', constant_values = 0)
     true_obj = xp.pad(true_obj, padding_array, 'constant', constant_values = 0)
     
-    theta    = xp.arange(0, 180., 180. / num_angles)*xp.pi/180.
+    theta    = xp.arange(0, 180., 180. / num_angles,dtype='float32')*xp.pi/180.
     
 #    theta    = xp.linspace(0, 180., num= num_angles)*xp.pi/180.
     #print("theta shape=",theta.shape,"num_angles=",num_angles)

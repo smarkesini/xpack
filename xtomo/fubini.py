@@ -16,10 +16,6 @@ import numpy as np
 
 eps=np.finfo(np.float32).eps
 
-#    fft=lambda x:xp.fft.fft(x)
-#    ifft=lambda x:xp.fft.ifft(x)
-#    fft2=lambda x:xp.fft.fft2(x)
-#    ifft2=lambda x: xp.fft.ifft2(x)
 
 
 
@@ -46,7 +42,7 @@ def K1(x, k_r, kernel_type, xp,  beta=1, sigma=2):
     else:
         print("Invalid kernel type")
         
-    
+"""    
 def K2(x, y, kernel_type, xp, k_r=2, beta=1, sigma=2): #k_r and beta are parameters for keiser-bessel
     if kernel_type == 'gaussian':
         kernel2 = gaussian_kernel(x,k_r,sigma,xp) * gaussian_kernel(y,k_r,sigma,xp)
@@ -56,6 +52,17 @@ def K2(x, y, kernel_type, xp, k_r=2, beta=1, sigma=2): #k_r and beta are paramet
         return kernel2
     else:
         print("Invalid kernel type")
+
+def deapodization_simple(num_rays,kernel_type,xp,k_r=2, beta=1, sigma=2):
+    ktilde=K1(xp.array([range(-k_r, k_r+1),] ), k_r, kernel_type, xp,  beta, sigma)
+    padding_array = ((0,0),(num_rays//2 - k_r , num_rays//2 - k_r-1))
+    ktilde = xp.lib.pad(ktilde, padding_array, 'constant', constant_values=0)
+    ktilde = xp.fft.fftshift(xp.fft.ifft(xp.fft.ifftshift(ktilde)))
+
+    deapodization_factor = ktilde * ktilde.T 
+#    print("ratio i/r=", xp.max(abs(deapodization_factor.imag))/xp.max(abs(deapodization_factor.real)))
+ 
+    return 1./deapodization_factor.real
 
 def deapodization(num_rays,kernel_type,xp,k_r=2, beta=1, sigma=2):
     # we upsample the kernel
@@ -75,6 +82,9 @@ def deapodization(num_rays,kernel_type,xp,k_r=2, beta=1, sigma=2):
     apodization_factor = ktilde2 * ktilde2.T
     
     return 1./apodization_factor
+"""
+
+
 
 def deapodization_shifted(num_rays,kernel_type,xp,k_r=2, beta=1, sigma=2):
     #stencil=xp.array([range(-k_r, k_r+1),]
@@ -103,17 +113,6 @@ def deapodization_shifted(num_rays,kernel_type,xp,k_r=2, beta=1, sigma=2):
 #    print("shape apodization ",apodization_factor.shape)
     return 1./apodization_factor
 
-
-def deapodization_simple(num_rays,kernel_type,xp,k_r=2, beta=1, sigma=2):
-    ktilde=K1(xp.array([range(-k_r, k_r+1),] ), k_r, kernel_type, xp,  beta, sigma)
-    padding_array = ((0,0),(num_rays//2 - k_r , num_rays//2 - k_r-1))
-    ktilde = xp.lib.pad(ktilde, padding_array, 'constant', constant_values=0)
-    ktilde = xp.fft.fftshift(xp.fft.ifft(xp.fft.ifftshift(ktilde)))
-
-    deapodization_factor = ktilde * ktilde.T 
-#    print("ratio i/r=", xp.max(abs(deapodization_factor.imag))/xp.max(abs(deapodization_factor.real)))
- 
-    return 1./deapodization_factor.real
 
 
     
@@ -315,10 +314,16 @@ def radon_setup(num_rays, theta_array, xp=np, center=None, kernel_type = 'gaussi
     #end = timer()
 
     #print("gridding setup time=",end - start)
-
+    if xp.__name__=='cupy':
+        import fft
+        #import cupy.fft as fft
+    else:
+        import numpy.fft as fft
+        
+    
     
     #deapodization_factor = deapodization(num_rays, kernel_type, xp, k_r)
-    deapodization_factor = deapodization_shifted(num_rays, kernel_type, xp, k_r)
+    deapodization_factor = deapodization_shifted(num_rays, kernel_type, xp, k_r,fft)
     deapodization_factor=xp.reshape(deapodization_factor,(1,num_rays,num_rays))
     
     # get the filter
@@ -354,30 +359,26 @@ def radon_setup(num_rays, theta_array, xp=np, center=None, kernel_type = 'gaussi
     deapodization_factor*=0.14652085
     deapodization_factor=(deapodization_factor).astype('complex64')
     
-    """
-    plan=None
-    if xp.__name__=='cupy':
-        import cupyx
-        plan2 = cupyx.scipy.fftpack.get_fft_plan(deapodization_factor.astype('complex64'))
-        plan1 = cupyx.scipy.fftpack.get_fft_plan(msk_sino.astype('complex64'))
-        plan=(plan1,plan2)
-    """
-    
-    R  = lambda tomo:  radon(tomo, deapodization_factor , ST, k_r, num_angles,xp )
-    #R  = lambda tomo:  radon(tomo, deapodization_factor , S, k_r, num_angles,xp )
+#    if xp.__name__=='cupy':
+#        import fft
+#    else:
+#        from numpy import fft
+        
+
+    R  = lambda tomo:  radon(tomo, deapodization_factor , ST, k_r, num_angles,xp,fft )
+
     # the conjugate transpose (for least squares solvers):
-    RT = lambda sino: iradon(sino, dpr, S,  k_r, none_filter,xp)
+    RT = lambda sino: iradon(sino, dpr, S,  k_r, none_filter,xp,fft)
     
     # inverse Radon (pseudo inverse)
     dpr= deapodization_factor*num_rays*154.10934
-    IR = lambda sino: iradon(sino, dpr, S,  k_r, ramlak_filter,xp)
-#    IR = lambda sino: iradon(sino, dpr, S,  k_r, kfilter,xp)
+    IR = lambda sino: iradon(sino, dpr, S,  k_r, ramlak_filter,xp,fft)
     
     
     return R,IR,RT
     
 
-def iradon(sinogram_stack, deapodization_factor, S, k_r , hfilter,xp, plan=None): 
+def iradon(sinogram_stack, deapodization_factor, S, k_r , hfilter,xp,fft): 
               #iradon(sino, deapodization_factor, S,  k_r, ramlak_filter )
 #    xp=np
     
@@ -447,7 +448,9 @@ def iradon(sinogram_stack, deapodization_factor, S, k_r , hfilter,xp, plan=None)
        
         # radon (r-theta) to Fourier (q-theta) space        
         
-        qt = xp.fft.fft(qt)
+        #qt = xp.fft.fft(qt)
+        #qt = fft.fft(qt)
+        qt = fft.fft(qt)
         
         
          ###################################
@@ -464,9 +467,9 @@ def iradon(sinogram_stack, deapodization_factor, S, k_r , hfilter,xp, plan=None)
         tomogram.shape=(num_rays,num_rays)
 
         # Fourier cartesian (qx,qy) to real (xy) space
-
-        tomogram=xp.fft.ifft2(tomogram)*deapodization_factor[0]
-        
+        tomogram = fft.ifft2(tomogram)
+#        tomogram=fft.ifft2(tomogram)*deapodization_factor[0]
+        tomogram*=deapodization_factor[0]
         
         # end of non uniform FFT 
         ###################################
@@ -483,7 +486,7 @@ def iradon(sinogram_stack, deapodization_factor, S, k_r , hfilter,xp, plan=None)
 
 
 #def radon(tomo_stack, deapodization_factor, ST, k_r, num_angles ):
-def radon(tomo_stack, deapodization_factor, ST, k_r, num_angles,xp ,plan=None):
+def radon(tomo_stack, deapodization_factor, ST, k_r, num_angles,xp,fft ):
     
     
     num_slices = tomo_stack.shape[0]
@@ -510,8 +513,9 @@ def radon(tomo_stack, deapodization_factor, ST, k_r, num_angles,xp ,plan=None):
         #sinogram = radon_oneslice(tomo_slice)
         ###################################
         # non uniform FFT cartesian (x,y) to Fourier polar (q,theta):
-        
-        tomo_slice = xp.fft.fft2(tomo_slice*deapodization_factor)
+        tomo_slice=tomo_slice*deapodization_factor
+        #tomo_slice = 
+        tomo_slice = fft.fft2(tomo_slice)
         
         #ts=tomo_slice*deapodization_factor
         #tomo_slice = xp.fft.fft2(ts)
@@ -530,8 +534,9 @@ def radon(tomo_stack, deapodization_factor, ST, k_r, num_angles,xp ,plan=None):
         ###################################
         
         # (q-theta) to radon (r-theta) :       
-        sinogram = xp.fft.ifft(sinogram)  
-        
+        #sinogram = 
+        #fft.ifft(sinogram)  
+        sinogram = fft.ifft(sinogram)  
         
         # put the sinogram in the stack
         #sinogram_stack[i]=sinogram        
