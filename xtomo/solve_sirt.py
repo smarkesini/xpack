@@ -4,6 +4,8 @@
 #import numpy as xp
 
 # mask out outer tomogram and sinogram
+import numpy as np
+
 def masktomo(num_rays,xp,width=.65):
     
     xx=xp.array([range(-num_rays//2, num_rays//2)])
@@ -42,8 +44,9 @@ def sirtBB(radon, radont, sino_data, xp, max_iter=30, alpha=1, verbose=0, useRC=
     nrm0 = xp.linalg.norm(sino_data)
     if nrm0 == 0:
         nrm0=1
-        num_rays=xp.shape(sino_data)[2]
-        num_slices=xp.shape(sino_data)[0]
+
+        num_rays=sino_data.shape[2]
+        num_slices=sino_data.shape[0]
         
         tomo=xp.zeros((num_slices,num_rays,num_rays),dtype=(sino_data).dtype)
         return tomo,0.
@@ -56,7 +59,7 @@ def sirtBB(radon, radont, sino_data, xp, max_iter=30, alpha=1, verbose=0, useRC=
 
     tomo = iradon(sino_data)
     
-    
+    alphai=0
     #print("verbose",verbose>0)
 
     for i in range(max_iter):
@@ -65,25 +68,20 @@ def sirtBB(radon, radont, sino_data, xp, max_iter=30, alpha=1, verbose=0, useRC=
         
         residual =  radon(tomo) - sino_data 
         rnrm=xp.linalg.norm(residual)/nrm0
-        
-        if verbose >0:
-            title = "SIRT-BB iter=%d, rnrm=%g" %(i, rnrm)
-            print(title )
-            if verbose >1:
-                plt.imshow(t2i(tomo))
-                plt.title(title)
-                plt.show()
-
        
         grad = iradon(residual)
 
         # BB step  (alternating)  
-        if BBstep & i>0:
-#        if i>0:
-            if xp.mod(i,6)<3:
+        #print(i)
+        if BBstep and i>0:
+
+            #print(i)#np.mod(i,2)<1)
+            if np.mod(i,2)<1:
                 alpha=xp.linalg.norm(tomo-tomo_old)**2/xp.inner((tomo-tomo_old).ravel(),(grad-grad_old).ravel())
+                alphai=1
             else:
                 alpha=xp.inner((tomo-tomo_old).ravel(),(grad-grad_old).ravel())/xp.linalg.norm(grad-grad_old)**2
+                alphai=2
 #
         tomo_old=tomo+0
         
@@ -92,6 +90,14 @@ def sirtBB(radon, radont, sino_data, xp, max_iter=30, alpha=1, verbose=0, useRC=
         
         grad_old=grad+0
         
+        if verbose >0:
+            title = "SIRT-BB iter=%d, alpha=%g, alphai=%g rnrm=%g" %(i, alpha, alphai, rnrm)
+            print(title )
+            #print(np.mod(i,2)<1)
+            if verbose >1:
+                plt.imshow(t2i(tomo))
+                plt.title(title)
+                plt.show()
     return tomo,rnrm
 
 #
