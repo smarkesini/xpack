@@ -20,10 +20,17 @@ else:
 #xp=np
 
 
-scale   = lambda x,y: xp.sum(x * y)/xp.sum(x *x)
+#scale   = lambda x,y: xp.sum(x * y)/xp.sum(x *x)
+#rescale = lambda x,y: scale(x,y)*x
+#ssnr2   = lambda x,y: xp.sum(y**2)/xp.sum((y-rescale(x,y))**2)
+#ssnr    = lambda x,y: xp.sqrt(ssnr2(x,y))
+
+scale   = lambda x,y: np.dot(x.ravel(), y.ravel())/np.linalg.norm(x)**2
 rescale = lambda x,y: scale(x,y)*x
-ssnr2   = lambda x,y: xp.sum(y**2)/xp.sum((y-rescale(x,y))**2)
-ssnr    = lambda x,y: xp.sqrt(ssnr2(x,y))
+ssnr   = lambda x,y: np.linalg.norm(y)/np.linalg.norm(y-rescale(x,y))
+ssnr2    = lambda x,y: ssnr(x,y)**2
+
+
 
 from testing_setup import setup_tomo
 from fubini import radon_setup as radon_setup
@@ -35,7 +42,8 @@ num_angles =    size//2
 num_rays   = size
 
 # tomo to cropped image
-t2i = lambda x: x[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3].real
+#t2i = lambda x: x[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3].real
+t2i = lambda x: x[num_slices//2,:,:].real
 # vector to tomo
 v2t= lambda x: xp.reshape(x,(num_slices, num_rays, num_rays))
 
@@ -99,21 +107,27 @@ scaling_iradon=scale(tomo0c,truth)
 #(np.sum(truth * tomowcgc))/np.sum(tomowcgc *tomowcgc)
 snr_iradon  = ssnr(tomo0c,truth) 
 
+
 print("radon time=", time_radon, "iradon  time=", time_iradon, "snr=", snr_iradon)
 if GPU:
     data=xp.asnumpy(data)
     tomo0c=xp.asnumpy(tomo0c)
 
-"""
 plt.imshow(data[num_slices//2,:,:])
 plt.show()
-plt.imshow(tomo0c)
+#plt.imshow(tomo0c)
+s="snr : %g" %(ssnr)
+print(s)
+plt.imshow(np.abs(tomo0c)**.1)
+plt.title(s)
 plt.show()
 
 
+"""
 plt.imshow(t2i(tomo0))
 plt.title('iradon')
 plt.show()
+
 
 ########################################
 # plotting

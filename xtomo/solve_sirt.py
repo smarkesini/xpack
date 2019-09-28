@@ -6,6 +6,43 @@
 # mask out outer tomogram and sinogram
 import numpy as np
 
+def alpha_calc_xp(t,to,g,go,xp=np):
+    #print("not using fused reduction")
+    dt=xp.inner((t-to).ravel(),(g-go).ravel())
+    nrm2=xp.linalg.norm(g-go)**2
+    return dt/nrm2
+
+try: 
+    import cupy as xp
+    
+    zz=(xp.ones(1)*1j).astype('complex64')  
+    
+    dotnorm2 = xp.ReductionKernel(
+            'T x ,T x1, T y, T y1, Z zz', 'Z z',
+            '(x-x1)*(y-y1)+zz*((y-y1)*(y-y1))',#'(x-y)* conj(x-y)+zz*(x*conj(x))',
+            'a + b','z = a','0')
+    
+    def alpha_calc(t,to,g,go,xp=xp):        
+        #print("using fused reduction")
+        if xp.__name__=='cupy':
+            z=dotnorm2(t,to,g,go,zz)
+            return z.real/z.imag
+        else:
+            return alpha_calc_xp(t,to,g,go,xp=np)
+    
+except:
+    alpha_calc=alpha_calc_xp
+#        retualpha_calc_np(t,to,g,go,xp=np)
+        #print("not using fused reduction")
+#        dt=xp.inner((t-to).ravel(),(g-go).ravel())
+#        nrm2=xp.linalg.norm(g-go)**2
+#        return dt/nrm2
+
+    
+    
+    
+
+
 def masktomo(num_rays,xp,width=.65):
     
     xx=xp.array([range(-num_rays//2, num_rays//2)])
@@ -39,6 +76,8 @@ def sirtMcalc(radon,radont,shape,xp):
     return T1,S1
 
 
+
+
 def sirtBB(radon, radont, sino_data, xp, max_iter=30, alpha=1, verbose=0, useRC=False,BBstep=True):
       
     nrm0 = xp.linalg.norm(sino_data)
@@ -58,15 +97,19 @@ def sirtBB(radon, radont, sino_data, xp, max_iter=30, alpha=1, verbose=0, useRC=
         iradon=radont
 
     tomo = iradon(sino_data)
-    
+    tnrm0=xp.linalg.norm(tomo)
+    tomo_old = None
+    grad_old = None
     alphai=0
-    #print("verbose",verbose>0)
+
 
     for i in range(max_iter):
         
 
         
-        residual =  radon(tomo) - sino_data 
+        residual  =  radon(tomo) 
+        residual -= sino_data 
+
         rnrm=xp.linalg.norm(residual)/nrm0
        
         grad = iradon(residual)
@@ -77,12 +120,14 @@ def sirtBB(radon, radont, sino_data, xp, max_iter=30, alpha=1, verbose=0, useRC=
 
             #print(i)#np.mod(i,2)<1)
             if np.mod(i,2)<1:
-                alpha=xp.linalg.norm(tomo-tomo_old)**2/xp.inner((tomo-tomo_old).ravel(),(grad-grad_old).ravel())
+                #alpha=xp.linalg.norm(tomo-tomo_old)**2/xp.inner((tomo-tomo_old).ravel(),(grad-grad_old).ravel())
+                alpha=1./alpha_calc(grad,grad_old,tomo,tomo_old,xp=xp)    
                 alphai=1
             else:
-                alpha=xp.inner((tomo-tomo_old).ravel(),(grad-grad_old).ravel())/xp.linalg.norm(grad-grad_old)**2
+                #alpha=xp.inner((tomo-tomo_old).ravel(),(grad-grad_old).ravel())/xp.linalg.norm(grad-grad_old)**2
+                alpha = alpha_calc(tomo,tomo_old,grad,grad_old,xp=xp)                
                 alphai=2
-#
+
         tomo_old=tomo+0
         
         
@@ -90,8 +135,10 @@ def sirtBB(radon, radont, sino_data, xp, max_iter=30, alpha=1, verbose=0, useRC=
         
         grad_old=grad+0
         
-        if verbose >0:
-            title = "SIRT-BB iter=%d, alpha=%g, alphai=%g rnrm=%g" %(i, alpha, alphai, rnrm)
+        if verbose >0 and (np.mod(i,1/verbose)==0 or i==max_iter-1):
+            tnrm=xp.linalg.norm(grad)/tnrm0
+            title = "SIRT-BB iter=%d, alpha=%g, alphaii=%g rnrm=%g, nrm_grad=%g " %(i, alpha, alphai, rnrm,tnrm)
+            #title = "SIRT-BB iter=%d, α=%g, αi=%g rnrm=%g, ‖∇·‖=%g " %(i, alpha, alphai, rnrm,tnrm)
             print(title )
             #print(np.mod(i,2)<1)
             if verbose >1:

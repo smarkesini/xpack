@@ -149,6 +149,7 @@ def forward_project(cube, theta):
    
 
 def gridding_setup(num_rays, theta_array, center=None, xp=np, kernel_type = 'gaussian', k_r = 2):
+    # S. Marchesini, LBL/Sigray 2019
     # setting up the sparse array
     # columns are used to pick the input data
     # rows are where the data is added on the output  image
@@ -172,7 +173,7 @@ def gridding_setup(num_rays, theta_array, center=None, xp=np, kernel_type = 'gau
     qray = xp.fft.fftshift(xp.array(xp.arange(num_rays) ) - num_rays/2)
     qray= xp.reshape(qray,(1,num_rays))
     
-    theta_array+=eps # gives better result if theta[0] is not exactly 0
+    theta_array+=eps*10 # gives better result if theta[0] is not exactly 0
     # coordinates of the points on the  grid, 
     px = - (xp.sin(xp.reshape(theta_array,[num_angles,1]))) * (qray)
     py =   (xp.cos(xp.reshape(theta_array,[num_angles,1]))) * (qray) 
@@ -229,7 +230,7 @@ def gridding_setup(num_rays, theta_array, center=None, xp=np, kernel_type = 'gau
     #ii=xp.where((kx>=0) & (ky>=0) & (kx<=num_rays-1) & (ky<=num_rays-1))
     # let's remove the highest frequencies as well (kx=0,ky=0)
     ii=xp.where((kx>=1) & (ky>=1) & (kx<=num_rays-1) & (ky<=num_rays-1))
-    
+    #print("points removed",np.concatenate(ii).size)
     # remove points out of bound
     Krow=Krow[ii]
     Kcol=Kcol[ii]
@@ -240,8 +241,8 @@ def gridding_setup(num_rays, theta_array, center=None, xp=np, kernel_type = 'gau
 #    Kval=xp.complex64(Kval)
 #    Krow=xp.longlong(Krow)
 #    Kcol=xp.longlong(Kcol)
-    Krow=Krow.astype('longlong')
-    Kcol=Kcol.astype('longlong')
+    Krow=Krow.astype('long')
+    Kcol=Kcol.astype('long')
     Kval=Kval.astype('complex64')
     Kval_conj=Kval_conj.astype('complex64')
     
@@ -252,7 +253,13 @@ def gridding_setup(num_rays, theta_array, center=None, xp=np, kernel_type = 'gau
         #S=cupyx.scipy.sparse.coo_matrix((Kval.ravel(),(Kcol.ravel(), Krow.ravel())), shape=(num_angles*num_rays, (num_rays)**2))
         S=cupyx.scipy.sparse.coo_matrix((Kval.ravel(),(Krow.ravel(), Kcol.ravel())), shape=((num_rays)**2,num_angles*num_rays))
         S=cupyx.scipy.sparse.csr_matrix(S)
-#        S=cupyx.scipy.sparse.csr_matrix(S)
+        #print("size of S",8*(S.data).size+4*(S.indptr).size+4*(S.indices).size+5*4)
+#       a=S
+#       print("size of S",
+#       (a.data).size, (a.indptr).size, (a.indices).size)
+#       print("type of S",
+#        (a.data).dtype, (a.indptr).dtype, (a.indices).dtype)
+##        S=cupyx.scipy.sparse.csr_matrix(S)
         #S=S.tocsr()#.sort_indices()
         #S=S.sort_indices()
         #S=S.sum_duplicates()
@@ -292,15 +299,15 @@ def gridding_setup(num_rays, theta_array, center=None, xp=np, kernel_type = 'gau
        
     return S, ST
 
-def masktomo(num_rays,xp,width=.65):
+def masktomo(num_rays,xp,width=.95):
     xx=xp.array([range(-num_rays//2, num_rays//2)])
-    msk_sino=(xp.abs(xx)<(num_rays//2*width)).astype('float32')
+    msk_sino=(xp.abs(xx)<(num_rays//2*width*.98)).astype('float32')
 
     msk_sino.shape=(1,1,num_rays)
     
     xx=xx**2
     rr2=xx+xx.T
-    msk_tomo=rr2<(num_rays//2*width*1.02)**2
+    msk_tomo=rr2<(num_rays//2*width)**2
     msk_tomo.shape=(1,num_rays,num_rays)
     return msk_tomo, msk_sino
 
@@ -349,7 +356,7 @@ def radon_setup(num_rays, theta_array, xp=np, center=None, kernel_type = 'gaussi
     
 
     # mask out outer tomogram
-    msk_tomo,msk_sino=masktomo(num_rays,xp,width=.65)
+    msk_tomo,msk_sino=masktomo(num_rays,xp,width=.95)
     
     
     

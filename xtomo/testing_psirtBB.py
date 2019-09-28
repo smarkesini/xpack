@@ -24,7 +24,7 @@ def get_chunk_slices(n_slices):
     slices=np.longlong(np.concatenate((start,stop),axis=1))
     return slices 
 
-def get_lumps(ns, ms, mc ):
+def get_lump_slices(ns, ms, mc ):
     # ns: num_slices, ms=mpi_size, mc=max_chunk
     # lumps size
     ls=np.int(np.ceil(ns/(ms*mc)))    
@@ -66,8 +66,8 @@ def gatherv(data_local,chunk_slices, data = None):
     if size==1: 
         if type(data) == type(None):
             data=data_local
-        else:
-            data[:] = data_local[:]
+        # else:
+        #    data[:] = data_local[:]
         return data
     cnt=np.diff(chunk_slices)
     slice_shape=data_local.shape[1:]
@@ -84,7 +84,7 @@ def gatherv(data_local,chunk_slices, data = None):
     mpichunktype = MPI.FLOAT.Create_contiguous(4).Commit()
     #mpics=mpichunktype.Get_size()
     sdim=sdim* MPI.FLOAT.Get_size()//mpichunktype.Get_size()
-    comm.Gatherv(sendbuf=[data_local, mpichunktype],recvbuf=[data,(cnt*sdim,None),mpichunktype],root=0)
+    comm.Gatherv(sendbuf=[data_local, mpichunktype],recvbuf=[data,(cnt*sdim,None),mpichunktype])
     mpichunktype.Free()
     
     return data
@@ -93,11 +93,17 @@ def gatherv(data_local,chunk_slices, data = None):
     
 if GPU:
     import cupy as xp
-    set_visible_device(rank)
+    do,vd,nd=set_visible_device(rank)
+    #device_gbsize=xp.cuda.Device(vd).mem_info[1]/((2**10)**3)
+    device_gbsize=xp.cuda.Device(0).mem_info[1]/((2**10)**3)
+    print("rank:",rank,"device:",vd, "gb memory:", device_gbsize)
+    
     mode = 'cuda'
 else:
     xp=np
     mode= 'cpu'
+    device_gbsize=24 # GBs used
+
 
 if rank==0: print("GPU: ", GPU)
 if rank==0: print("mode = ", mode)
@@ -113,31 +119,46 @@ from testing_setup import setup_tomo
 from fubini import radon_setup as radon_setup
 
 
-size_obj = 1024*2
+size_obj = 1024*2//64
 #num_slices = 8*16*4*2
 #num_slices = 1024*3
-num_slices = 115
+num_slices = 2007
 num_angles =    size_obj//2
 num_rays   = size_obj
 max_iter   = 20
 
-flt_size=32/8; alg_size=4
-slice_gbsize=num_rays*(num_rays+num_angles)*(flt_size)*alg_size/((2**10)**3)
+# algorithm size could be reduced by cupy.reductionkernel
+float_size=32/8; alg_tsize=5; alg_ssize=2
+slice_gbsize=num_rays*(num_rays*alg_tsize+num_angles*alg_ssize)*(float_size)/((2**10)**3)
+#device_gbsize=xp.cuda.Device(1).mem_info[1]/((2**10)**3)
 
-max_chunk_slice=128
+# take 9*2 for the sparse matrix and another 2 for spare
+#max_chunk_slice=np.int(np.ceil(device_gbsize/slice_gbsize))-9*2-2
+max_chunk_slice=100
+
+#print("max chunk size", max_chunk_slice, 'device_gbsize',device_gbsize,"slice size",slice_gbsize)
+
+#max_chunk_slice=100
+
+# 9 slices for the sparse matrix with 3x3 kernel
+#print("max chunk size", max_chunk_slice)
+
+#max_chunk_slice=110
+
+if rank==0: print("max chunk size", max_chunk_slice)
+
     
 
 if rank==0: 
     #print('setting up the phantom, ', end = '')
-    print('setting up the phantom.',num_slices,num_rays,num_rays)
+    print('setting up the phantom.',num_slices,num_rays,num_rays,"num angles", num_angles)
     start=timer()
     true_obj, theta=setup_tomo(num_slices, num_angles, num_rays, xp)
     end = timer()
-    
     time_phantom=(end - start)
-    if rank==0: 
-        print("phantom setup time=", time_phantom)
-        print("phantom shape",true_obj.shape, "n_angles",num_angles, "max_iter",max_iter)
+
+    print("phantom setup time=", time_phantom)
+    print("phantom shape",true_obj.shape, "n_angles",num_angles, "max_iter",max_iter)
         
 
     #print("theta type",theta.dtype)
@@ -147,8 +168,7 @@ else:
 
 
 # allocate result
-if rank == 0: tomo = np.empty((num_slices,num_rays,num_rays),dtype = 'float32')
-else: tomo = None
+tomo = None
 # bcast theta
 comm.Bcast(theta)
 theta=xp.array(theta)
@@ -170,7 +190,7 @@ from solve_sirt import sirtBB
 slice_shape=(num_rays,num_rays)
 
 
-lumps=get_lumps(num_slices, size, max_chunk_slice )
+lumps=get_lump_slices(num_slices, size, max_chunk_slice )
 if rank==0: print("nslices",num_slices,"mpi size",size,"max_chunk",max_chunk_slice)
 if rank==0:print("lumps", lumps)
 
@@ -179,16 +199,21 @@ times_loop=times.copy()
 
 
 if rank == 0: tomo=np.empty((num_slices, num_rays,num_rays),dtype='float32')
+#    if rank == 0: tomo = np.empty((nslices,num_rays,num_rays),dtype = 'float32')
 
-verboseall = False
+verboseall = True
+verbose_iter= (1/5) * (rank == 0) # print every 5 iterations
+
 verbose= (rank ==0) and verboseall
 ###############################
 for ii in range(lumps.size-1):
     #if rank == 0: print("doing slices", lumps[ii],lumps[ii+1])
     nslices = lumps[ii+1]-lumps[ii]
     chunk_slices = get_chunk_slices(nslices) 
+
+
     #if verbose: print()
-    #if rank==0: print("chunks",chunk_slices, 'lumps', lumps[ii:ii+2])
+    if verbose: print( 'lump',ii,':', lumps[ii:ii+2], "chunks",lumps[ii]+np.append(chunk_slices[:,0],chunk_slices[-1,1]).ravel(),)
     # if rank==0: print("chunk slices",chunk_slices)
     
     # scatter the initial object
@@ -197,7 +222,7 @@ for ii in range(lumps.size-1):
     truth=scatterv(true_obj,chunk_slices+lumps[ii],slice_shape)
     #print("rank", rank, "chunks shapes", truth.shape)
     end = timer()
-    comm.Barrier()
+    #comm.Barrier()
     times['scatt']+=(end - start)
     
     # if rank==0: print("mpi-scatterv time=", time_mpiscatter)
@@ -216,6 +241,7 @@ for ii in range(lumps.size-1):
     data = radon(truth)
     end = timer()
     times['radon']=(end - start)
+    del truth
     #if rank==0: print("time=", times['radon'])
     
 #    print("rank", rank, "data shapes", data.shape)
@@ -226,12 +252,12 @@ for ii in range(lumps.size-1):
     
      
     start = timer()
-    verboseiter=np.int(verbose) 
+#    verbose_iter=(verbose) 
     if verbose: print("reconstructing. slices:", lumps[ii],"-",lumps[ii+1]) 
 
     #print("rank no", rank, "chunks",chunk_slices[rank]+lumps[ii])
     #tomo_sirtBB,rnrm = sirtBB(radon, radont, data, xp, max_iter=100, alpha=1.,verbose=verbose,useRC=True, BBstep=False)
-    tomo_sirtBB,rnrmp = sirtBB(radon, iradon, data, xp, max_iter=max_iter, alpha=1.,verbose=verboseiter)
+    tomo_sirtBB,rnrmp = sirtBB(radon, iradon, data, xp, max_iter=max_iter, alpha=1.,verbose=verbose_iter)
     end = timer()
     times['solver']+=end-start
     #print("rank no", rank, "chunks",chunk_slices[rank]+lumps[ii], "rnrm",rnrmp,"data shapes", data.shape)
@@ -274,7 +300,7 @@ for ii in range(lumps.size-1):
 #print("rank:",rank)
 
 if rank>0:     quit()
-print("finished mpi")
+#print("finished mpi")
 print("times last lump",times)
 print("times full tomo", times_loop)
 #print("mpi gather time=", time_mpi, "GPU->CPU time:", time_g2c)
@@ -286,7 +312,7 @@ ssnr   = lambda x,y: np.linalg.norm(y)/np.linalg.norm(y-rescale(x,y))
 ssnr2    = lambda x,y: ssnr(x,y)**2
 
 
-print("sirtBB  time=", times['solver'], "snr=", ssnr(true_obj,tomo))
+print("sirtBB  time=", times_loop['solver'], "snr=", ssnr(true_obj,tomo))
 
 #print("psirtBB  time=", time_sirtBB, "snr=", ssnr(true_obj,tomo1))
 
