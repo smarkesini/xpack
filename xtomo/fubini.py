@@ -15,20 +15,26 @@ import numpy as np
 #import cupy as cp
 
 eps=np.finfo(np.float32).eps
-
+pi=np.pi
 
 
 
 def gaussian_kernel(x, k_r, sigma, xp): #using sigma=2 since this is the default value for sigma
 #    kernel1 = xp.exp(-1/2 * (x/sigma)**2 *16)
-    xx=xp.exp(-x)
+    #xx=xp.exp(-x)
     kernel1 = xp.exp(-1/2 * 10 * (x/sigma)**2 )
-    kernel1 = kernel1* (xp.abs(x) <= k_r)
+    kernel1 = kernel1* (xp.abs(x) < k_r)
     return kernel1 
     
 def keiser_bessel(x, k_r, beta,xp):
-#    kernel1 = xp.i0(beta*xp.sqrt(1-(2*x/(k_r))**2))/xp.abs(xp.i0(beta)) 
-    kernel1 = (xp.abs(x) <= k_r/2) * xp.i0(beta*xp.sqrt((xp.abs(x) <= k_r/2)*(1-(2*x/(k_r))**2)))/xp.abs(xp.i0(beta)) 
+    #kernel1 = xp.i0(beta*xp.sqrt(1-(2*x/(k_r))**2))/xp.abs(xp.i0(beta)) 
+    #kernel1 = kernel1* (xp.abs(x) < k_r)
+    #print(beta)
+    beta=beta*1.85
+    kernel1 =  xp.i0(beta*xp.sqrt((xp.abs(x) <= k_r)*(1-(x/(k_r))**2)))/xp.abs(xp.i0(beta))
+    kernel1 = xp.reshape(kernel1, x.shape)
+    kernel1 = kernel1 * (xp.abs(x) < k_r) 
+    #kernel1 = (xp.abs(x) < k_r) * xp.i0(beta*xp.sqrt((xp.abs(x) <= k_r)*(1-(x/(k_r))**2)))/xp.abs(xp.i0(beta)) 
     return kernel1
 
 # general kernel 1D
@@ -173,6 +179,7 @@ def gridding_setup(num_rays, theta_array, center=None, xp=np, kernel_type = 'gau
     qray = xp.fft.fftshift(xp.array(xp.arange(num_rays) ) - num_rays/2)
     qray= xp.reshape(qray,(1,num_rays))
     
+    theta_array = theta_array.astype('float64')
     theta_array+=eps*10 # gives better result if theta[0] is not exactly 0
     # coordinates of the points on the  grid, 
     px = - (xp.sin(xp.reshape(theta_array,[num_angles,1]))) * (qray)
@@ -206,15 +213,26 @@ def gridding_setup(num_rays, theta_array, center=None, xp=np, kernel_type = 'gau
     # index (where the output goes on the cartesian grid)
     Krow=((kx)*(num_rays)+ky)
     
+    tscale=xp.ones(num_angles)
+    tscale.shape=[num_angles,1,1,1]
     # check if theta goes to 180, then assign 1/2 weight to each
     theta=theta_array
     theta_repeat=xp.abs(xp.abs(theta[0]-theta[-1])-xp.pi)<xp.abs(theta[1]-theta[0])*1e-5
     if theta_repeat:
-        print("averaging first and last angles")
-        tscale=xp.ones(num_angles)
+#        print("averaging first and last angles")
+        #tscale=xp.ones(num_angles)
+        #tscale[([0,-1])]=4
+        #tscale[([-1])]=.5
         tscale[([0,-1])]=.5
-        tscale.shape=[num_angles,1,1,1]
-        Kval*=tscale
+        
+        #tscale=xp.fft.fftshift(tscale)
+        #tscale.shape=[num_angles,1,1,1]
+        #Kval*=tscale
+        #print("not averaging first and last")
+        #tscale[([0,-1])]=1
+    
+    Kval*=tscale
+    #Kval_conj*=tscale
         
             
     
@@ -253,7 +271,8 @@ def gridding_setup(num_rays, theta_array, center=None, xp=np, kernel_type = 'gau
         #S=cupyx.scipy.sparse.coo_matrix((Kval.ravel(),(Kcol.ravel(), Krow.ravel())), shape=(num_angles*num_rays, (num_rays)**2))
         S=cupyx.scipy.sparse.coo_matrix((Kval.ravel(),(Krow.ravel(), Kcol.ravel())), shape=((num_rays)**2,num_angles*num_rays))
         S=cupyx.scipy.sparse.csr_matrix(S)
-        #print("size of S",8*(S.data).size+4*(S.indptr).size+4*(S.indices).size+5*4)
+        #print("size of S in gb", (8*(S.data).size+4*(S.indptr).size+4*(S.indices).size+5*4)/((2**10)**3))
+        #print("size of S",8*(S.data).size,"ind ptr",4*(S.indptr).size,'ind',4*(S.indices).size)
 #       a=S
 #       print("size of S",
 #       (a.data).size, (a.indptr).size, (a.indices).size)
@@ -312,7 +331,7 @@ def masktomo(num_rays,xp,width=.95):
     return msk_tomo, msk_sino
 
 import matplotlib.pyplot as plt
-def radon_setup(num_rays, theta_array, xp=np, center=None, kernel_type = 'gaussian', k_r = 2):
+def radon_setup(num_rays, theta_array, xp=np, center=None, kernel_type = 'gaussian', k_r = 2, width=.5):
 
     #print("setting up gridding")
     #start = timer()
@@ -330,7 +349,7 @@ def radon_setup(num_rays, theta_array, xp=np, center=None, kernel_type = 'gaussi
     
     
     #deapodization_factor = deapodization(num_rays, kernel_type, xp, k_r)
-    deapodization_factor = deapodization_shifted(num_rays, kernel_type, xp, k_r,fft)
+    deapodization_factor = deapodization_shifted(num_rays, kernel_type, xp, k_r=k_r)
     deapodization_factor=xp.reshape(deapodization_factor,(1,num_rays,num_rays))
     
     # get the filter
@@ -356,7 +375,7 @@ def radon_setup(num_rays, theta_array, xp=np, center=None, kernel_type = 'gaussi
     
 
     # mask out outer tomogram
-    msk_tomo,msk_sino=masktomo(num_rays,xp,width=.95)
+    msk_tomo,msk_sino=masktomo(num_rays,xp,width=width)
     
     
     

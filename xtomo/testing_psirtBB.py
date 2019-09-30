@@ -102,7 +102,7 @@ if GPU:
 else:
     xp=np
     mode= 'cpu'
-    device_gbsize=24 # GBs used
+    device_gbsize=(128-32)/size # GBs used per rank, leave 32 GB for the rest
 
 
 if rank==0: print("GPU: ", GPU)
@@ -119,24 +119,26 @@ from testing_setup import setup_tomo
 from fubini import radon_setup as radon_setup
 
 
-size_obj = 1024*2//64
+size_obj = 1024*2
+obj_width=.95
 #num_slices = 8*16*4*2
 #num_slices = 1024*3
-num_slices = 2007
+#num_slices = 2007
+num_slices = 1000
+
 num_angles =    size_obj//2
 num_rays   = size_obj
 max_iter   = 20
 
-# algorithm size could be reduced by cupy.reductionkernel
-float_size=32/8; alg_tsize=5; alg_ssize=2
-slice_gbsize=num_rays*(num_rays*alg_tsize+num_angles*alg_ssize)*(float_size)/((2**10)**3)
-#device_gbsize=xp.cuda.Device(1).mem_info[1]/((2**10)**3)
-
-# take 9*2 for the sparse matrix and another 2 for spare
-#max_chunk_slice=np.int(np.ceil(device_gbsize/slice_gbsize))-9*2-2
+#float_size=32/8; alg_tsize=4; alg_ssize=3
+#slice_gbsize=num_rays*(num_rays*alg_tsize+num_angles*alg_ssize)*(float_size)/((2**10)**3)
+#
+## leave .5 gb and another 9*3 (kernel*3, 3 is data(complex+col+row) for sparse
+#max_chunk_slice=np.int(np.floor((device_gbsize-.5)/slice_gbsize)-9*3*num_angles/num_rays)
+#print("max chunk size", max_chunk_slice, 'device_gbsize',device_gbsize,"slice size",slice_gbsize,
+#      "(device-2)/slice size",(device_gbsize-1)/slice_gbsize)
 max_chunk_slice=100
 
-#print("max chunk size", max_chunk_slice, 'device_gbsize',device_gbsize,"slice size",slice_gbsize)
 
 #max_chunk_slice=100
 
@@ -153,7 +155,7 @@ if rank==0:
     #print('setting up the phantom, ', end = '')
     print('setting up the phantom.',num_slices,num_rays,num_rays,"num angles", num_angles)
     start=timer()
-    true_obj, theta=setup_tomo(num_slices, num_angles, num_rays, xp)
+    true_obj, theta=setup_tomo(num_slices, num_angles, num_rays, xp, width=obj_width)
     end = timer()
     time_phantom=(end - start)
 
@@ -177,7 +179,8 @@ theta=xp.array(theta)
 
 if rank==0:  print("setting up radon. ", end = '')
 start=timer()
-radon,iradon,radont = radon_setup(num_rays, theta, xp=xp, kernel_type = 'gaussian', k_r =1)
+#radon,iradon,radont = radon_setup(num_rays, theta, xp=xp, kernel_type = 'kb', k_r =1, width=obj_width)
+radon,iradon,radont = radon_setup(num_rays, theta, xp=xp, kernel_type = 'gaussian', k_r =1, width=obj_width)
 end = timer()
 time_radonsetup=(end - start)
 if rank==0: print("time=", time_radonsetup)

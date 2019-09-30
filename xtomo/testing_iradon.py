@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 #import imageio
 #import os
 GPU=True
-#GPU=False
+GPU=False
 import fubini
 
 from timeit import default_timer as timer
@@ -36,10 +36,11 @@ from testing_setup import setup_tomo
 from fubini import radon_setup as radon_setup
 
 
-size = 1024*2
+obj_size = 1024*2//32
 num_slices = 32# size//2
-num_angles =    size//2
-num_rays   = size
+num_angles =    obj_size//2
+num_rays   = obj_size
+obj_width=0.95
 
 # tomo to cropped image
 #t2i = lambda x: x[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3].real
@@ -47,9 +48,10 @@ t2i = lambda x: x[num_slices//2,:,:].real
 # vector to tomo
 v2t= lambda x: xp.reshape(x,(num_slices, num_rays, num_rays))
 
-print("setting up the phantom, ", end = '')
+#print("setting up the phantom, ", end = '')
+print("setting up the phantom,...")
 start=timer()
-true_obj, theta=setup_tomo(num_slices, num_angles, num_rays, xp)
+true_obj, theta=setup_tomo(num_slices, num_angles, num_rays, xp, width=obj_width)
 end = timer()
 time_phantom=(end - start)
 print("phantom setup time=", time_phantom)
@@ -63,8 +65,9 @@ theta=xp.array(theta)
 
 print("setting up radon. ", end = '')
 start=timer()
-radon,iradon,radont = radon_setup(num_rays, theta, xp=xp, kernel_type = 'gaussian', k_r =1)
-end = timer()
+#radon,iradon,radont = radon_setup(num_rays, theta, xp=xp, kernel_type = 'gaussian', k_r =1,width=obj_width)
+radon,iradon,radont = radon_setup(num_rays, theta, xp=xp, kernel_type = 'kb', k_r =1, width=obj_width)
+#end = timer()
 time_radonsetup=(end - start)
 print("time=", time_radonsetup)
 
@@ -105,8 +108,8 @@ truth=t2i(true_obj)
 
 scaling_iradon=scale(tomo0c,truth)
 #(np.sum(truth * tomowcgc))/np.sum(tomowcgc *tomowcgc)
-snr_iradon  = ssnr(tomo0c,truth) 
-
+#snr_iradon  = ssnr(tomo0c,truth) 
+snr_iradon  = ssnr(tomo0,true_obj) 
 
 print("radon time=", time_radon, "iradon  time=", time_iradon, "snr=", snr_iradon)
 if GPU:
@@ -116,12 +119,13 @@ if GPU:
 plt.imshow(data[num_slices//2,:,:])
 plt.show()
 #plt.imshow(tomo0c)
-s="snr : %g" %(ssnr)
+s="snr : %g" %(snr_iradon)
 print(s)
 plt.imshow(np.abs(tomo0c)**.1)
 plt.title(s)
 plt.show()
-
+print(s)
+#plt.imshow(data[num_slices//2,:,:])
 
 """
 plt.imshow(t2i(tomo0))

@@ -46,17 +46,17 @@ except:
 def masktomo(num_rays,xp,width=.65):
     
     xx=xp.array([range(-num_rays//2, num_rays//2)])
-    msk_sino=(xp.abs(xx)<(num_rays//2*width)).astype('float32')
+    msk_sino=(xp.abs(xx)<(num_rays//2*width-1)).astype('float32')
     
     msk_sino.shape=(1,1,num_rays)
     
     xx=xx**2
     rr2=xx+xx.T
-    msk_tomo=rr2<(num_rays//2*width*1.02)**2
+    msk_tomo=rr2<(num_rays//2*width)**2
     msk_tomo.shape=(1,num_rays,num_rays)
     return msk_tomo, msk_sino
 
-def sirtMcalc(radon,radont,shape,xp):
+def sirtMcalc(radon,radont,shape,xp, width = .65):
     # compute the tomogram and sinogram of all ones
     # if R (radon) is a matrix sum_rows R = R*1= radon(1) 
     #                  sum_cols R = RT*1 = radont(1) 
@@ -65,7 +65,7 @@ def sirtMcalc(radon,radont,shape,xp):
     num_rays=shape[2]
     num_angles=shape[1]
     
-    msk_tomo,msk_sino=masktomo(num_rays,xp,width=.65)
+    msk_tomo,msk_sino=masktomo(num_rays,xp,width)
     
     eps=xp.finfo(xp.float32).eps
     #t1=tomo0*0+1.
@@ -78,7 +78,7 @@ def sirtMcalc(radon,radont,shape,xp):
 
 
 
-def sirtBB(radon, radont, sino_data, xp, max_iter=30, alpha=1, verbose=0, useRC=False,BBstep=True):
+def sirtBB(radon, radont, sino_data, xp, max_iter=30, alpha=1, verbose=0, width=.65, useRC=False,BBstep=True):
       
     nrm0 = xp.linalg.norm(sino_data)
     if nrm0 == 0:
@@ -91,7 +91,7 @@ def sirtBB(radon, radont, sino_data, xp, max_iter=30, alpha=1, verbose=0, useRC=
         return tomo,0.
         
     if useRC:
-        C,R=sirtMcalc(radon,radont,(sino_data).shape,xp)
+        C,R=sirtMcalc(radon,radont,(sino_data).shape,xp, width=width)
         iradon= lambda x: C*radont(R*x)
     else: 
         iradon=radont
