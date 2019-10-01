@@ -44,7 +44,7 @@ from mpi4py import MPI
 comm = MPI.COMM_WORLD
 
 def scatterv(data,chunk_slices,slice_shape):
-    if size==1: return data
+    if size==1: return data[chunk_slices[0,0]:chunk_slices[0,1],...]
     dspl=chunk_slices[:,0]
     cnt=np.diff(chunk_slices)
     sdim=np.prod(slice_shape)
@@ -65,9 +65,9 @@ def scatterv(data,chunk_slices,slice_shape):
 def gatherv(data_local,chunk_slices, data = None): 
     if size==1: 
         if type(data) == type(None):
-            data=data_local
-        # else:
-        #    data[:] = data_local[:]
+            data=data_local+0
+        else:
+            data[...] = data_local[...]
         return data
     cnt=np.diff(chunk_slices)
     slice_shape=data_local.shape[1:]
@@ -119,14 +119,14 @@ from testing_setup import setup_tomo
 from fubini import radon_setup as radon_setup
 
 
-size_obj = 1024*2
+size_obj = 1024*2//32
 obj_width=.95
 #num_slices = 8*16*4*2
 #num_slices = 1024*3
 #num_slices = 2007
-num_slices = 1000
+num_slices = 200
 
-num_angles =    size_obj//2
+num_angles =    size_obj//2*4
 num_rays   = size_obj
 max_iter   = 20
 

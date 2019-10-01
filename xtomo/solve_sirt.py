@@ -14,13 +14,12 @@ def alpha_calc_xp(t,to,g,go,xp=np):
 
 try: 
     import cupy as xp
-    
-    zz=(xp.ones(1)*1j).astype('complex64')  
-    
     dotnorm2 = xp.ReductionKernel(
             'T x ,T x1, T y, T y1, Z zz', 'Z z',
             '(x-x1)*(y-y1)+zz*((y-y1)*(y-y1))',#'(x-y)* conj(x-y)+zz*(x*conj(x))',
             'a + b','z = a','0')
+        
+    zz=(xp.ones(1)*1j).astype('complex64')  
     
     def alpha_calc(t,to,g,go,xp=xp):        
         #print("using fused reduction")

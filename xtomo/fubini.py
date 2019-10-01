@@ -459,6 +459,8 @@ def iradon(sinogram_stack, deapodization_factor, S, k_r , hfilter,xp,fft):
     #-----------------------------------------------------------#  
     """
     
+    
+
     tomo_stack = xp.empty((num_slices, num_rays , num_rays ),dtype=xp.float32)
     
     
@@ -466,12 +468,13 @@ def iradon(sinogram_stack, deapodization_factor, S, k_r , hfilter,xp,fft):
     # two slices at once    
     for i in range(0,num_slices,2):
         # merge two sinograms into one complex
+
         if i > num_slices-2:
             qt=sinogram_stack[i]
         else:
             qt=sinogram_stack[i]+1j*sinogram_stack[i+1]
             
-       
+        
         # radon (r-theta) to Fourier (q-theta) space        
         
         #qt = xp.fft.fft(qt)
@@ -506,7 +509,7 @@ def iradon(sinogram_stack, deapodization_factor, S, k_r , hfilter,xp,fft):
             tomo_stack[i]=tomogram.real
             tomo_stack[i+1]=tomogram.imag
     
-
+    
     return tomo_stack
     
 
