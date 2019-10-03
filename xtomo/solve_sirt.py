@@ -100,19 +100,31 @@ def sirtBB(radon, radont, sino_data, xp, max_iter=30, alpha=1, verbose=0, width=
     tomo_old = None
     grad_old = None
     alphai=0
-
-
+    rnrm_old = xp.inf
+    alpha_old = xp.inf
+    
+    D=tnrm0*1e-4
+    
     for i in range(max_iter):
         
 
         
-        residual  =  radon(tomo) 
-        residual -= sino_data 
+        residual  =  radon(tomo) - sino_data 
 
         rnrm=xp.linalg.norm(residual)/nrm0
-       
+        
+        """
+        if rnrm>rnrm_old:
+            tomo=tomo_old
+            rnmr=rnrm_old
+            grad=grad_old
+        else:
+            grad = iradon(residual)
+            rnrm_old =rnrm
+        """
         grad = iradon(residual)
-
+        
+        
         # BB step  (alternating)  
         #print(i)
         if BBstep and i>0:
@@ -120,12 +132,25 @@ def sirtBB(radon, radont, sino_data, xp, max_iter=30, alpha=1, verbose=0, width=
             #print(i)#np.mod(i,2)<1)
             if np.mod(i,2)<1:
                 #alpha=xp.linalg.norm(tomo-tomo_old)**2/xp.inner((tomo-tomo_old).ravel(),(grad-grad_old).ravel())
-                alpha=1./alpha_calc(grad,grad_old,tomo,tomo_old,xp=xp)    
+                alpha=1./alpha_calc(grad,grad_old,tomo,tomo_old,xp=xp)  
+                #if np.isnan(alpha): alpha = alpha_old/5
                 alphai=1
             else:
                 #alpha=xp.inner((tomo-tomo_old).ravel(),(grad-grad_old).ravel())/xp.linalg.norm(grad-grad_old)**2
                 alpha = alpha_calc(tomo,tomo_old,grad,grad_old,xp=xp)                
+                #if np.isnan(alpha): alpha = alpha_old/5
                 alphai=2
+            if alpha>alpha_old*4:
+                alpha=alpha_old*3
+                alphai=3
+                
+            alpha_old = alpha
+
+        
+        
+        #alpha_stab=D/xp.linalg.norm(grad)
+        
+        #alpha_old = alpha
 
         tomo_old=tomo+0
         
@@ -134,11 +159,15 @@ def sirtBB(radon, radont, sino_data, xp, max_iter=30, alpha=1, verbose=0, width=
         
         grad_old=grad+0
         
+        
+        
         if verbose >0 and (np.mod(i,1/verbose)==0 or i==max_iter-1):
             tnrm=xp.linalg.norm(grad)/tnrm0
             title = "SIRT-BB iter=%d, alpha=%g, alphaii=%g rnrm=%g, nrm_grad=%g " %(i, alpha, alphai, rnrm,tnrm)
             #title = "SIRT-BB iter=%d, α=%g, αi=%g rnrm=%g, ‖∇·‖=%g " %(i, alpha, alphai, rnrm,tnrm)
             print(title )
+            #print(title, "a-stab",alpha_stab )
+            
             #print(np.mod(i,2)<1)
             if verbose >1:
                 plt.imshow(t2i(tomo))

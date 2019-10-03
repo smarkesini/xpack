@@ -331,7 +331,7 @@ def masktomo(num_rays,xp,width=.95):
     return msk_tomo, msk_sino
 
 import matplotlib.pyplot as plt
-def radon_setup(num_rays, theta_array, xp=np, center=None, kernel_type = 'gaussian', k_r = 2, width=.5):
+def radon_setup(num_rays, theta_array, xp=np, center=None, filter_type = 'hamming', kernel_type = 'gaussian', k_r = 2, width=.5):
 
     #print("setting up gridding")
     #start = timer()
@@ -355,23 +355,35 @@ def radon_setup(num_rays, theta_array, xp=np, center=None, kernel_type = 'gaussi
     # get the filter
     num_angles=theta_array.shape[0]
     #print("num_angles", num_angles)
-    #ramlak_filter = (xp.abs(xp.array(range(num_rays)) - num_rays/2)+1./num_rays)/(num_rays**2)/num_angles/9.8
-    ramlak_filter = (xp.abs(xp.array(range(num_rays)) - num_rays/2)+1./num_rays)/(num_rays**3)/num_angles
-     
-    # this is to avoid one fftshift
-    #ramlak_filter*=(-1)**xp.arange(num_rays);
+    #density_comp_f = (xp.abs(xp.array(range(num_rays)) - num_rays/2)+1./num_rays)/(num_rays**2)/num_angles/9.8
+
+    qq = xp.abs(xp.array(range(num_rays)) - num_rays/2)
+    density_comp_f = xp.abs(qq+1./num_rays)/(num_rays**3)/num_angles
     
-    
+    if filter_type == 'ram-lak':
+        pass
+    elif filter_type == 'hamming':
+        density_comp_f *= 0.54-0.46 * xp.cos((qq+num_rays//2)*2*xp.pi/num_rays)
+    elif filter_type == 'hann':
+        density_comp_f *= 0.5-0.5 * xp.cos((qq+num_rays//2)*2*xp.pi/num_rays)
+    elif filter_type == 'cosine':
+        density_comp_f *= xp.cos((qq)*xp.pi/num_rays)
+    elif filter_type == 'sinc' or filter_type == '':
+         density_comp_f *= xp.sinc((qq)/num_rays)
+    elif filter_type == None:
+        density_comp_f = xp.zeros(num_rays)+1./(num_rays**3)/num_angles
+        
     # removing the highest frequency
-    ramlak_filter[0]=0;
+    density_comp_f[0]=0;
     
     
-    # we shifted the sparse matrix output so we work directly with shifted fft
-    ramlak_filter=xp.fft.fftshift(ramlak_filter)
+    # we shift the sparse matrix output so we work directly with shifted fft
+    density_comp_f=xp.fft.fftshift(density_comp_f)
 
     # reshape so that we can broadcast to the whole stack
-    ramlak_filter = ramlak_filter.reshape((1, 1, ramlak_filter.size))
-    none_filter=ramlak_filter*0+1./(num_rays**3)/num_angles
+    density_comp_f = density_comp_f.reshape((1, 1, density_comp_f.size))
+    
+    none_filter=density_comp_f*0+1./(num_rays**3)/num_angles
     
 
     # mask out outer tomogram
@@ -398,14 +410,14 @@ def radon_setup(num_rays, theta_array, xp=np, center=None, kernel_type = 'gaussi
     
     # inverse Radon (pseudo inverse)
     dpr= deapodization_factor*num_rays*154.10934
-    IR = lambda sino: iradon(sino, dpr, S,  k_r, ramlak_filter,xp,fft)
+    IR = lambda sino: iradon(sino, dpr, S,  k_r, density_comp_f,xp,fft)
     
     
     return R,IR,RT
     
 
 def iradon(sinogram_stack, deapodization_factor, S, k_r , hfilter,xp,fft): 
-              #iradon(sino, deapodization_factor, S,  k_r, ramlak_filter )
+              #iradon(sino, deapodization_factor, S,  k_r, density_comp_f )
 #    xp=np
     
     num_slices = sinogram_stack.shape[0]
@@ -514,7 +526,6 @@ def iradon(sinogram_stack, deapodization_factor, S, k_r , hfilter,xp,fft):
     
 
 
-#def radon(tomo_stack, deapodization_factor, ST, k_r, num_angles ):
 def radon(tomo_stack, deapodization_factor, ST, k_r, num_angles,xp,fft ):
     
     

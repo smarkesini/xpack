@@ -119,16 +119,16 @@ from testing_setup import setup_tomo
 from fubini import radon_setup as radon_setup
 
 
-size_obj = 1024*2//32
+size_obj = 1024*2
 obj_width=.95
 #num_slices = 8*16*4*2
 #num_slices = 1024*3
 #num_slices = 2007
-num_slices = 200
+num_slices = 32
 
-num_angles =    size_obj//2*4
+num_angles =    size_obj//2
 num_rays   = size_obj
-max_iter   = 20
+max_iter   = 30
 
 #float_size=32/8; alg_tsize=4; alg_ssize=3
 #slice_gbsize=num_rays*(num_rays*alg_tsize+num_angles*alg_ssize)*(float_size)/((2**10)**3)
@@ -180,7 +180,7 @@ theta=xp.array(theta)
 if rank==0:  print("setting up radon. ", end = '')
 start=timer()
 #radon,iradon,radont = radon_setup(num_rays, theta, xp=xp, kernel_type = 'kb', k_r =1, width=obj_width)
-radon,iradon,radont = radon_setup(num_rays, theta, xp=xp, kernel_type = 'gaussian', k_r =1, width=obj_width)
+radon,iradon,radont = radon_setup(num_rays, theta, xp=xp, filter_type='hamming', kernel_type = 'gaussian', k_r =1, width=obj_width)
 end = timer()
 time_radonsetup=(end - start)
 if rank==0: print("time=", time_radonsetup)
@@ -206,6 +206,7 @@ if rank == 0: tomo=np.empty((num_slices, num_rays,num_rays),dtype='float32')
 
 verboseall = True
 verbose_iter= (1/5) * (rank == 0) # print every 5 iterations
+verbose_iter= (1) * (rank == 0) # print every iterations
 
 verbose= (rank ==0) and verboseall
 ###############################

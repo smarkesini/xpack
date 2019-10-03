@@ -1,7 +1,9 @@
 import numpy as xp
 
 
-def cg(A,b, x0=0, maxiter=100, tol=1e-4):
+def cg(A,b, x0=0, maxiter=100, tol=1e-4,  At=None):
+    
+    if At == None: At=A
     
     bnrm = xp.linalg.norm( b );
     
@@ -14,9 +16,10 @@ def cg(A,b, x0=0, maxiter=100, tol=1e-4):
     if xp.isscalar(x0):
         r0=b
     else:
-        r0=b-A(b)
+        r0=b-A(x0)
     p=r0
     x = x0
+
     for ii in range(maxiter):
         a  = xp.inner(r0,r0)/ xp.inner(p,A(p))
         x += a*p

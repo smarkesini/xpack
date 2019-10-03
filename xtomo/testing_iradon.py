@@ -36,9 +36,9 @@ from testing_setup import setup_tomo
 from fubini import radon_setup as radon_setup
 
 
-obj_size = 1024*2//32
+obj_size = 1024*2//8
 num_slices = 32# size//2
-num_angles =    obj_size//2
+num_angles =    32*2 #obj_size*2
 num_rays   = obj_size
 obj_width=0.95
 
@@ -65,8 +65,9 @@ theta=xp.array(theta)
 
 print("setting up radon. ", end = '')
 start=timer()
-#radon,iradon,radont = radon_setup(num_rays, theta, xp=xp, kernel_type = 'gaussian', k_r =1,width=obj_width)
-radon,iradon,radont = radon_setup(num_rays, theta, xp=xp, kernel_type = 'kb', k_r =1, width=obj_width)
+radon,iradon,radont = radon_setup(num_rays, theta, xp=xp, filter_type = 'hamming',kernel_type = 'gaussian', k_r =1,width=obj_width)
+#radon,iradon,radont = radon_setup(num_rays, theta, xp=xp, filter_type = 'ram-lak',kernel_type = 'gaussian', k_r =1,width=obj_width)
+#radon,iradon,radont = radon_setup(num_rays, theta, xp=xp, kernel_type = 'kb', k_r =1, width=obj_width)
 #end = timer()
 time_radonsetup=(end - start)
 print("time=", time_radonsetup)
@@ -121,7 +122,9 @@ plt.show()
 #plt.imshow(tomo0c)
 s="snr : %g" %(snr_iradon)
 print(s)
-plt.imshow(np.abs(tomo0c)**.1)
+#plt.imshow(np.abs(tomo0c)**.1)
+plt.imshow(np.abs(tomo0c))
+
 plt.title(s)
 plt.show()
 print(s)
