@@ -1,8 +1,14 @@
-from fubini import generate_Shepp_Logan as generate_Shepp_Logan
+#from fubini import generate_Shepp_Logan as generate_Shepp_Logan
 #from radon import radon_setup as radon_setup
+import tomopy
 import numpy as np
 
 xp=np
+
+def generate_Shepp_Logan(cube_shape):
+
+   return tomopy.misc.phantom.shepp3d(size=cube_shape, dtype='float32')
+
 
 def setup_tomo (num_slices, num_angles, num_rays, k_r=1, kernel_type = 'gaussian',width=.5):
 

@@ -16,7 +16,19 @@ if GPU:
 else:
     xp=np
     print("CPU code")
+   
+    
 
+def read_h5(file_name,dirname="data"):   
+    import h5py
+    with h5py.File(file_name, "r") as f:
+        print("reading from:", dirname)
+
+        data = f[dirname][:]
+
+    print(data.shape)
+    return data
+ 
 #xp=np
 
 
@@ -36,11 +48,29 @@ from testing_setup import setup_tomo
 from fubini import radon_setup as radon_setup
 
 
-obj_size = 1024*2//8
-num_slices = 32# size//2
-num_angles =    32*2 #obj_size*2
+#obj_size = 1024*2//8
+#num_slices = 32# size//2
+#num_angles =    32*2 #obj_size*2
+#num_rays   = obj_size
+#obj_width=0.95
+
+
+#sim_400_1024_2048_95
+#/sim_40_1024_2048_95 
+
+obj_size = 1024*2
+num_slices = 40# size//2
+num_angles =    obj_size//2
 num_rays   = obj_size
 obj_width=0.95
+
+
+file_name="/data/tomosim/shepp_logan.h5"
+grp="sim_{}_{}_{}_{}".format(num_slices,num_angles,num_rays,int(obj_width*100))
+dname_tomo="{}/tomo".format(grp)
+dname_sino="{}/sino".format(grp)
+dname_theta="{}/theta".format(grp)
+
 
 # tomo to cropped image
 #t2i = lambda x: x[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3].real
@@ -51,10 +81,16 @@ v2t= lambda x: xp.reshape(x,(num_slices, num_rays, num_rays))
 #print("setting up the phantom, ", end = '')
 print("setting up the phantom,...")
 start=timer()
-true_obj, theta=setup_tomo(num_slices, num_angles, num_rays, xp, width=obj_width)
+#true_obj, theta=setup_tomo(num_slices, num_angles, num_rays, xp, width=obj_width)
+
+true_obj=read_h5(file_name,dirname=dname_tomo)
+theta=read_h5(file_name,dirname=dname_theta)
+
+
 end = timer()
 time_phantom=(end - start)
 print("phantom setup time=", time_phantom)
+
 
 # push to GPU (or do nothing)
 true_obj=xp.array(true_obj)
@@ -73,27 +109,29 @@ time_radonsetup=(end - start)
 print("time=", time_radonsetup)
 
 
-print("warm up radon. ", end = '')
-start=timer()
-data = radon(true_obj[num_slices//2:num_slices//2+1,:,:])
-end = timer()
-time_radon=(end - start)
-print("time=", time_radon)
+#print("warm up radon. ", end = '')
+#start=timer()
+#data = radon(true_obj[num_slices//2:num_slices//2+1,:,:])
+#end = timer()
+#time_radon=(end - start)
+#print("time=", time_radon)
+
 print("doing radon. ", end = '')
 start=timer()
-data = radon(true_obj)
+#data = radon(true_obj)
+data= read_h5(file_name,dirname=dname_sino)
 end = timer()
 time_radon=(end - start)
 print("time=", time_radon)
 
 
-
-print("warmup iradon. ", end = '')
-start=timer()
-tomo0=iradon(data[num_slices//2:num_slices//2+1,:,:])
-end = timer()
-time_iradon=(end - start)
-print(" time=", time_iradon)
+#
+#print("warmup iradon. ", end = '')
+#start=timer()
+#tomo0=iradon(data[num_slices//2:num_slices//2+1,:,:])
+#end = timer()
+#time_iradon=(end - start)
+#print(" time=", time_iradon)
 
 print("doing iradon. ", end = '')
 start=timer()

@@ -78,7 +78,8 @@ def sirtMcalc(radon,radont,shape,xp, width = .65):
 
 
 def sirtBB(radon, radont, sino_data, xp, max_iter=30, alpha=1, verbose=0, width=.65, useRC=False,BBstep=True):
-      
+    
+    #print("verbose sirt",verbose)
     nrm0 = xp.linalg.norm(sino_data)
     if nrm0 == 0:
         nrm0=1
@@ -160,12 +161,12 @@ def sirtBB(radon, radont, sino_data, xp, max_iter=30, alpha=1, verbose=0, width=
         grad_old=grad+0
         
         
-        
-        if verbose >0 and (np.mod(i,1/verbose)==0 or i==max_iter-1):
+        #print("verbosity",verbose>0 and (np.mod(i,1/verbose)==0 or i==max_iter-1))
+        if (verbose >0) and (np.mod(i,1/verbose)==0 or i==max_iter-1):
             tnrm=xp.linalg.norm(grad)/tnrm0
             title = "SIRT-BB iter=%d, alpha=%g, alphaii=%g rnrm=%g, nrm_grad=%g " %(i, alpha, alphai, rnrm,tnrm)
             #title = "SIRT-BB iter=%d, α=%g, αi=%g rnrm=%g, ‖∇·‖=%g " %(i, alpha, alphai, rnrm,tnrm)
-            print(title )
+            print(title)
             #print(title, "a-stab",alpha_stab )
             
             #print(np.mod(i,2)<1)
