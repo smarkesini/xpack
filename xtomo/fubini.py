@@ -1,21 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-#Gridrec algorithm based on pseudocode using Gaussian kernel
-#from numba import jit
-#import matplotlib.pyplot as plt
-#import h5py
-#import dxchange
-import tomopy
-#from scipy import 
-import imageio
-import os
-from timeit import default_timer as timer
 import numpy as np
 #import cupy as cp
 
 eps=np.finfo(np.float32).eps
 pi=np.pi
+
+#from timeit import default_timer as timer
 
 
 
@@ -24,7 +16,7 @@ def gaussian_kernel(x, k_r, sigma, xp): #using sigma=2 since this is the default
     #xx=xp.exp(-x)
     kernel1 = xp.exp(-1/2 * 10 * (x/sigma)**2 )
     kernel1 = kernel1* (xp.abs(x) < k_r)
-    return kernel1 
+    return kernel1.astype('float32') 
     
 def keiser_bessel(x, k_r, beta,xp):
     #kernel1 = xp.i0(beta*xp.sqrt(1-(2*x/(k_r))**2))/xp.abs(xp.i0(beta)) 
@@ -35,12 +27,12 @@ def keiser_bessel(x, k_r, beta,xp):
     kernel1 = xp.reshape(kernel1, x.shape)
     kernel1 = kernel1 * (xp.abs(x) < k_r) 
     #kernel1 = (xp.abs(x) < k_r) * xp.i0(beta*xp.sqrt((xp.abs(x) <= k_r)*(1-(x/(k_r))**2)))/xp.abs(xp.i0(beta)) 
-    return kernel1
+    return kernel1.astype('float32') 
 
 # general kernel 1D
 def K1(x, k_r, kernel_type, xp,  beta=1, sigma=2):
     if kernel_type == 'gaussian':
-        kernel2 = gaussian_kernel(x,k_r,sigma,xp) 
+        kernel2 = gaussian_kernel(x,k_r,sigma,xp)
         return kernel2
     elif kernel_type == 'kb':
         kernel2 = keiser_bessel(x,k_r,beta,xp) 
@@ -68,20 +60,18 @@ def iradon_filter(num_rays,num_angles,filter_type,xp):
         
     # removing the highest frequency
     density_comp_f[0]=0;
+    # we shift the sparse matrix output so we work directly with shifted fft
+    density_comp_f=xp.fft.fftshift(density_comp_f)
+
+    # reshape so that we can broadcast to the whole stack
+    density_comp_f = density_comp_f.reshape((1, 1, density_comp_f.size))
+    
+
 
     return density_comp_f
 
         
 """    
-def K2(x, y, kernel_type, xp, k_r=2, beta=1, sigma=2): #k_r and beta are parameters for keiser-bessel
-    if kernel_type == 'gaussian':
-        kernel2 = gaussian_kernel(x,k_r,sigma,xp) * gaussian_kernel(y,k_r,sigma,xp)
-        return kernel2
-    elif kernel_type == 'kb':
-        kernel2 = keiser_bessel(x,k_r,beta,xp) * keiser_bessel(y,k_r,beta,xp)
-        return kernel2
-    else:
-        print("Invalid kernel type")
 
 def deapodization_simple(num_rays,kernel_type,xp,k_r=2, beta=1, sigma=2):
     ktilde=K1(xp.array([range(-k_r, k_r+1),] ), k_r, kernel_type, xp,  beta, sigma)
@@ -118,7 +108,7 @@ def deapodization(num_rays,kernel_type,xp,k_r=2, beta=1, sigma=2):
 
 def deapodization_shifted(num_rays,kernel_type,xp,k_r=2, beta=1, sigma=2):
     #stencil=xp.array([range(-k_r, k_r+1),]
-    sampling=8
+    sampling=8 #sample between each pixel
     step=1./sampling
     stencil=xp.array(xp.arange(-k_r, k_r+1-step*(sampling-1),step))
 
@@ -136,122 +126,159 @@ def deapodization_shifted(num_rays,kernel_type,xp,k_r=2, beta=1, sigma=2):
     # since we upsampled in Fourier space, we need to crop in real space
     ktilde2=(ktilde1[:,num_rays*(sampling)//2-num_rays//2:num_rays*(sampling)//2+num_rays//2]).real
     
-    apodization_factor = ktilde2 * ktilde2.T
+    #apodization_factor = ktilde2 * ktilde2.T
+        
+    apodization_factor=xp.reshape(ktilde2 * ktilde2.T,(1,num_rays,num_rays))
+    
+    apodization_factor*=num_rays
+
     return 1./apodization_factor
 
 
-"""
-def generate_Shepp_Logan(cube_shape):
 
-   return tomopy.misc.phantom.shepp3d(size=cube_shape, dtype='float32')
-"""
 
-def forward_project(cube, theta):
-
-    #return tomopy.sim.project.project(cube, theta, pad = False, sinogram_order=False)
-    return tomopy.sim.project.project(cube, theta, pad = False, sinogram_order=True)
-   
-
-def gridding_setup(num_rays, theta_array, center=None, xp=np, kernel_type = 'gaussian', k_r = 2):
+def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian', k_r = 1, iradon_only=False,dcfilter=None):
     # setting up the sparse array
     # columns are used to pick the input data
     # rows are where the data is added on the output  image
     # values are what we multiply the input with
     
-    num_angles=theta_array.shape[0]
+    #start=timer()
+    #num_angles=theta.shape[0]
+    num_angles=theta.size
     
-    # phase ramp to move center
-    if center == None or center == num_rays//2:
-        rampfactor=-1   
-    else:
-        rampfactor=xp.exp(1j*2*xp.pi*center/num_rays)
+    # sparse array entries
+    K={'row':None,'col':None,'val':None}
     
+    # kernel stencil
     stencil=xp.array([range(-k_r, k_r+1),])
+    # we'll use 3rd and 4th dimension for stencil expansion (broadcasting)
+    # the first two dimensions are used for x-y coordinate of the polar samples, 
     stencilx=xp.reshape(stencil,[1,1,2*k_r+1,1])
     stencily=xp.reshape(stencil,[1,1,1,2*k_r+1])
 
-    # 
-    # this avoids one fftshift after fft(data)
-    qray = xp.fft.fftshift(xp.array(xp.arange(num_rays) ) - num_rays/2)
-    qray= xp.reshape(qray,(1,num_rays))
     
-    theta_array = theta_array.astype('float64')
-    theta_array+=eps*10 # gives better result if theta[0] is not exactly 0
+    # input index (where the the data on polar grid input comes from) 
+    pind = xp.array(range(num_rays*num_angles))
+    # reshape index for the stencil expansion
+    pind=xp.reshape(pind,[num_angles,num_rays,1,1])
+
+    # column index 
+    # we need to replicate for each point of the kernel 
+    K['col']=(pind+stencilx*0+stencily*0)
+    del pind
+    #print("timer1",timer()-start)
+    #start=timer()
+
     
+    # now compute where the points land  on the grid
+    # theta needs to be accurate
+    theta = theta.astype('float64')
+    theta+=eps*10 # gives better result if theta[0] is not exactly 0
+    theta.shape=(num_angles,1,1,1)
+    # the sinogram is fftshifted, so we shift it back
+    qray = xp.fft.fftshift(xp.array(xp.arange(num_rays,dtype='int32') ) - num_rays//2)
+    # reshape it for broadcasting
+    #qray= xp.reshape(qray,(1,num_rays,1,1))
+    qray.shape=(1,num_rays,1,1)
+
     # coordinates of the points on the  grid, 
-    px = - (xp.sin(xp.reshape(theta_array,[num_angles,1]))) * (qray)
-    py =   (xp.cos(xp.reshape(theta_array,[num_angles,1]))) * (qray) 
+    #px = - (xp.sin(xp.reshape(theta,[num_angles,1,1,1]))) * (qray)
+    #py =   (xp.cos(xp.reshape(theta,[num_angles,1,1,1]))) * (qray) 
+    px = - xp.sin(theta) * (qray)
+    py =   xp.cos(theta) * (qray) 
     # we'll add the center later to avoid numerical errors
-    
-    # reshape coordinates and index for the stencil expansion
-    px=xp.reshape(px,[num_angles,num_rays,1,1])
-    py=xp.reshape(py,[num_angles,num_rays,1,1])
     
     # compute kernels
     kx=K1(stencilx - (px - xp.around(px)),k_r, kernel_type, xp); 
     ky=K1(stencily - (py - xp.around(py)),k_r, kernel_type, xp); 
     
+    K['val']=kx*ky
+    #print('kval type:',K['val'].dtype)
+    #print("K['val'] type",K['val'].dtype,"qray",qray.dtype)
+    # phase ramp to move center
+    if center == None or center == num_rays//2:
+        #print("no center")
+        rampfactor=np.int32(-1)   
+        #print("type ranmp",type(rampfactor))
+    else:
+        rampfactor=xp.exp(1j*2*xp.pi*center/num_rays)
+
+    #print("2 K['val'] type",K['val'].dtype,"qray",qray.dtype)
+    #print("kx type",kx.dtype,"px",px.dtype)
     qray=rampfactor**qray     # this takes care of the center
     qray.shape=(1,num_rays,1,1)
     qray[:,num_rays//2,:,:]=0 # removing highest frequency from the data
 
-    Kval=(kx*ky)*(qray)
+    #K['val']=((kx*ky)*(qray)).astype('complex64')
+    #print("2 K['val'] type",K['val'].dtype,"qray",qray.dtype)
+    K['val']=(K['val']*(qray)).astype('complex64')
+    
     
     # move the grid to the middle and add stencils
-    kx=stencilx+xp.around(px)+ num_rays/2
-    ky=stencily+xp.around(py)+ num_rays/2
-
-
+    px = (xp.around(px)).astype('long')
+    py = (xp.around(py)).astype('long')
+    px=px+ num_rays//2+stencilx
+    py=py+ num_rays//2+stencily
+    #del px,py
+ 
     # this avoids fftshift2(tomo)
-    Kval*=((-1)**kx)*((-1)**ky)
-    # the complex conjugate
-    Kval_conj=xp.conj(Kval)+0.
-
-    # index (where the output goes on the cartesian grid)
-    Krow=((kx)*(num_rays)+ky)
+    K['val']*=((-1)**px)*((-1)**py)
     
-    tscale=xp.ones(num_angles)
-    tscale.shape=[num_angles,1,1,1]
-    # check if theta goes to 180, then assign 1/2 weight to each
-    theta=theta_array
+    #print('kval shape',K['val'].shape)
+    # the complex conjugate
+    if not iradon_only:
+        K['valj']=xp.conj(K['val'])+0.
+    
+    if type(dcfilter)!=type(None):
+        dcfilter.shape=[1,num_rays,1,1]
+        K['val']*=dcfilter
+
+    #print('Kval type',K['val'].dtype)
+
+         
+    # check if theta goes to 180, then assign 1/2 weight to the first and last
     theta_repeat=xp.abs(xp.abs(theta[0]-theta[-1])-xp.pi)<xp.abs(theta[1]-theta[0])*1e-5
     if theta_repeat:
+        tscale=xp.ones(num_angles,dtype='float32')
+        tscale.shape=[num_angles,1,1,1]
         tscale[([0,-1])]=.5
-        
+        K['val']*=tscale
     
-    Kval*=tscale
-        
-    # input index (where the the data on polar grid input comes from) 
-    pind = xp.array(range(num_rays*num_angles))
-    # we need to replicate for each point of the kernel 
-    # reshape index for the stencil expansion
-    pind=xp.reshape(pind,[num_angles,num_rays,1,1])
-    # column index 
-    Kcol=(pind+kx*0+ky*0)
+    
+    # row index (where the output goes on the cartesian grid)
+    K['row']=((px)*(num_rays)+py)
 
+ 
     # find points out of bound
     # let's remove the highest frequencies as well (kx=0,ky=0)
-    ii=xp.where((kx>=1) & (ky>=1) & (kx<=num_rays-1) & (ky<=num_rays-1))
-
+    ii=xp.where((px>=1) & (py>=1) & (px<=num_rays-1) & (py<=num_rays-1))
     # remove points out of bound
-    Krow=Krow[ii]
-    Kcol=Kcol[ii]
-    Kval=Kval[ii]
-    Kval_conj=Kval_conj[ii]
-    
-    Krow=Krow.astype('long')
-    Kcol=Kcol.astype('long')
-    Kval=Kval.astype('complex64')
-    Kval_conj=Kval_conj.astype('complex64')
-    
+    for jj in K: K[jj]=K[jj][ii]
+
+    #del ii,kx,ky
+
+        
     # create sparse array   
     if xp.__name__=='cupy':
         import cupyx
-        #S=scipy.sparse.coo_matrix((Kval.ravel(),(Kcol.ravel(), Krow.ravel())), shape=(num_angles*num_rays, (num_rays)**2))
-        #ST=cupyx.scipy.sparse.coo_matrix((Kval_conj.ravel(), (Krow.ravel(), Kcol.ravel())), shape=((num_rays)**2, num_angles*num_rays))
-        S=cupyx.scipy.sparse.coo_matrix((Kval.ravel(),(Krow.ravel(), Kcol.ravel())), shape=((num_rays)**2,num_angles*num_rays))
+
+        #S=scipy.sparse.coo_matrix((K['val'].ravel(),(Kcol.ravel(), Krow.ravel())), shape=(num_angles*num_rays, (num_rays)**2))
+        #ST=cupyx.scipy.sparse.coo_matrix((K['val']_conj.ravel(), (Krow.ravel(), Kcol.ravel())), shape=((num_rays)**2, num_angles*num_rays))
+        #S=cupyx.scipy.sparse.coo_matrix((K['val'].ravel(),(Krow.ravel(), Kcol.ravel())), shape=((num_rays)**2,num_angles*num_rays))
+        #S=cupyx.scipy.sparse.coo_matrix((K['val'].ravel(),(K['row'].ravel(), K['col'].ravel())), shape=((num_rays)**2,num_angles*num_rays))
+        S=cupyx.scipy.sparse.coo_matrix((K['val'],(K['row'], K['col'])), shape=((num_rays)**2,num_angles*num_rays))
+
         S=cupyx.scipy.sparse.csr_matrix(S)
-        ST=cupyx.scipy.sparse.coo_matrix((Kval_conj.ravel(), (Kcol.ravel(), Krow.ravel())), shape=(num_angles*num_rays, (num_rays)**2))
+
+        if iradon_only:
+            return S, None
+
+        #print("size of S in gb", (8*(S.data).size+4*(S.indptr).size+4*(S.indices).size+5*4)/((2**10)**3))
+       
+        #ST=cupyx.scipy.sparse.coo_matrix((K['val']_conj.ravel(), (Kcol.ravel(), Krow.ravel())), shape=(num_angles*num_rays, (num_rays)**2))
+        ST=cupyx.scipy.sparse.coo_matrix((K['valj'].ravel(),(K['col'].ravel(),K['row'].ravel())), shape=(num_angles*num_rays,(num_rays)**2))
+        del K['valj']
         ST=cupyx.scipy.sparse.csr_matrix(ST)
         #print("size of S in gb", (8*(S.data).size+4*(S.indptr).size+4*(S.indices).size+5*4)/((2**10)**3))
         #print("size of S",8*(S.data).size,"ind ptr",4*(S.indptr).size,'ind',4*(S.indices).size)
@@ -259,10 +286,14 @@ def gridding_setup(num_rays, theta_array, center=None, xp=np, kernel_type = 'gau
     else:
         import scipy
 
-        #S=scipy.sparse.csr_matrix((Kval.ravel(),      (Kcol.ravel(), Krow.ravel())), shape=(num_angles*num_rays, (num_rays)**2))
-        #ST=scipy.sparse.csr_matrix((Kval_conj.ravel(), (Krow.ravel(), Kcol.ravel())), shape=((num_rays)**2, num_angles*num_rays))
-        S=scipy.sparse.csr_matrix((Kval.ravel(),      (Krow.ravel(), Kcol.ravel())), shape=((num_rays)**2,num_angles*num_rays))
-        ST=scipy.sparse.csr_matrix((Kval_conj.ravel(), (Kcol.ravel(), Krow.ravel())), shape=(num_angles*num_rays, (num_rays)**2))
+        #S=scipy.sparse.csr_matrix((K['val'].ravel(),      (Kcol.ravel(), Krow.ravel())), shape=(num_angles*num_rays, (num_rays)**2))
+        #ST=scipy.sparse.csr_matrix((K['val']_conj.ravel(), (Krow.ravel(), Kcol.ravel())), shape=((num_rays)**2, num_angles*num_rays))
+        S=scipy.sparse.csr_matrix((K['val'].ravel(),(K['row'].ravel(), K['col'].ravel())), shape=((num_rays)**2,num_angles*num_rays))
+        #S=scipy.sparse.csr_matrix((K['val'].ravel(),      (Krow.ravel(), Kcol.ravel())), shape=((num_rays)**2,num_angles*num_rays))
+        if iradon_only:
+            return S, None
+        #ST=scipy.sparse.csr_matrix((K['val']_conj.ravel(), (Kcol.ravel(), Krow.ravel())), shape=(num_angles*num_rays, (num_rays)**2))
+        ST=scipy.sparse.csr_matrix((K['valj'].ravel(),(K['col'].ravel(),K['row'].ravel())), shape=(num_angles*num_rays,(num_rays)**2))
         
 
     
@@ -282,13 +313,23 @@ def masktomo(num_rays,xp,width=.95):
     msk_tomo.shape=(1,num_rays,num_rays)
     return msk_tomo, msk_sino
 
-import matplotlib.pyplot as plt
-def radon_setup(num_rays, theta_array, xp=np, center=None, filter_type = 'hamming', kernel_type = 'gaussian', k_r = 1, width=.5):
+def radon_setup(num_rays, theta, xp=np, 
+                center=None, filter_type = 'hamming', 
+                kernel_type = 'gaussian', k_r = 1, width=.95, iradon_only=False):
 
+
+    num_angles=theta.shape[0]
+    #num_angles=theta.size
+  
+    density_comp_f = iradon_filter(num_rays,num_angles,filter_type,xp)
+    #none_filter=density_comp_f*0+1./(num_rays**3)/num_angles
+ 
+    
     #print("setting up gridding")
     #start = timer()
 
-    S, ST = gridding_setup(num_rays, theta_array, center, xp, kernel_type , k_r)
+    
+    S, ST = gridding_setup(num_rays, theta, center, xp, kernel_type , k_r, iradon_only,density_comp_f)
     #end = timer()
 
     #print("gridding setup time=",end - start)
@@ -298,58 +339,37 @@ def radon_setup(num_rays, theta_array, xp=np, center=None, filter_type = 'hammin
     else:
         import numpy.fft as fft
         
-    
-    
-    #deapodization_factor = deapodization(num_rays, kernel_type, xp, k_r)
-    deapodization_factor = deapodization_shifted(num_rays, kernel_type, xp, k_r=k_r)
-    deapodization_factor=xp.reshape(deapodization_factor,(1,num_rays,num_rays))
-    
-    # get the filter
-    num_angles=theta_array.shape[0]
-    #print("num_angles", num_angles)
-    #density_comp_f = (xp.abs(xp.array(range(num_rays)) - num_rays/2)+1./num_rays)/(num_rays**2)/num_angles/9.8
-
-    density_comp_f = iradon_filter(num_rays,num_angles,filter_type,xp)
-    
-    # we shift the sparse matrix output so we work directly with shifted fft
-    density_comp_f=xp.fft.fftshift(density_comp_f)
-
-    # reshape so that we can broadcast to the whole stack
-    density_comp_f = density_comp_f.reshape((1, 1, density_comp_f.size))
-    
-    none_filter=density_comp_f*0+1./(num_rays**3)/num_angles
-    
-
     # mask out outer tomogram
     msk_tomo,msk_sino=masktomo(num_rays,xp,width=width)
     
-    
-    deapodization_factor/=num_rays
+    #deapodization_factor = deapodization(num_rays, kernel_type, xp, k_r)
+    deapodization_factor = deapodization_shifted(num_rays, kernel_type, xp, k_r=k_r)
     deapodization_factor*=msk_tomo
 
     deapodization_factor*=0.14652085
     deapodization_factor=(deapodization_factor).astype('complex64')
-    
-        
-
-    R  = lambda tomo:  radon(tomo, deapodization_factor , ST, k_r, num_angles,xp,fft )
 
     dpr= deapodization_factor*num_rays*154.10934
 
-    # the conjugate transpose (for least squares solvers):
-    RT = lambda sino: iradon(sino, dpr, S,  k_r, none_filter,xp,fft)
-    
+
     # inverse Radon (pseudo inverse)
     IR = lambda sino: iradon(sino, dpr, S,  k_r, density_comp_f,xp,fft)
+    if iradon_only:  return IR
+
+    # the conjugate transpose (for least squares solvers):
+    #RT = lambda sino: iradon(sino, dpr, S,  k_r, none_filter,xp,fft)
+            
+    R  = lambda tomo:  radon(tomo, deapodization_factor , ST, k_r, num_angles,xp,fft )
+
     
-    
-    return R,IR,RT
+
+    return R,IR
     
 
 def iradon(sinogram_stack, deapodization_factor, S, k_r , hfilter,xp,fft): 
     
     num_slices = sinogram_stack.shape[0]
-    num_angles = sinogram_stack.shape[1]
+    #num_angles = sinogram_stack.shape[1]
     num_rays   = sinogram_stack.shape[2]
     
     
@@ -426,7 +446,7 @@ def iradon(sinogram_stack, deapodization_factor, S, k_r , hfilter,xp,fft):
         # non uniform IFFT: Fourier polar (q,theta) to cartesian (x,y):
        
         # density compensation
-        qt *= hfilter[0,0]
+        #qt *= hfilter[0,0]
         
         # inverse gridding (polar (q,theta) to cartesian (qx,qy))
         #qt.shape=(-1)        

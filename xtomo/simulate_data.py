@@ -80,8 +80,14 @@ def simulate(num_slices,num_rays,num_angles,obj_width,root_name = root_name):
     print("will be writing to :",file_name, dname_tomo)
     print("will be writing to :",file_name, dname_sino)
     print("will be writing to :",file_name, dname_theta,flush=True)
+    if np.mod(num_angles,2)==0:
+        theta    = np.arange(0., 180., 180. / num_angles,dtype='float64')*np.pi/180.
+    else:
+        print("all the way to 180")
+        theta    = np.linspace(0, 180., num= num_angles)*np.pi/180.
+        theta=theta.astype('float32')
+        #theta    = np.arange(0., 180., 180. / num_angles,dtype='float64')*xp.pi/180.
         
-    theta    = np.arange(0., 180., 180. / num_angles,dtype='float32')*xp.pi/180.
     write_h5(theta,file_name,dirname=dname_theta)
     
     print('setting up the phantom:{}'.format((num_slices,num_rays,num_rays)),"num angles", num_angles,"filling",obj_width,'%',flush=True)
@@ -121,7 +127,7 @@ def simulate(num_slices,num_rays,num_angles,obj_width,root_name = root_name):
     print("time=", time_radon)
     
     
-    write_h5(true_obj,file_name,dirname=dname_tomo)
+    #write_h5(true_obj,file_name,dirname=dname_tomo)
     write_h5(sinogram,file_name,dirname=dname_sino)
     print("done simulating")
     
