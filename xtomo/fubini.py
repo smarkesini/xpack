@@ -194,6 +194,7 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
     ky=K1(stencily - (py - xp.around(py)),k_r, kernel_type, xp); 
     
     K['val']=kx*ky
+    del kx,ky
     #print('kval type:',K['val'].dtype)
     #print("K['val'] type",K['val'].dtype,"qray",qray.dtype)
     # phase ramp to move center
@@ -276,8 +277,8 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
 
         #print("size of S in gb", (8*(S.data).size+4*(S.indptr).size+4*(S.indices).size+5*4)/((2**10)**3))
        
-        #ST=cupyx.scipy.sparse.coo_matrix((K['val']_conj.ravel(), (Kcol.ravel(), Krow.ravel())), shape=(num_angles*num_rays, (num_rays)**2))
-        ST=cupyx.scipy.sparse.coo_matrix((K['valj'].ravel(),(K['col'].ravel(),K['row'].ravel())), shape=(num_angles*num_rays,(num_rays)**2))
+        #ST=cupyx.scipy.sparse.coo_matrix((K['val']_conj, (Kcol, Krow)), shape=(num_angles*num_rays, (num_rays)**2))
+        ST=cupyx.scipy.sparse.coo_matrix((K['valj'],(K['col'],K['row'])), shape=(num_angles*num_rays,(num_rays)**2))
         del K['valj']
         ST=cupyx.scipy.sparse.csr_matrix(ST)
         #print("size of S in gb", (8*(S.data).size+4*(S.indptr).size+4*(S.indices).size+5*4)/((2**10)**3))
@@ -286,14 +287,14 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
     else:
         import scipy
 
-        #S=scipy.sparse.csr_matrix((K['val'].ravel(),      (Kcol.ravel(), Krow.ravel())), shape=(num_angles*num_rays, (num_rays)**2))
-        #ST=scipy.sparse.csr_matrix((K['val']_conj.ravel(), (Krow.ravel(), Kcol.ravel())), shape=((num_rays)**2, num_angles*num_rays))
-        S=scipy.sparse.csr_matrix((K['val'].ravel(),(K['row'].ravel(), K['col'].ravel())), shape=((num_rays)**2,num_angles*num_rays))
-        #S=scipy.sparse.csr_matrix((K['val'].ravel(),      (Krow.ravel(), Kcol.ravel())), shape=((num_rays)**2,num_angles*num_rays))
+        #S=scipy.sparse.csr_matrix((K['val'],      (Kcol, Krow)), shape=(num_angles*num_rays, (num_rays)**2))
+        #ST=scipy.sparse.csr_matrix((K['val']_conj, (Krow, Kcol)), shape=((num_rays)**2, num_angles*num_rays))
+        S=scipy.sparse.csr_matrix((K['val'],(K['row'], K['col'])), shape=((num_rays)**2,num_angles*num_rays))
+        #S=scipy.sparse.csr_matrix((K['val'],      (Krow, Kcol)), shape=((num_rays)**2,num_angles*num_rays))
         if iradon_only:
             return S, None
-        #ST=scipy.sparse.csr_matrix((K['val']_conj.ravel(), (Kcol.ravel(), Krow.ravel())), shape=(num_angles*num_rays, (num_rays)**2))
-        ST=scipy.sparse.csr_matrix((K['valj'].ravel(),(K['col'].ravel(),K['row'].ravel())), shape=(num_angles*num_rays,(num_rays)**2))
+        #ST=scipy.sparse.csr_matrix((K['val']_conj, (Kcol, Krow)), shape=(num_angles*num_rays, (num_rays)**2))
+        ST=scipy.sparse.csr_matrix((K['valj'],(K['col'],K['row'])), shape=(num_angles*num_rays,(num_rays)**2))
         
 
     
@@ -348,6 +349,7 @@ def radon_setup(num_rays, theta, xp=np,
 
     deapodization_factor*=0.14652085
     deapodization_factor=(deapodization_factor).astype('complex64')
+    #deapodization_factor=(deapodization_factor).astype('float32')
 
     dpr= deapodization_factor*num_rays*154.10934
 
@@ -450,7 +452,7 @@ def iradon(sinogram_stack, deapodization_factor, S, k_r , hfilter,xp,fft):
         
         # inverse gridding (polar (q,theta) to cartesian (qx,qy))
         #qt.shape=(-1)        
-        #tomogram=qt.ravel()*S #SpMV
+        #tomogram=qt*S #SpMV
         tomogram=S*qt.ravel() #SpMV
         
         tomogram.shape=(num_rays,num_rays)

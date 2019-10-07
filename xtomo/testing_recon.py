@@ -10,22 +10,19 @@ GPU=True
 
 algo='iradon'
 #algo='sirt'
-max_chunk_slice=128
+max_chunk_slice=16*4
 
 
 
-#import tomopy
-#GPU=False
-#algo='tomopy-gridrec'
-##max_chunk_slice=np.inf
-##max_chunk_slice=512
-##max_chunk_slice=50
+GPU=False
+algo='tomopy-gridrec'
+max_chunk_slice=np.inf
+max_chunk_slice=64
 
  
 
 from timeit import default_timer as timer
-
-from xcale.devmanager import set_visible_device
+import time
 
 from communicator import rank, gatherv, get_loop_chunk_slices, get_chunk_slices
 from communicator import size as mpi_size
@@ -37,6 +34,8 @@ comm = MPI.COMM_WORLD
 
     
 if GPU:
+    from xcale.devmanager import set_visible_device
+
     import cupy as xp
     do,vd,nd=set_visible_device(rank)
     #device_gbsize=xp.cuda.Device(vd).mem_info[1]/((2**10)**3)
@@ -129,14 +128,19 @@ start=timer()
 if algo=='tomopy-gridrec':
     import tomopy
     reconstruct  = lambda data,verbose: (tomopy.recon(data, theta, center=None, sinogram_order=True, algorithm="gridrec"),None)
+    num_slices 
 else:
     from fubini import radon_setup as radon_setup
     if algo=='iradon':
+        
         iradon = radon_setup(num_rays, theta, xp=xp, center=rot_center, filter_type='hamming', kernel_type = 'gaussian', k_r =1, width=obj_width,iradon_only=True)
-
-        reconstruct = lambda data,verbose:  (iradon(data),None)
+        if GPU:
+            reconstruct = lambda data,verbose:  (xp.asnumpy(iradon(data)),None)
+        else:
+            reconstruct = lambda data,verbose:  (iradon(data),None)
     elif algo == 'sirtBB':
         radon,iradon,radont = radon_setup(num_rays, theta, xp=xp, center=rot_center, filter_type='hamming', kernel_type = 'gaussian', k_r =1, width=obj_width)
+        from solve_sirt import sirtBB
         del radont
         reconstruct = lambda data,verbose:  sirtBB(radon, iradon, data, xp, max_iter=max_iter, alpha=1.,verbose=verbose_iter)
 
@@ -147,7 +151,7 @@ time_radonsetup=(end - start)
 if rank==0: print("time=", time_radonsetup)
 
 # solver
-from solve_sirt import sirtBB
+#from solve_sirt import sirtBB
 
 
 
@@ -159,11 +163,20 @@ if rank==0: print("nslices",num_slices,"mpi_size", mpi_size,"max_chunk",max_chun
 if rank==0:print("loop_chunks", loop_chunks)
 
 #times={'scatt':0, 'c2g':0, 'radon':0 ,'solver':0, 'g2c':0, 'gather':0 }
-times={'h5read':0, 'c2g':0,'solver':0, 'g2c':0, 'gather':0 }
+times={'loop':0, 'setup':0, 'h5read':0, 'c2g':0,'solver':0, 'g2c':0, 'barrier':0, 'gather':0 }
 times_loop=times.copy()
+times_loop['setup']=time_radonsetup
 
+start_loop_time =time.time()
 
-if rank == 0: tomo=np.empty((num_slices, num_rays,num_rays),dtype='float32')
+# if rank == 0: tomo=np.empty((num_slices, num_rays,num_rays),dtype='float32')
+if algo!='tomopy-gridrec':
+    from communicator import allocate_shared_tomo
+    print("using shared memory to communicate")
+    tomo = allocate_shared_tomo(num_slices,num_rays,rank,mpi_size)
+else:
+    tomo=np.empty((num_slices, num_rays,num_rays),dtype='float32')
+    
 #    if rank == 0: tomo = np.empty((nslices,num_rays,num_rays),dtype = 'float32')
 
 verboseall = True
@@ -172,33 +185,34 @@ verbose_iter= (1) * (rank == 0) # print every iterations
 
 #print("verbose_iter",verbose_iter)
 verbose= (rank ==0) and verboseall
+
+
 ###############################
 for ii in range(loop_chunks.size-1):
     #if rank == 0: print("doing slices", loop_chunks[ii],loop_chunks[ii+1])
     nslices = loop_chunks[ii+1]-loop_chunks[ii]
     chunk_slices = get_chunk_slices(nslices) 
 
-
     #if verbose: print()
-    if verbose: print( 'loop_chunk',ii,':', loop_chunks[ii:ii+2], "chunks",loop_chunks[ii]+np.append(chunk_slices[:,0],chunk_slices[-1,1]).ravel(),)
+    if verbose: print( 'loop_chunk {}/{}'.format(ii+1,loop_chunks.size-1),':', loop_chunks[ii:ii+2], "mpi chunks",loop_chunks[ii]+np.append(chunk_slices[:,0],chunk_slices[-1,1]).ravel(),)
     # if rank==0: print("chunk slices",chunk_slices)
     
 
-    start = timer()
+    start_read = time.time()
     # data = read_h5(file_name,dirname=dname_sino,chunks=chunk_slices[rank,:]+loop_chunks[ii])
 
-    if verbose: print("reading slices:", loop_chunks[ii],"-",loop_chunks[ii+1]) 
+    #if verbose: print("reading slices:", loop_chunks[ii],"-",loop_chunks[ii+1]-1) 
+    if verbose: print("reading slices:", end = '')  
 
+    chunks=chunk_slices[rank,:]+loop_chunks[ii]
     #if rank ==0: print("data")
-    data = get_data('sino',chunks=chunk_slices[rank,:]+loop_chunks[ii])
-    #if rank ==0: print("data type",type(data),"dtype",data.dtype)
-
-    #data = get_data('sino',chunks=chunk_slices[rank,:]+loop_chunks[ii])
-    end = timer()
-    times['h5read']+=(end - start)
+    data = get_data('sino',chunks=chunks)
+    end_read=time.time()
+    if rank ==0: times['h5read']=(end_read - start_read)
+    if verbose: print("time ={:3g}".format(times['h5read']))
 
     start = timer()
-    data=xp.array(data)
+    if GPU: data=xp.array(data)
     end = timer()
     times['c2g']=(end - start)
     
@@ -206,28 +220,37 @@ for ii in range(loop_chunks.size-1):
     # factor=scale(tomo0,true_obj)
     
      
-    if verbose: print("reconstructing slices:", loop_chunks[ii],"-",loop_chunks[ii+1]) 
+    if verbose: print("reconstructing slices:", end = '') 
     start = timer()
-#    verbose_iter=(verbose) 
-
-    #print("rank no", rank, "chunks",chunk_slices[rank]+loop_chunks[ii])
-    #tomo_sirtBB,rnrm = sirtBB(radon, radont, data, xp, max_iter=100, alpha=1.,verbose=verbose,useRC=True, BBstep=False)
-    #tomo_sirtBB,rnrmp = sirtBB(radon, iradon, data, xp, max_iter=max_iter, alpha=1.,verbose=verbose_iter)
-    #tomo_sirtBB =  iradon(data)
-    tomo_chunk, rnrm =  reconstruct(data,verbose_iter)
-    
+#
+    #tomo_chunk, rnrm =  reconstruct(data,verbose_iter)
+    if algo == 'tomopy-gridrec':
+        #tomo, rnrm =  reconstruct(data,verbose_iter)
+        tomo[chunks[0]:chunks[1],...]=tomopy.recon(data, theta, center=None, sinogram_order=True, algorithm="gridrec")
+    else:
+        tomo[chunks[0]:chunks[1],...], rnrm =  reconstruct(data,verbose_iter)
     #tomo_chunk = tomopy.recon(data, theta, center=None, sinogram_order=True, algorithm="gridrec")
-    times['solver']+=timer()-start
+    times['solver']=timer()-start
+    if verbose: print("time ={:3g}".format(times['solver']))
+
     #print("rank no", rank, "chunks",chunk_slices[rank]+loop_chunks[ii], "rnrm",rnrmp,"data shapes", data.shape)
     
     
+    #chunks=chunk_slices[rank,:]+loop_chunks[ii]
+        
+    start = timer()
     # gather from GPU to CPU
+    '''
     start1 = timer()
     if GPU: tomo_chunk=xp.asnumpy(tomo_chunk)
     end1 = timer()
-    times['g2c']+=end1-start1
+    times['g2c']=end1-start1
     
     start = timer()
+    if GPU: 
+        tomo[chunks[0]:chunks[1],...]=xp.asnumpy(tomo_chunk)
+    else:
+        tomo[chunks[0]:chunks[1],...]=tomo_chunk
     if rank ==0: 
         ptomo = tomo[loop_chunks[ii]:loop_chunks[ii+1],:,:]
         
@@ -235,23 +258,27 @@ for ii in range(loop_chunks.size-1):
     else:
         ptomo=None
 
-   
- #   comm.Barrier()    
     gatherv(tomo_chunk,chunk_slices,data=ptomo)
+    '''
+   
 
-    comm.Barrier()
+
     end = timer()
 
     times['gather']=end-start
     
-    for ii in times:
-        times_loop[ii]+=times[ii]
+    for ii in times: times_loop[ii]+=times[ii]
         
-
+start = timer()
+comm.Barrier()
+times['barrier']+=timer()-start
 
 if rank>0:     quit()
 
 #print("times last loop_chunk",times)
+end_loop=time.time()
+times_loop['loop']=end_loop-start_loop_time 
+
 
 print("times full tomo", times_loop)
 
@@ -266,16 +293,28 @@ tomo0c=t2i(tomo)*msk_tomo
 plt.imshow(np.abs(tomo0c))
 plt.show()
 
-
+#
+#img = None
+#for f in range(num_slices):
+#    im=tomo[f,:,:]
+#    if img is None:
+#        img = plt.imshow(im)
+#    else:
+#        img.set_data(im)
+#    plt.pause(.01)
+#    plt.draw()
+#
 
 try:
     true_obj = get_data('tomo')
+    print(type(true_obj))
 except:
     true_obj = None
+    quit()
 
 if type(true_obj) == type(None): 
     print("no tomogram to compare")
-    #quit()
+    quit()
 
 print("phantom shape",true_obj.shape, "n_angles",num_angles, 'algorithm:', algo,"GPU:",GPU,"max_iter:",max_iter)
 print("reading tomo, shape",(num_slices,num_rays,num_rays), "n_angles",num_angles, "max_iter",max_iter)
