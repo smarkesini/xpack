@@ -8,8 +8,7 @@ eps=np.finfo(np.float32).eps
 pi=np.pi
 
 #from timeit import default_timer as timer
-
-
+#sparse_cache='~/.cache/xpack/sparse.npz'
 
 def gaussian_kernel(x, k_r, sigma, xp): #using sigma=2 since this is the default value for sigma
 #    kernel1 = xp.exp(-1/2 * (x/sigma)**2 *16)
@@ -200,7 +199,8 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
     # phase ramp to move center
     if center == None or center == num_rays//2:
         #print("no center")
-        rampfactor=np.int32(-1)   
+        center = num_rays//2
+        rampfactor=np.float32(-1)   
         #print("type ranmp",type(rampfactor))
     else:
         rampfactor=xp.exp(1j*2*xp.pi*center/num_rays)
@@ -224,7 +224,8 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
     #del px,py
  
     # this avoids fftshift2(tomo)
-    K['val']*=((-1)**px)*((-1)**py)
+    #K['val']*=((-1)**px)*((-1)**py)
+    K['val']*=(1-px%2*2)*(1-py%2*2)
     
     #print('kval shape',K['val'].shape)
     # the complex conjugate
@@ -250,12 +251,23 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
     # row index (where the output goes on the cartesian grid)
     K['row']=((px)*(num_rays)+py)
 
- 
+    
+    #q=K['val']+0.
+    #q1=K['val']+0.
+    
     # find points out of bound
     # let's remove the highest frequencies as well (kx=0,ky=0)
-    ii=xp.where((px>=1) & (py>=1) & (px<=num_rays-1) & (py<=num_rays-1))
+    #ii=xp.nonzero((px>=1) & (py>=1) & (px<=num_rays-1) & (py<=num_rays-1))
+    ii=xp.nonzero((px>=1) & (py>=1) & (px<=num_rays-1) & (py<=num_rays-1) & (K['val']!=0))
+    #q=q[ii]
+    #q1=q1[ii1]
+    #print('val removed',q1.shape,'val not',q.shape)
+    
+    
+    # 
     # remove points out of bound
     for jj in K: K[jj]=K[jj][ii]
+    K['shape']:[(num_rays)**2,num_angles*num_rays]
 
     #del ii,kx,ky
 
@@ -289,16 +301,16 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
 
         #S=scipy.sparse.csr_matrix((K['val'],      (Kcol, Krow)), shape=(num_angles*num_rays, (num_rays)**2))
         #ST=scipy.sparse.csr_matrix((K['val']_conj, (Krow, Kcol)), shape=((num_rays)**2, num_angles*num_rays))
+
         S=scipy.sparse.csr_matrix((K['val'],(K['row'], K['col'])), shape=((num_rays)**2,num_angles*num_rays))
+        
+        #S=cupyx.scipy.sparse.coo_matrix((K['val'],(K['row'], K['col'])), shape=(K['shape']))
         #S=scipy.sparse.csr_matrix((K['val'],      (Krow, Kcol)), shape=((num_rays)**2,num_angles*num_rays))
         if iradon_only:
             return S, None
         #ST=scipy.sparse.csr_matrix((K['val']_conj, (Kcol, Krow)), shape=(num_angles*num_rays, (num_rays)**2))
-        ST=scipy.sparse.csr_matrix((K['valj'],(K['col'],K['row'])), shape=(num_angles*num_rays,(num_rays)**2))
-        
-
-    
-    
+        #ST=scipy.sparse.csr_matrix((K['valj'],(K['col'],K['row'])), shape=(num_angles*num_rays,(num_rays)**2))
+        ST=scipy.sparse.csr_matrix((K['valj'],(K['col'],K['row'])), shape=(K['shape'][1],K['shape'][0]))
        
     return S, ST
 

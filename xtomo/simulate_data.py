@@ -115,7 +115,7 @@ def simulate(num_slices,num_rays,num_angles,obj_width,root_name = root_name):
     #from fubini import radon_setup as radon_setup
     from fubini import radon_setup
 
-    radon,iradon,radont = radon_setup(num_rays, theta, xp=np, kernel_type = 'gaussian', k_r =1,width=obj_width)
+    radon,iradon = radon_setup(num_rays, theta, xp=np, kernel_type = 'gaussian', k_r =1,width=obj_width)
     time_radonsetup=(timer() - start)
     print("time=", time_radonsetup)
     

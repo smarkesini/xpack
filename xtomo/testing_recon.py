@@ -1,25 +1,25 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import h5py
+#import h5py
     
 #import tomopy
 #import imageio
 #import os
 GPU=True
-#GPU=False
+GPU=False
 
 algo='iradon'
 #algo='sirt'
-max_chunk_slice=16*4
+max_chunk_slice=16
 
 
-
-GPU=False
-algo='tomopy-gridrec'
-max_chunk_slice=np.inf
-max_chunk_slice=64
-
- 
+#
+#GPU=False
+#algo='tomopy-gridrec'
+#max_chunk_slice=np.inf
+#max_chunk_slice=64
+#
+# 
 
 from timeit import default_timer as timer
 import time
@@ -46,14 +46,14 @@ if GPU:
 else:
     xp=np
     mode= 'cpu'
-    device_gbsize=(128-32)/mpi_size # GBs used per rank, leave 32 GB for the rest
+    #device_gbsize=(128-32)/mpi_size # GBs used per rank, leave 32 GB for the rest
 
 
 if rank==0: print("GPU: ", GPU,", algorithm",algo)
 
-"""
+
 obj_size = 1024*2
-num_slices = 16# size//2
+num_slices = 16*2# size//2
 #num_angles =    obj_size//2
 num_angles =  1501
 #num_angles =    11
@@ -75,10 +75,9 @@ num_angles = data_shape[1]
 num_rays   = data_shape[2]
 rot_center = 1024
 
-
+"""
 obj_width=0.95
 max_iter = 20
-
 
 #float_size=32/8; alg_tsize=4; alg_ssize=3
 #slice_gbsize=num_rays*(num_rays*alg_tsize+num_angles*alg_ssize)*(float_size)/((2**10)**3)
