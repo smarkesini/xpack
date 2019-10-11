@@ -10,15 +10,16 @@ GPU=False
 
 algo='iradon'
 #algo='sirt'
+#algo='tomopy-gridrec'
+
 max_chunk_slice=16
 
-"""
-GPU=False
-algo='tomopy-gridrec'
-#max_chunk_slice=np.inf
-max_chunk_slice=64
 
-"""
+if algo=='tomopy-gridrec':
+    GPU=False
+    algo='tomopy-gridrec'
+    max_chunk_slice=64
+
 
 from timeit import default_timer as timer
 import time
@@ -52,7 +53,7 @@ if rank==0: print("GPU: ", GPU,", algorithm",algo)
 
 
 obj_size = 1024*2
-num_slices = 16*4# size//2
+num_slices = 16*8# size//2
 #num_angles =    obj_size//2
 num_angles =  1501
 #num_angles =    11
@@ -76,7 +77,7 @@ rot_center = 1024
 
 """
 obj_width=0.95
-max_iter = 20
+max_iter = 5
 
 #float_size=32/8; alg_tsize=4; alg_ssize=3
 #slice_gbsize=num_rays*(num_rays*alg_tsize+num_angles*alg_ssize)*(float_size)/((2**10)**3)
@@ -109,10 +110,14 @@ else:
 
 # allocate result
 tomo = None
+
+theta = get_data('theta')
 # bcast theta
-comm.Barrier()
-comm.Bcast([theta,num_angles,MPI.FLOAT])
-comm.Barrier()
+#print("theta type",type(theta),theta.dtype)
+#comm.Barrier()
+#comm.Bcast([theta,num_angles,MPI.FLOAT])
+#comm.Barrier()
+#print("rank",rank,"mpi theta type",type(theta),theta.dtype)
 
 #print("rank",rank,"theta dtype",theta.dtype,"theta",theta)
 
@@ -120,6 +125,8 @@ theta=xp.array(theta)
 
 # set up radon
 if rank==0:  print("setting up the solver. ", end = '')
+
+
 start=timer()
 
 
@@ -136,10 +143,15 @@ else:
             reconstruct = lambda data,verbose:  (xp.asnumpy(iradon(data)),None)
         else:
             reconstruct = lambda data,verbose:  (iradon(data),None)
-    elif algo == 'sirtBB':
-        radon,iradon,radont = radon_setup(num_rays, theta, xp=xp, center=rot_center, filter_type='hamming', kernel_type = 'gaussian', k_r =1, width=obj_width)
-        from solve_sirt import sirtBB
-        del radont
+    elif algo == 'sirt':
+
+        radon,iradon = radon_setup(num_rays, theta, xp=xp, center=rot_center, filter_type='hamming', kernel_type = 'gaussian', k_r =1, width=obj_width)
+
+        import solve_sirt 
+        solve_sirt.init(xp)
+        sirtBB=solve_sirt.sirtBB
+        
+        #del radont
         reconstruct = lambda data,verbose:  sirtBB(radon, iradon, data, xp, max_iter=max_iter, alpha=1.,verbose=verbose_iter)
 
 
@@ -170,7 +182,7 @@ start_loop_time =time.time()
 # if rank == 0: tomo=np.empty((num_slices, num_rays,num_rays),dtype='float32')
 if algo!='tomopy-gridrec':
     from communicator import allocate_shared_tomo
-    print("using shared memory to communicate")
+    #print("using shared memory to communicate")
     tomo = allocate_shared_tomo(num_slices,num_rays,rank,mpi_size)
 else:
     tomo=np.empty((num_slices, num_rays,num_rays),dtype='float32')
@@ -207,7 +219,7 @@ for ii in range(loop_chunks.size-1):
     data = get_data('sino',chunks=chunks)
     end_read=time.time()
     if rank ==0: times['h5read']=(end_read - start_read)
-    if verbose: print("time ={:3g}".format(times['h5read']))
+    if verbose: print("time ={:3g}".format(times['h5read']),flush=True)
 
     start = timer()
     if GPU: data=xp.array(data)
@@ -324,6 +336,7 @@ ssnr   = lambda x,y: np.linalg.norm(y)/np.linalg.norm(y-rescale(x,y))
 ssnr2    = lambda x,y: ssnr(x,y)**2
 
 
+print("times full tomo", times_loop)
 print("solver time=", times_loop['solver'], "snr=", ssnr(true_obj,tomo))
 
 #tomo0=tomo_chunk

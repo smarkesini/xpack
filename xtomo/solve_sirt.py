@@ -6,40 +6,39 @@
 # mask out outer tomogram and sinogram
 import numpy as np
 
-def alpha_calc_xp(t,to,g,go,xp=np):
-    #print("not using fused reduction")
-    dt=xp.inner((t-to).ravel(),(g-go).ravel())
-    nrm2=xp.linalg.norm(g-go)**2
-    return dt/nrm2
+#def alpha_calc_xp(t,to,g,go,xp=np):
+#    #print("not using fused reduction")
+#    dt=xp.inner((t-to).ravel(),(g-go).ravel())
+#    nrm2=xp.linalg.norm(g-go)**2
+#    return dt/nrm2
 
-try: 
-    import cupy as xp
-    dotnorm2 = xp.ReductionKernel(
-            'T x ,T x1, T y, T y1, Z zz', 'Z z',
-            '(x-x1)*(y-y1)+zz*((y-y1)*(y-y1))',#'(x-y)* conj(x-y)+zz*(x*conj(x))',
-            'a + b','z = a','0')
+global alpha_calc
+
+#print('xp', xp.__name__)
+def init(xp):
+    global alpha_calc
+    if xp.__name__=='cupy':
         
-    zz=(xp.ones(1)*1j).astype('complex64')  
-    
-    def alpha_calc(t,to,g,go,xp=xp):        
-        #print("using fused reduction")
-        if xp.__name__=='cupy':
-            z=dotnorm2(t,to,g,go,zz)
-            return z.real/z.imag
-        else:
-            return alpha_calc_xp(t,to,g,go,xp=np)
-    
-except:
-    alpha_calc=alpha_calc_xp
-#        retualpha_calc_np(t,to,g,go,xp=np)
-        #print("not using fused reduction")
-#        dt=xp.inner((t-to).ravel(),(g-go).ravel())
-#        nrm2=xp.linalg.norm(g-go)**2
-#        return dt/nrm2
+        dotnorm2 = xp.ReductionKernel(
+                'T x ,T x1, T y, T y1, Z zz', 'Z z',
+                '(x-x1)*(y-y1)+zz*((y-y1)*(y-y1))',#'(x-y)* conj(x-y)+zz*(x*conj(x))',
+                'a + b','z = a','0')
+            
+        zz=(xp.ones(1)*1j).astype('complex64')  
+        def alpha_calc(t,to,g,go,xp=xp):        
+            if xp.__name__=='cupy':
+                z=dotnorm2(t,to,g,go,zz)
+                return z.real/z.imag
+        
+    else:
+        #print('defining alpha_calc')
+        def alpha_calc(t,to,g,go):
+            #print("not using fused reduction")
+            dt=xp.inner((t-to).ravel(),(g-go).ravel())
+            nrm2=xp.linalg.norm(g-go)**2
+            return dt/nrm2
+        
 
-    
-    
-    
 
 
 def masktomo(num_rays,xp,width=.65):
@@ -111,7 +110,6 @@ def sirtBB(radon, radont, sino_data, xp, max_iter=30, alpha=1, verbose=0, width=
 
         
         residual  =  radon(tomo) - sino_data 
-
         rnrm=xp.linalg.norm(residual)/nrm0
         
         """
@@ -133,12 +131,12 @@ def sirtBB(radon, radont, sino_data, xp, max_iter=30, alpha=1, verbose=0, width=
             #print(i)#np.mod(i,2)<1)
             if np.mod(i,2)<1:
                 #alpha=xp.linalg.norm(tomo-tomo_old)**2/xp.inner((tomo-tomo_old).ravel(),(grad-grad_old).ravel())
-                alpha=1./alpha_calc(grad,grad_old,tomo,tomo_old,xp=xp)  
+                alpha=1./alpha_calc(grad,grad_old,tomo,tomo_old)  
                 #if np.isnan(alpha): alpha = alpha_old/5
                 alphai=1
             else:
                 #alpha=xp.inner((tomo-tomo_old).ravel(),(grad-grad_old).ravel())/xp.linalg.norm(grad-grad_old)**2
-                alpha = alpha_calc(tomo,tomo_old,grad,grad_old,xp=xp)                
+                alpha = alpha_calc(tomo,tomo_old,grad,grad_old)                
                 #if np.isnan(alpha): alpha = alpha_old/5
                 alphai=2
             if alpha>alpha_old*4:
@@ -166,7 +164,7 @@ def sirtBB(radon, radont, sino_data, xp, max_iter=30, alpha=1, verbose=0, width=
             tnrm=xp.linalg.norm(grad)/tnrm0
             title = "SIRT-BB iter=%d, alpha=%g, alphaii=%g rnrm=%g, nrm_grad=%g " %(i, alpha, alphai, rnrm,tnrm)
             #title = "SIRT-BB iter=%d, α=%g, αi=%g rnrm=%g, ‖∇·‖=%g " %(i, alpha, alphai, rnrm,tnrm)
-            print(title)
+            print(title,flush=True)
             #print(title, "a-stab",alpha_stab )
             
             #print(np.mod(i,2)<1)

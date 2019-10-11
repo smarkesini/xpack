@@ -7,7 +7,7 @@ import numpy as np
 eps=np.finfo(np.float32).eps
 pi=np.pi
 
-#from timeit import default_timer as timer
+from timeit import default_timer as timer
 #sparse_cache='~/.cache/xpack/sparse.npz'
 
 def gaussian_kernel(x, k_r, sigma, xp): #using sigma=2 since this is the default value for sigma
@@ -124,15 +124,17 @@ def deapodization_shifted(num_rays,kernel_type,xp,k_r=2, beta=1, sigma=2):
 
     # since we upsampled in Fourier space, we need to crop in real space
     ktilde2=(ktilde1[:,num_rays*(sampling)//2-num_rays//2:num_rays*(sampling)//2+num_rays//2]).real
+
     
     #apodization_factor = ktilde2 * ktilde2.T
         
     apodization_factor=xp.reshape(ktilde2 * ktilde2.T,(1,num_rays,num_rays))
     
-    apodization_factor*=num_rays
+    apodization_factor=apodization_factor.astype('complex64')
+    
+    #apodization_factor*=num_rays
 
     return 1./apodization_factor
-
 
 
 
@@ -141,11 +143,33 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
     # columns are used to pick the input data
     # rows are where the data is added on the output  image
     # values are what we multiply the input with
-    
+    import sparse_plan   
     #start=timer()
     #num_angles=theta.shape[0]
     num_angles=theta.size
+    # theta needs to be accurate
+    theta = theta.astype('float64')
+    theta+=eps*10 # gives better result if theta[0] is not exactly 0
+    theta.shape=(num_angles,1,1,1)
+
     
+    shape = [(num_rays)**2,num_angles*num_rays]
+    #---------- loading sparse -------
+    if xp.__name__=='numpy':
+        #start=timer()
+        S=sparse_plan.load('S', num_rays, theta, center, kernel_type, k_r, dcfilter)
+        if type(S)!=type(None):
+            #print('loaded S, time',timer()-start,flush=True)   
+            if iradon_only:
+                return S,None    
+        ST=sparse_plan.load('ST', num_rays, theta, center, kernel_type, k_r, dcfilter)
+        #print('loading sparse')            
+        if type(ST)!=type(None):
+            #print('loaded sparse ST',timer()-start,flush=True)      
+            return S,ST
+    #---------- loading sparse -------
+    
+
     # sparse array entries
     K={'row':None,'col':None,'val':None}
     
@@ -171,10 +195,7 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
 
     
     # now compute where the points land  on the grid
-    # theta needs to be accurate
-    theta = theta.astype('float64')
-    theta+=eps*10 # gives better result if theta[0] is not exactly 0
-    theta.shape=(num_angles,1,1,1)
+    
     # the sinogram is fftshifted, so we shift it back
     qray = xp.fft.fftshift(xp.array(xp.arange(num_rays,dtype='int32') ) - num_rays//2)
     # reshape it for broadcasting
@@ -268,7 +289,7 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
     # 
     # remove points out of bound
     for jj in K: K[jj]=K[jj][ii]
-    K['shape']=[(num_rays)**2,num_angles*num_rays]
+    K['shape']=shape
 
     #del ii,kx,ky
 
@@ -286,6 +307,7 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
         S=cupyx.scipy.sparse.csr_matrix(S)
         
         if iradon_only:
+            print("iradon only")
             return S, None
         #print("size of S in gb", (8*(S.data).size+4*(S.indptr).size+4*(S.indices).size+5*4)/((2**10)**3))
        
@@ -315,6 +337,8 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
         #ST=scipy.sparse.csr_matrix((K['val']_conj, (Kcol, Krow)), shape=(num_angles*num_rays, (num_rays)**2))
         #ST=scipy.sparse.csr_matrix((K['valj'],(K['col'],K['row'])), shape=(num_angles*num_rays,(num_rays)**2))
         ST=scipy.sparse.csr_matrix((K['valj'],(K['col'],K['row'])), shape=(K['shape'][1],K['shape'][0]))
+        sparse_plan.save(ST,'ST', num_rays, theta, center, kernel_type, k_r, dcfilter)
+        
         #ST=scipy.sparse.csr_matrix((K['valj'],(K['col'],K['row'])), shape=(K['shape'][1],K['shape'][0]))
        
     return S, ST
@@ -350,7 +374,7 @@ def radon_setup(num_rays, theta, xp=np,
     S, ST = gridding_setup(num_rays, theta, center, xp, kernel_type , k_r, iradon_only,density_comp_f)
     #end = timer()
 
-    #print("gridding setup time=",end - start)
+    #print("gridding setup time=", timer()- start)
     if xp.__name__=='cupy':
         import fft
         #import cupy.fft as fft
@@ -359,22 +383,27 @@ def radon_setup(num_rays, theta, xp=np,
         
     # mask out outer tomogram
     msk_tomo,msk_sino=masktomo(num_rays,xp,width=width)
+    #print("msktomo time=", timer()- start)
     
     #deapodization_factor = deapodization(num_rays, kernel_type, xp, k_r)
     deapodization_factor = deapodization_shifted(num_rays, kernel_type, xp, k_r=k_r)
     deapodization_factor*=msk_tomo
+    dpr= (deapodization_factor*22.58)
+    #dpr= deapodization_factor*num_rays*22.58
+    
+    #print("deapodization time=", timer()- start)
+    deapodization_factor/=(num_rays*154.1)
+    deapodization_factor=(deapodization_factor)
 
-    deapodization_factor*=0.14652085
-    deapodization_factor=(deapodization_factor).astype('complex64')
-    #deapodization_factor=(deapodization_factor).astype('float32')
+    #print("deapodization time=", timer()- start)
 
-    dpr= deapodization_factor*num_rays*154.10934
 
 
     # inverse Radon (pseudo inverse)
     IR = lambda sino: iradon(sino, dpr, S,  k_r, density_comp_f,xp,fft)
     if iradon_only:  return IR
-
+    
+    #print("IR time=", timer()- start)
     # the conjugate transpose (for least squares solvers):
     #RT = lambda sino: iradon(sino, dpr, S,  k_r, none_filter,xp,fft)
             
