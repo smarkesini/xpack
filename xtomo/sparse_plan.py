@@ -3,30 +3,56 @@
 """
 sparse_plan
 """
-
-cache='.cache/'
 import os
-os.mkdir(cache)
 import numpy as np
 
-def get_hash_name(tipe, num_rays, theta, center, kernel_type, k_r, dcfilter):
+cache='.cache/'
+
+from timeit import default_timer as timer
+
+
+if not os.path.isdir(cache):
+    os.mkdir(cache)
+
+def get_hash_name(tipe, num_rays, theta, center=None, kernel_type="gaussian", k_r=1, dcfilter=None):
     if type(center) == type(None): center=num_rays//2 
-    hs=hash(bytes(np.array([num_rays,theta.shape[0],center,k_r]))+bytes(theta)+bytes(kernel_type+dcfilter,encoding='utf8'))
+    if type(dcfilter) == type(None):  dcfilter=0
+    
+    hs=hash(bytes(np.array([num_rays,theta.shape[0],center,k_r]))+bytes(theta)+bytes(dcfilter)+bytes(tipe+kernel_type,encoding='utf8'))
     fname=cache+'sparse_'+tipe+'_'+str(hs)+'.npz'
     return fname
 
-def save_sparse_plan(Sc,tipe, num_rays, theta, center=None, kernel_type = 'gaussian', k_r = 1, dcfilter='none_filter'):   
+def save(Sc,tipe, num_rays, theta, center=None, kernel_type = 'gaussian', k_r = 1, dcfilter='none_filter'):   
+    start=timer()
+    
     fname=get_hash_name(tipe,num_rays, theta,  center, kernel_type, k_r, dcfilter)
-    np.savez_compressed(fname, **Sc)
+    print('hash time',timer()-start)
+    start=timer()
+    K = {'val':Sc.data,'ind':Sc.indices, 'indptr':Sc.indptr,'shape':Sc.shape}
+    print('copy to K',timer()-start)
+    start=timer()    
+    #a.d.
+    np.savez(fname, **K)
+    print('saving non',timer()-start,flush=True)
        
-def load_sparse_plan(tipe, num_rays, theta, center=None, kernel_type = 'gaussian', k_r = 1, dcfilter='none_filter'):
-    if type(center) == type(None): center=num_rays//2 
-    fname=get_hash_name(tipe, num_rays, theta,  center, kernel_type, k_r, dcfilter)
-     
-    K=np.load(fname)
-    return K
+#def load_sparse_plan(tipe, num_rays, theta, center=None, kernel_type = 'gaussian', k_r = 1, dcfilter='none_filter'):
+#def load(fname):         
+#    K=np.load(fname)
+#    return K
 
-arrays_dict = {'val':Sc.data,'ind':Sc.indices, 'indptr':Sc.indptr}
+def load(tipe, num_rays, theta, center=None, kernel_type = 'gaussian', k_r = 1, dcfilter='none_filter'):
+    fname=get_hash_name(tipe, num_rays, theta, center, kernel_type, k_r, dcfilter)
+    if os.path.isfile(fname):
+        return np.load(fname)
+    else:
+        return None
+    
+    
+        
+    
+# csr_matrix((data, indices, indptr), [shape=(M, N)])
+
+#arrays_dict = {'val':Sc.data,'ind':Sc.indices, 'indptr':Sc.indptr}
 """
     arrays_dict = {}
     if matrix.format in ('csc', 'csr', 'bsr'):

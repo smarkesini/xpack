@@ -235,6 +235,7 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
     if type(dcfilter)!=type(None):
         dcfilter.shape=[1,num_rays,1,1]
         K['val']*=dcfilter
+    else: dcfilter='none'
 
     #print('Kval type',K['val'].dtype)
 
@@ -267,7 +268,7 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
     # 
     # remove points out of bound
     for jj in K: K[jj]=K[jj][ii]
-    K['shape']:[(num_rays)**2,num_angles*num_rays]
+    K['shape']=[(num_rays)**2,num_angles*num_rays]
 
     #del ii,kx,ky
 
@@ -281,12 +282,11 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
         #S=cupyx.scipy.sparse.coo_matrix((K['val'].ravel(),(Krow.ravel(), Kcol.ravel())), shape=((num_rays)**2,num_angles*num_rays))
         #S=cupyx.scipy.sparse.coo_matrix((K['val'].ravel(),(K['row'].ravel(), K['col'].ravel())), shape=((num_rays)**2,num_angles*num_rays))
         S=cupyx.scipy.sparse.coo_matrix((K['val'],(K['row'], K['col'])), shape=((num_rays)**2,num_angles*num_rays))
-
+        del K['val']        
         S=cupyx.scipy.sparse.csr_matrix(S)
-
+        
         if iradon_only:
             return S, None
-
         #print("size of S in gb", (8*(S.data).size+4*(S.indptr).size+4*(S.indices).size+5*4)/((2**10)**3))
        
         #ST=cupyx.scipy.sparse.coo_matrix((K['val']_conj, (Kcol, Krow)), shape=(num_angles*num_rays, (num_rays)**2))
@@ -298,11 +298,15 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
 
     else:
         import scipy
+        import sparse_plan
 
         #S=scipy.sparse.csr_matrix((K['val'],      (Kcol, Krow)), shape=(num_angles*num_rays, (num_rays)**2))
         #ST=scipy.sparse.csr_matrix((K['val']_conj, (Krow, Kcol)), shape=((num_rays)**2, num_angles*num_rays))
 
         S=scipy.sparse.csr_matrix((K['val'],(K['row'], K['col'])), shape=((num_rays)**2,num_angles*num_rays))
+        
+        sparse_plan.save(S,'S', num_rays, theta, center, kernel_type, k_r, dcfilter)
+        
         
         #S=cupyx.scipy.sparse.coo_matrix((K['val'],(K['row'], K['col'])), shape=(K['shape']))
         #S=scipy.sparse.csr_matrix((K['val'],      (Krow, Kcol)), shape=((num_rays)**2,num_angles*num_rays))
@@ -311,6 +315,7 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
         #ST=scipy.sparse.csr_matrix((K['val']_conj, (Kcol, Krow)), shape=(num_angles*num_rays, (num_rays)**2))
         #ST=scipy.sparse.csr_matrix((K['valj'],(K['col'],K['row'])), shape=(num_angles*num_rays,(num_rays)**2))
         ST=scipy.sparse.csr_matrix((K['valj'],(K['col'],K['row'])), shape=(K['shape'][1],K['shape'][0]))
+        #ST=scipy.sparse.csr_matrix((K['valj'],(K['col'],K['row'])), shape=(K['shape'][1],K['shape'][0]))
        
     return S, ST
 

@@ -12,14 +12,13 @@ algo='iradon'
 #algo='sirt'
 max_chunk_slice=16
 
-
-#
-#GPU=False
-#algo='tomopy-gridrec'
+"""
+GPU=False
+algo='tomopy-gridrec'
 #max_chunk_slice=np.inf
-#max_chunk_slice=64
-#
-# 
+max_chunk_slice=64
+
+"""
 
 from timeit import default_timer as timer
 import time
@@ -53,7 +52,7 @@ if rank==0: print("GPU: ", GPU,", algorithm",algo)
 
 
 obj_size = 1024*2
-num_slices = 16*2# size//2
+num_slices = 16*4# size//2
 #num_angles =    obj_size//2
 num_angles =  1501
 #num_angles =    11
