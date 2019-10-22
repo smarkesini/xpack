@@ -53,7 +53,7 @@ if rank==0: print("GPU: ", GPU,", algorithm",algo)
 
 
 obj_size = 1024*2
-num_slices = 16*8# size//2
+num_slices = 16# size//2
 #num_angles =    obj_size//2
 num_angles =  1501
 #num_angles =    11
@@ -87,31 +87,25 @@ max_iter = 5
 #print("max chunk size", max_chunk_slice, 'device_gbsize',device_gbsize,"slice size",slice_gbsize,
 #      "(device-2)/slice size",(device_gbsize-1)/slice_gbsize)
 
+if rank==0:     print("tomo shape",(num_slices,num_rays,num_rays), "n_angles",num_angles, "max_iter",max_iter)
 
 if rank==0: print("max chunk size", max_chunk_slice)
 
     
 
-
-if rank==0: 
-    print('reading up the angles, num angles', num_angles)
-
-    start=timer()
-    theta = get_data('theta')
-
-    
-    print("tomo shape",(num_slices,num_rays,num_rays), "n_angles",num_angles, "max_iter",max_iter)
-
- 
-else:
-    true_obj=None
-    theta = np.empty(num_angles,dtype='float32')
-
-
 # allocate result
-tomo = None
+#tomo = None
 
 theta = get_data('theta')
+theta=xp.array(theta)
+
+ 
+
+
+## allocate result
+#tomo = None
+#
+#theta = get_data('theta')
 # bcast theta
 #print("theta type",type(theta),theta.dtype)
 #comm.Barrier()
@@ -121,10 +115,14 @@ theta = get_data('theta')
 
 #print("rank",rank,"theta dtype",theta.dtype,"theta",theta)
 
-theta=xp.array(theta)
+
 
 # set up radon
 if rank==0:  print("setting up the solver. ", end = '')
+
+#times={'scatt':0, 'c2g':0, 'radon':0 ,'solver':0, 'g2c':0, 'gather':0 }
+times={'loop':0, 'setup':0, 'h5read':0, 'solver':0, 'c2g':0, 'g2c':0, 'barrier':0, 'gather':0 }
+times_loop=times.copy()
 
 
 start=timer()
@@ -164,17 +162,10 @@ if rank==0: print("time=", time_radonsetup)
 #from solve_sirt import sirtBB
 
 
-
-slice_shape=(num_rays,num_rays)
-
-
 loop_chunks=get_loop_chunk_slices(num_slices, mpi_size, max_chunk_slice )
 if rank==0: print("nslices",num_slices,"mpi_size", mpi_size,"max_chunk",max_chunk_slice)
 if rank==0:print("loop_chunks", loop_chunks)
 
-#times={'scatt':0, 'c2g':0, 'radon':0 ,'solver':0, 'g2c':0, 'gather':0 }
-times={'loop':0, 'setup':0, 'h5read':0, 'c2g':0,'solver':0, 'g2c':0, 'barrier':0, 'gather':0 }
-times_loop=times.copy()
 times_loop['setup']=time_radonsetup
 
 start_loop_time =time.time()
@@ -199,23 +190,18 @@ verbose= (rank ==0) and verboseall
 
 ###############################
 for ii in range(loop_chunks.size-1):
-    #if rank == 0: print("doing slices", loop_chunks[ii],loop_chunks[ii+1])
     nslices = loop_chunks[ii+1]-loop_chunks[ii]
     chunk_slices = get_chunk_slices(nslices) 
 
-    #if verbose: print()
     if verbose: print( 'loop_chunk {}/{}'.format(ii+1,loop_chunks.size-1),':', loop_chunks[ii:ii+2], "mpi chunks",loop_chunks[ii]+np.append(chunk_slices[:,0],chunk_slices[-1,1]).ravel(),)
     # if rank==0: print("chunk slices",chunk_slices)
     
 
     start_read = time.time()
-    # data = read_h5(file_name,dirname=dname_sino,chunks=chunk_slices[rank,:]+loop_chunks[ii])
-
-    #if verbose: print("reading slices:", loop_chunks[ii],"-",loop_chunks[ii+1]-1) 
     if verbose: print("reading slices:", end = '')  
 
     chunks=chunk_slices[rank,:]+loop_chunks[ii]
-    #if rank ==0: print("data")
+
     data = get_data('sino',chunks=chunks)
     end_read=time.time()
     if rank ==0: times['h5read']=(end_read - start_read)
@@ -226,10 +212,7 @@ for ii in range(loop_chunks.size-1):
     end = timer()
     times['c2g']=(end - start)
     
-    # scale   = lambda x,y: xp.sum(x * y)/xp.sum(x *x)
-    # factor=scale(tomo0,true_obj)
-    
-     
+   
     if verbose: print("reconstructing slices:", end = '') 
     start = timer()
 #
@@ -243,40 +226,16 @@ for ii in range(loop_chunks.size-1):
     times['solver']=timer()-start
     if verbose: print("time ={:3g}".format(times['solver']))
 
-    #print("rank no", rank, "chunks",chunk_slices[rank]+loop_chunks[ii], "rnrm",rnrmp,"data shapes", data.shape)
-    
-    
-    #chunks=chunk_slices[rank,:]+loop_chunks[ii]
-        
-    start = timer()
+    #start = timer()
     # gather from GPU to CPU
     '''
     start1 = timer()
     if GPU: tomo_chunk=xp.asnumpy(tomo_chunk)
     end1 = timer()
     times['g2c']=end1-start1
-    
-    start = timer()
-    if GPU: 
-        tomo[chunks[0]:chunks[1],...]=xp.asnumpy(tomo_chunk)
-    else:
-        tomo[chunks[0]:chunks[1],...]=tomo_chunk
-    if rank ==0: 
-        ptomo = tomo[loop_chunks[ii]:loop_chunks[ii+1],:,:]
-        
-        #print("tomo_chunk shape",ptomo.shape)
-    else:
-        ptomo=None
-
-    gatherv(tomo_chunk,chunk_slices,data=ptomo)
+    #end = timer()
+    # times['gather']=end-start
     '''
-   
-
-
-    end = timer()
-
-    times['gather']=end-start
-    
     for ii in times: times_loop[ii]+=times[ii]
         
 start = timer()

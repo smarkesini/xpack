@@ -136,7 +136,44 @@ def deapodization_shifted(num_rays,kernel_type,xp,k_r=2, beta=1, sigma=2):
 
     return 1./apodization_factor
 
+def dict2sparse(K,xp,tipe):
+        # create sparse array   
+    if xp.__name__=='cupy':
+        import cupyx
+        if tipe=='S':
+            S=cupyx.scipy.sparse.coo_matrix((K['val'],(K['row'], K['col'])), shape=(K['shape']))
+        else:
+            S=cupyx.scipy.sparse.coo_matrix((K['valj'],(K['col'], K['row'])), shape=(K['shape'][1],K['shape'][0]))
 
+        S=cupyx.scipy.sparse.csr_matrix(S)
+    else:
+        import scipy
+        #import sparse_plan        
+        if tipe=='S':
+            S=scipy.sparse.csr_matrix((K['val'],(K['row'], K['col'])), shape=(K['shape']))
+        else:
+            S=scipy.sparse.csr_matrix((K['valj'],(K['col'], K['row'])), shape=(K['shape'][1],K['shape'][0]))
+
+    return S
+
+def gridding_load(num_rays, theta, center, xp, kernel_type, k_r, iradon_only,dcfilter):
+    import sparse_plan   
+    print("iradononly ",iradon_only)
+    #---------- loading sparse -------
+    if xp.__name__=='numpy':
+        #start=timer()
+        S=sparse_plan.load('S', num_rays, theta, center, kernel_type, k_r, dcfilter)
+        if type(S)!=type(None):
+            #print('loaded S, time',timer()-start,flush=True)   
+            if iradon_only:
+                return S, 0    
+        ST=sparse_plan.load('ST', num_rays, theta, center, kernel_type, k_r, dcfilter)
+        #print('loading sparse')            
+        if type(ST)!=type(None):
+            #print('loaded sparse ST',timer()-start,flush=True)      
+            return S,ST
+        return S,None
+    #---------- loading sparse -------
 
 def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian', k_r = 1, iradon_only=False,dcfilter=None):
     # setting up the sparse array
@@ -190,8 +227,6 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
     # we need to replicate for each point of the kernel 
     K['col']=(pind+stencilx*0+stencily*0)
     del pind
-    #print("timer1",timer()-start)
-    #start=timer()
 
     
     # now compute where the points land  on the grid
@@ -199,12 +234,9 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
     # the sinogram is fftshifted, so we shift it back
     qray = xp.fft.fftshift(xp.array(xp.arange(num_rays,dtype='int32') ) - num_rays//2)
     # reshape it for broadcasting
-    #qray= xp.reshape(qray,(1,num_rays,1,1))
     qray.shape=(1,num_rays,1,1)
 
     # coordinates of the points on the  grid, 
-    #px = - (xp.sin(xp.reshape(theta,[num_angles,1,1,1]))) * (qray)
-    #py =   (xp.cos(xp.reshape(theta,[num_angles,1,1,1]))) * (qray) 
     px = - xp.sin(theta) * (qray)
     py =   xp.cos(theta) * (qray) 
     # we'll add the center later to avoid numerical errors
@@ -229,7 +261,7 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
     #print("2 K['val'] type",K['val'].dtype,"qray",qray.dtype)
     #print("kx type",kx.dtype,"px",px.dtype)
     qray=rampfactor**qray     # this takes care of the center
-    qray.shape=(1,num_rays,1,1)
+    #qray.shape=(1,num_rays,1,1)
     qray[:,num_rays//2,:,:]=0 # removing highest frequency from the data
 
     #K['val']=((kx*ky)*(qray)).astype('complex64')
@@ -247,19 +279,18 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
     # this avoids fftshift2(tomo)
     #K['val']*=((-1)**px)*((-1)**py)
     K['val']*=(1-px%2*2)*(1-py%2*2)
-    
-    #print('kval shape',K['val'].shape)
+     
     # the complex conjugate
     if not iradon_only:
         K['valj']=xp.conj(K['val'])+0.
     
+    #include the filter
     if type(dcfilter)!=type(None):
         dcfilter.shape=[1,num_rays,1,1]
         K['val']*=dcfilter
     else: dcfilter='none'
 
-    #print('Kval type',K['val'].dtype)
-
+ 
          
     # check if theta goes to 180, then assign 1/2 weight to the first and last
     theta_repeat=xp.abs(xp.abs(theta[0]-theta[-1])-xp.pi)<xp.abs(theta[1]-theta[0])*1e-5
@@ -273,26 +304,29 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
     # row index (where the output goes on the cartesian grid)
     K['row']=((px)*(num_rays)+py)
 
-    
-    #q=K['val']+0.
-    #q1=K['val']+0.
-    
+ 
     # find points out of bound
     # let's remove the highest frequencies as well (kx=0,ky=0)
     #ii=xp.nonzero((px>=1) & (py>=1) & (px<=num_rays-1) & (py<=num_rays-1))
     ii=xp.nonzero((px>=1) & (py>=1) & (px<=num_rays-1) & (py<=num_rays-1) & (K['val']!=0))
-    #q=q[ii]
-    #q1=q1[ii1]
-    #print('val removed',q1.shape,'val not',q.shape)
-    
-    
-    # 
     # remove points out of bound
     for jj in K: K[jj]=K[jj][ii]
     K['shape']=shape
+    
+    S=dict2sparse(K,xp,'S')
+    sparse_plan.save(S,'S', num_rays, theta, center, kernel_type, k_r, dcfilter)
+        
+    if iradon_only:
+        return S, None
 
-    #del ii,kx,ky
+    ST=dict2sparse(K,xp,'ST')
+    sparse_plan.save(ST,'ST', num_rays, theta, center, kernel_type, k_r, dcfilter)
+        
+    
+    return S, ST  
+    
 
+    """
         
     # create sparse array   
     if xp.__name__=='cupy':
@@ -340,7 +374,7 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
         sparse_plan.save(ST,'ST', num_rays, theta, center, kernel_type, k_r, dcfilter)
         
         #ST=scipy.sparse.csr_matrix((K['valj'],(K['col'],K['row'])), shape=(K['shape'][1],K['shape'][0]))
-       
+    """   
     return S, ST
 
 def masktomo(num_rays,xp,width=.95):
@@ -370,6 +404,7 @@ def radon_setup(num_rays, theta, xp=np,
     #print("setting up gridding")
     #start = timer()
 
+    S, ST = gridding_load(num_rays, theta, center, xp, kernel_type , k_r, iradon_only,density_comp_f)
     
     S, ST = gridding_setup(num_rays, theta, center, xp, kernel_type , k_r, iradon_only,density_comp_f)
     #end = timer()

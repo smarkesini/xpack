@@ -16,37 +16,40 @@ cache='.cache/'
 if not os.path.isdir(cache):
     os.mkdir(cache)
 
-def get_hash_name(tipe, num_rays, theta, center=None, kernel_type="gaussian", k_r=1, dcfilter=None):
+def get_hash_name(tipe, num_rays, theta, center, kernel_type, k_r, dcfilter):
     if type(center) == type(None): center=num_rays//2 
     if type(dcfilter) == type(None):  dcfilter=0
-    
-    b=bytes(np.array([num_rays,theta.shape[0],center,k_r]))+bytes(theta)+bytes(dcfilter)+bytes(tipe+kernel_type,encoding='utf8')
-    hs=hashlib.sha1(b).hexdigest()
 
-    fname=cache+tipe+'_'+str(hs)+'.npz'
+
+    fmt='_{}_{}_'.format(num_rays,theta.shape[0])
+    fname=cache+tipe+fmt
+    
+    # checksum the rest
+    #b=bytes(np.array([num_rays,theta.shape[0],center,k_r]))+bytes(theta)+bytes(dcfilter)+bytes(tipe+kernel_type,encoding='utf8')
+    #b=bytes(np.array([center,k_r]))+bytes(theta)+bytes(dcfilter)+bytes(kernel_type,encoding='utf8')
+    b=bytes(np.array([center,k_r,theta]))+bytes(kernel_type,encoding='utf8')
+    if tipe=='S': b+=bytes(np.array([dcfilter]))
+
+    hs=hashlib.blake2b(b,digest_size=8).hexdigest()
+    
+    fname= fname+'_'+str(hs)+'.npz'
     return fname
 
-def save(Sc,tipe, num_rays, theta, center=None, kernel_type = 'gaussian', k_r = 1, dcfilter='none_filter'):   
+def save(Sc,tipe, num_rays, theta, center, kernel_type, k_r, dcfilter):   
 
-    #start=timer()
     
     fname=get_hash_name(tipe,num_rays, theta,  center, kernel_type, k_r, dcfilter)
-    print('saving fname',fname)
-    #print('hash time',timer()-start)
-    #start=timer()
+
     K = {'val':Sc.data,'ind':Sc.indices, 'indptr':Sc.indptr,'shape':Sc.shape}
-    #print('copy to K',timer()-start)
-    K['theta']=theta
-    K['filter']=dcfilter
+
+    #K['theta']=theta
+    #K['filter']=dcfilter
     
-    #start=timer()    
-    #a.d.
     np.savez(fname, **K)
-    #print('saving time',timer()-start,flush=True)
        
 
 import scipy
-def load(tipe, num_rays, theta, center=None, kernel_type = 'gaussian', k_r = 1, dcfilter='none_filter'):
+def load(tipe, num_rays, theta, center, kernel_type, k_r, dcfilter):
 
     fname=get_hash_name(tipe, num_rays, theta, center, kernel_type, k_r, dcfilter)
     #print('loading "',fname,'"')

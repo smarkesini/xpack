@@ -131,10 +131,23 @@ def allocate_shared_tomo(num_slices,num_rays,rank,mpi_size):
     """
     #########################
     # scatter the initial object    
+    slice_shape=(num_rays,num_rays)
+
     truth=scatterv(true_obj,chunk_slices+loop_chunks[ii],slice_shape)    
     truth=xp.array(truth)
     # generate data
     data = radon(truth)
     del truth
+    #########################
+    # gatherv - allocate 
+    tomo=None
+    if rank == 0: tomo = np.empty((nslices,num_rays,num_rays),dtype = 'float32')
+    #########################
+    # gatherv
+    if rank ==0: 
+        ptomo = tomo[loop_chunks[ii]:loop_chunks[ii+1],:,:]
+    else:
+        ptomo=None
+    gatherv(tomo_chunk,chunk_slices,data=ptomo)
     #########################
     """
