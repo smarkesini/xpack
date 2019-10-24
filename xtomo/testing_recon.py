@@ -6,13 +6,13 @@ import matplotlib.pyplot as plt
 #import imageio
 #import os
 GPU=True
-GPU=False
+#GPU=False
 
 algo='iradon'
 #algo='sirt'
 #algo='tomopy-gridrec'
 
-max_chunk_slice=16
+max_chunk_slice=16*2
 
 
 if algo=='tomopy-gridrec':
@@ -53,7 +53,7 @@ if rank==0: print("GPU: ", GPU,", algorithm",algo)
 
 
 obj_size = 1024*2
-num_slices = 16# size//2
+num_slices = 128# size//2
 #num_angles =    obj_size//2
 num_angles =  1501
 #num_angles =    11
