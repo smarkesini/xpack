@@ -158,24 +158,30 @@ def dict2sparse(K,xp,tipe):
 
 def gridding_load(num_rays, theta, center, xp, kernel_type, k_r, iradon_only,dcfilter):
     import sparse_plan   
-    print("iradononly ",iradon_only)
-    K = sparse_plan.load('S', num_rays, theta, center, kernel_type, k_r, dcfilter)
+    K=sparse_plan.load('S', num_rays, theta, center, kernel_type, k_r, dcfilter)
     if type(K)==type(None):
-        return None,None
-    #---------- loading sparse -------
+        return 0,0
+
     if xp.__name__=='numpy':
-        #start=timer()
-        S=sparse_plan.load('S', num_rays, theta, center, kernel_type, k_r, dcfilter)
-        if type(S)!=type(None):
-            #print('loaded S, time',timer()-start,flush=True)   
-            if iradon_only:
-                return S, 0    
-        ST=sparse_plan.load('ST', num_rays, theta, center, kernel_type, k_r, dcfilter)
-        #print('loading sparse')            
-        if type(ST)!=type(None):
-            #print('loaded sparse ST',timer()-start,flush=True)      
-            return S,ST
-        return S,None
+        import scipy
+        S=scipy.sparse.csr_matrix((K['val'],K['ind'], K['indptr']), shape=(K['shape']))
+    elif xp.__name__=='cupy':
+        import cupyx
+        #for jj in K: K[jj]=xp.array(K[jj])
+        S=cupyx.scipy.sparse.csr_matrix((xp.array(K['val']),xp.array(K['ind']), xp.array(K['indptr'])), shape=tuple(K['shape']))
+    if iradon_only: return S, 0           
+    K=sparse_plan.load('ST', num_rays, theta, center, kernel_type, k_r, dcfilter)
+    if type(K)==type(None): return S, 0
+
+    if xp.__name__=='numpy':
+        import scipy
+        ST=scipy.sparse.csr_matrix((K['val'],K['ind'], K['indptr']), shape=(K['shape']))
+    elif xp.__name__=='cupy':
+        import cupyx
+        #for jj in K: K[jj]=xp.array(K[jj])
+        ST=cupyx.scipy.sparse.csr_matrix((xp.array(K['val']),xp.array(K['ind']), xp.array(K['indptr'])), shape=tuple(K['shape']))
+    return S,ST
+
     #---------- loading sparse -------
 
 import sparse_plan  
@@ -194,48 +200,18 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
     theta+=eps*10 # gives better result if theta[0] is not exactly 0
     theta.shape=(num_angles,1,1,1)
     
-    if center == None or center == num_rays//2:
-        #print("no center")
-        center = num_rays//2
+    if center == num_rays//2:
         rampfactor=np.float32(-1)   
-        #print("type ranmp",type(rampfactor))
     else:
-        rampfactor=xp.exp(1j*2*xp.pi*center/num_rays)
+        rampfactor=xp.exp(1j*xp.pi*2*center/num_rays)
 
     
+    
+    S, ST = gridding_load(num_rays, theta, center, xp, kernel_type , k_r, iradon_only,dcfilter)
+    #if not (S==0 or (not iradon_only and ST==0)):
+    if (type(S)!=type(0) and (iradon_only or type(ST)!=type(0))): return S,ST
+
     shape = [(num_rays)**2,num_angles*num_rays]
-    
-    #---------- loading sparse -------
-    K=sparse_plan.load('S', num_rays, theta, center, kernel_type, k_r, dcfilter)
-    if type(K)!=type(None):
-        if xp.__name__=='numpy':
-            import scipy
-            S=scipy.sparse.csr_matrix((K['val'],K['ind'], K['indptr']), shape=(K['shape']))
-        elif xp.__name__=='cupy':
-            import cupyx
-            #for jj in K: K[jj]=xp.array(K[jj])
-            S=cupyx.scipy.sparse.csr_matrix((xp.array(K['val']),xp.array(K['ind']), xp.array(K['indptr'])), shape=tuple(K['shape']))
-            #S=cupyx.scipy.sparse.csr_matrix((K['val'],K['ind'], K['indptr']), shape=tuple(K['shape']))
-            #S=cupyx.scipy.sparse.coo_matrix((K['val'],(K['row'], K['col'])), shape=(K['shape']))
-        if iradon_only: return S, 0           
-        K=sparse_plan.load('ST', num_rays, theta, center, kernel_type, k_r, dcfilter)
-        if type(K)==type(None): return S, 0
-
-        if xp.__name__=='numpy':
-            import scipy
-            ST=scipy.sparse.csr_matrix((K['val'],K['ind'], K['indptr']), shape=(K['shape']))
-        elif xp.__name__=='cupy':
-            import cupyx
-            #for jj in K: K[jj]=xp.array(K[jj])
-            ST=cupyx.scipy.sparse.csr_matrix((xp.array(K['val']),xp.array(K['ind']), xp.array(K['indptr'])), shape=tuple(K['shape']))
-            #S=cupyx.scipy.sparse.csr_matrix((K['val'],K['ind'], K['indptr']), shape=tuple(K['shape']))
-            #S=cupyx.scipy.sparse.coo_matrix((K['val'],(K['row'], K['col'])), shape=(K['shape']))
-        return S,ST
-
-
-    #---------- loading sparse -------
-    
-
     # sparse array entries
     K={'row':None,'col':None,'val':None}
     
@@ -256,9 +232,7 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
     # we need to replicate for each point of the kernel 
     K['col']=(pind+stencilx*0+stencily*0)
     del pind
-
     
-    # now compute where the points land  on the grid
     
     # the sinogram is fftshifted, so we shift it back
     qray = xp.fft.fftshift(xp.array(xp.arange(num_rays,dtype='int32') ) - num_rays//2)
@@ -275,21 +249,16 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
     ky=K1(stencily - (py - xp.around(py)),k_r, kernel_type, xp); 
     
     K['val']=kx*ky
-    del kx,ky
-    #print('kval type:',K['val'].dtype)
-    #print("K['val'] type",K['val'].dtype,"qray",qray.dtype)
-    # phase ramp to move center
 
-    #print("2 K['val'] type",K['val'].dtype,"qray",qray.dtype)
-    #print("kx type",kx.dtype,"px",px.dtype)
+    del kx,ky
+   # phase ramp to move center
     qray=rampfactor**qray     # this takes care of the center
-    #qray.shape=(1,num_rays,1,1)
     qray[:,num_rays//2,:,:]=0 # removing highest frequency from the data
 
-    #K['val']=((kx*ky)*(qray)).astype('complex64')
-    #print("2 K['val'] type",K['val'].dtype,"qray",qray.dtype)
+
     K['val']=(K['val']*(qray)).astype('complex64')
     
+    # now compute where the points land  on the grid
     
     # move the grid to the middle and add stencils
     px = (xp.around(px)).astype('long')
@@ -311,8 +280,6 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
         dcfilter.shape=[1,num_rays,1,1]
         K['val']*=dcfilter
     else: dcfilter='none'
-
- 
          
     # check if theta goes to 180, then assign 1/2 weight to the first and last
     theta_repeat=xp.abs(xp.abs(theta[0]-theta[-1])-xp.pi)<xp.abs(theta[1]-theta[0])*1e-5
@@ -322,95 +289,30 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
         tscale[([0,-1])]=.5
         K['val']*=tscale
     
-    
     # row index (where the output goes on the cartesian grid)
     K['row']=((px)*(num_rays)+py)
 
- 
-    # find points out of bound
-    # let's remove the highest frequencies as well (kx=0,ky=0)
-    #ii=xp.nonzero((px>=1) & (py>=1) & (px<=num_rays-1) & (py<=num_rays-1))
+    # find points out of bound and zeros
+    # let's remove the highest frequencies as well (px=0,py=0)
     ii=xp.nonzero((px>=1) & (py>=1) & (px<=num_rays-1) & (py<=num_rays-1) & (K['val']!=0))
 
     # remove points out of bound
     for jj in K: K[jj]=K[jj][ii]
     K['shape']=shape
     
-#    if xp.__name__=='cupy':
-#        import cupyx
-#        #S=scipy.sparse.coo_matrix((K['val'].ravel(),(Kcol.ravel(), Krow.ravel())), shape=(num_angles*num_rays, (num_rays)**2))
-#        #ST=cupyx.scipy.sparse.coo_matrix((K['val']_conj.ravel(), (Krow.ravel(), Kcol.ravel())), shape=((num_rays)**2, num_angles*num_rays))
-#        #S=cupyx.scipy.sparse.coo_matrix((K['val'].ravel(),(Krow.ravel(), Kcol.ravel())), shape=((num_rays)**2,num_angles*num_rays))
-#        #S=cupyx.scipy.sparse.coo_matrix((K['val'].ravel(),(K['row'].ravel(), K['col'].ravel())), shape=((num_rays)**2,num_angles*num_rays))
-#        S=cupyx.scipy.sparse.coo_matrix((K['val'],(K['row'], K['col'])), shape=((num_rays)**2,num_angles*num_rays))
-#        S=cupyx.scipy.sparse.csr_matrix(S)
-##        if iradon_only:
-##            return S, None
-#    else: 
+
     S=dict2sparse(K,xp,'S')
     sparse_plan.save(S,'S', num_rays, theta, center, kernel_type, k_r, dcfilter)
         
     if iradon_only:
         return S, None
 
-    #print('hello')
     ST=dict2sparse(K,xp,'ST')
     sparse_plan.save(ST,'ST', num_rays, theta, center, kernel_type, k_r, dcfilter)
-        
     
     return S, ST  
     
 
-    """
-        
-    # create sparse array   
-    if xp.__name__=='cupy':
-        import cupyx
-
-        #S=scipy.sparse.coo_matrix((K['val'].ravel(),(Kcol.ravel(), Krow.ravel())), shape=(num_angles*num_rays, (num_rays)**2))
-        #ST=cupyx.scipy.sparse.coo_matrix((K['val']_conj.ravel(), (Krow.ravel(), Kcol.ravel())), shape=((num_rays)**2, num_angles*num_rays))
-        #S=cupyx.scipy.sparse.coo_matrix((K['val'].ravel(),(Krow.ravel(), Kcol.ravel())), shape=((num_rays)**2,num_angles*num_rays))
-        #S=cupyx.scipy.sparse.coo_matrix((K['val'].ravel(),(K['row'].ravel(), K['col'].ravel())), shape=((num_rays)**2,num_angles*num_rays))
-        S=cupyx.scipy.sparse.coo_matrix((K['val'],(K['row'], K['col'])), shape=((num_rays)**2,num_angles*num_rays))
-        del K['val']        
-        S=cupyx.scipy.sparse.csr_matrix(S)
-        
-        if iradon_only:
-            print("iradon only")
-            return S, None
-        #print("size of S in gb", (8*(S.data).size+4*(S.indptr).size+4*(S.indices).size+5*4)/((2**10)**3))
-       
-        #ST=cupyx.scipy.sparse.coo_matrix((K['val']_conj, (Kcol, Krow)), shape=(num_angles*num_rays, (num_rays)**2))
-        ST=cupyx.scipy.sparse.coo_matrix((K['valj'],(K['col'],K['row'])), shape=(num_angles*num_rays,(num_rays)**2))
-        del K['valj']
-        ST=cupyx.scipy.sparse.csr_matrix(ST)
-        #print("size of S in gb", (8*(S.data).size+4*(S.indptr).size+4*(S.indices).size+5*4)/((2**10)**3))
-        #print("size of S",8*(S.data).size,"ind ptr",4*(S.indptr).size,'ind',4*(S.indices).size)
-
-    else:
-        import scipy
-        import sparse_plan
-
-        #S=scipy.sparse.csr_matrix((K['val'],      (Kcol, Krow)), shape=(num_angles*num_rays, (num_rays)**2))
-        #ST=scipy.sparse.csr_matrix((K['val']_conj, (Krow, Kcol)), shape=((num_rays)**2, num_angles*num_rays))
-
-        S=scipy.sparse.csr_matrix((K['val'],(K['row'], K['col'])), shape=((num_rays)**2,num_angles*num_rays))
-        
-        sparse_plan.save(S,'S', num_rays, theta, center, kernel_type, k_r, dcfilter)
-        
-        
-        #S=cupyx.scipy.sparse.coo_matrix((K['val'],(K['row'], K['col'])), shape=(K['shape']))
-        #S=scipy.sparse.csr_matrix((K['val'],      (Krow, Kcol)), shape=((num_rays)**2,num_angles*num_rays))
-        if iradon_only:
-            return S, None
-        #ST=scipy.sparse.csr_matrix((K['val']_conj, (Kcol, Krow)), shape=(num_angles*num_rays, (num_rays)**2))
-        #ST=scipy.sparse.csr_matrix((K['valj'],(K['col'],K['row'])), shape=(num_angles*num_rays,(num_rays)**2))
-        ST=scipy.sparse.csr_matrix((K['valj'],(K['col'],K['row'])), shape=(K['shape'][1],K['shape'][0]))
-        sparse_plan.save(ST,'ST', num_rays, theta, center, kernel_type, k_r, dcfilter)
-        
-        #ST=scipy.sparse.csr_matrix((K['valj'],(K['col'],K['row'])), shape=(K['shape'][1],K['shape'][0]))
-    """   
-    return S, ST
 
 def masktomo(num_rays,xp,width=.95):
     xx=xp.array([range(-num_rays//2, num_rays//2)])
@@ -434,16 +336,15 @@ def radon_setup(num_rays, theta, xp=np,
   
     density_comp_f = iradon_filter(num_rays,num_angles,filter_type,xp)
     #none_filter=density_comp_f*0+1./(num_rays**3)/num_angles
- 
+    if center == None:
+        center = num_rays//2
     
     #print("setting up gridding")
     #start = timer()
 
-    #S, ST = gridding_load(num_rays, theta, center, xp, kernel_type , k_r, iradon_only,density_comp_f)
-    
     S, ST = gridding_setup(num_rays, theta, center, xp, kernel_type , k_r, iradon_only,density_comp_f)
     #end = timer()
-    S
+
     #print("gridding setup time=", timer()- start)
     if xp.__name__=='cupy':
         import fft
@@ -465,18 +366,11 @@ def radon_setup(num_rays, theta, xp=np,
     deapodization_factor/=(num_rays*154.1)
     deapodization_factor=(deapodization_factor)
 
-    #print("deapodization time=", timer()- start)
-
-
 
     # inverse Radon (pseudo inverse)
     IR = lambda sino: iradon(sino, dpr, S,  k_r, density_comp_f,xp,fft)
     if iradon_only:  return IR
-    
-    #print("IR time=", timer()- start)
-    # the conjugate transpose (for least squares solvers):
-    #RT = lambda sino: iradon(sino, dpr, S,  k_r, none_filter,xp,fft)
-            
+           
     R  = lambda tomo:  radon(tomo, deapodization_factor , ST, k_r, num_angles,xp,fft )
 
     

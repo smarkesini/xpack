@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 #import imageio
 #import os
 GPU=True
-#GPU=False
+GPU=False
 
 algo='iradon'
 #algo='sirt'
@@ -53,7 +53,7 @@ if rank==0: print("GPU: ", GPU,", algorithm",algo)
 
 
 obj_size = 1024*2
-num_slices = 128# size//2
+num_slices = 16# size//2
 #num_angles =    obj_size//2
 num_angles =  1501
 #num_angles =    11
@@ -249,7 +249,7 @@ end_loop=time.time()
 times_loop['loop']=end_loop-start_loop_time 
 
 
-print("times full tomo", times_loop)
+print("times full tomo", times_loop,flush=True)
 
 
 
