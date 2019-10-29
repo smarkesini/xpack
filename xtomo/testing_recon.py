@@ -12,7 +12,7 @@ algo='iradon'
 algo='sirt'
 #algo='tomopy-gridrec'
 
-max_chunk_slice=16
+max_chunk_slice=16/2
 
 
 if algo=='tomopy-gridrec':
@@ -289,7 +289,7 @@ plt.show()
 
 try:
     true_obj = get_data('tomo')
-    print(type(true_obj))
+    print("comparing with truth, summary coming...\n\n")
 except:
     true_obj = None
     quit()
@@ -322,16 +322,17 @@ print("solver time=", times_loop['solver'], "snr=", ssnr(true_obj,tomo))
 #v2t= lambda x: xp.reshape(x,(num_slices, num_rays, num_rays))
 
 #print("psirtBB time=", time_psirtBB, "snr=", ssnr(true_obj,tomo_psirtBB))
-if GPU:
-    cupy = xp
-    mempool = cupy.get_default_memory_pool()
-    pinned_mempool = cupy.get_default_pinned_memory_pool()
-    print(mempool.used_bytes())
-    del data,iradon,theta
-    try: del radon
-    except: None
-        
-    mempool.free_all_blocks()
-    pinned_mempool.free_all_blocks()
-    print(mempool.used_bytes())
 
+#if GPU:
+#    cupy = xp
+#    mempool = cupy.get_default_memory_pool()
+#    pinned_mempool = cupy.get_default_pinned_memory_pool()
+#    print(mempool.used_bytes())
+#    del data,iradon,theta
+#    try: del radon
+#    except: None
+#        
+#    mempool.free_all_blocks()
+#    pinned_mempool.free_all_blocks()
+#    print(mempool.used_bytes())
+#
