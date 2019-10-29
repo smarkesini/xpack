@@ -1,12 +1,43 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import numpy as np
+import sys
 
 
-from xcale.communicator import  rank, size
+size = 1
+rank = 0
+comm = None
 
-from mpi4py import MPI
-comm = MPI.COMM_WORLD
+
+try: 
+    from mpi4py import MPI
+except ImportError: pass
+
+try: 
+    import cupy as cp
+except ImportError: pass
+
+mpi_enabled = "mpi4py" in sys.modules
+
+
+if mpi_enabled:
+    comm = MPI.COMM_WORLD
+    size = MPI.COMM_WORLD.Get_size()
+    rank = MPI.COMM_WORLD.Get_rank()
+
+mpi_size=size
+
+def printv(string):
+    if rank == 0:
+        print(string)
+def mpi_barrier():
+    if type(comm)!=None:
+        comm.Barrier()
+        
+    
+#from xcale.communicator import  rank, size
+
+#from mpi4py import MPI
 
 
 def get_chunk_slices(n_slices):
@@ -107,6 +138,7 @@ def gatherv(data_local,chunk_slices, data = None):
     
     return data
 
+
 def allocate_shared_tomo(num_slices,num_rays,rank,mpi_size):
 
     if mpi_size == 0:
@@ -151,3 +183,22 @@ def allocate_shared_tomo(num_slices,num_rays,rank,mpi_size):
     gatherv(tomo_chunk,chunk_slices,data=ptomo)
     #########################
     """
+    
+def mpi_allGather(send_buff, heterogeneous_comm = True, mode = "cuda"):
+
+    global size, rank, mpi_enabled
+
+    if heterogeneous_comm is True and mode=="cuda":
+        #recv_buff = cp.asnumpy(recv_buff)
+        send_buff = cp.asnumpy(send_buff)
+
+    if size > 1 and mpi_enabled:
+        recv_buff = MPI.COMM_WORLD.allgather(send_buff)
+    else:
+        recv_buff = [send_buff]
+
+    if heterogeneous_comm is True and mode is "cuda":
+        recv_buff = cp.asarray(recv_buff)
+        send_buff = cp.asarray(send_buff)
+
+    return recv_buff

@@ -209,7 +209,10 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
     
     S, ST = gridding_load(num_rays, theta, center, xp, kernel_type , k_r, iradon_only,dcfilter)
     #if not (S==0 or (not iradon_only and ST==0)):
-    if (type(S)!=type(0) and (iradon_only or type(ST)!=type(0))): return S,ST
+    if (type(S)!=type(0) and (iradon_only or type(ST)!=type(0))):
+        #print('loaded plan')
+        return S,ST
+    #else: print('making plan')
 
     shape = [(num_rays)**2,num_angles*num_rays]
     # sparse array entries

@@ -100,10 +100,10 @@ def sirtBB(radon, radont, sino_data, xp, max_iter=30, alpha=1, verbose=0, width=
     tomo_old = None
     grad_old = None
     alphai=0
-    rnrm_old = xp.inf
+    #rnrm_old = xp.inf
     alpha_old = xp.inf
     
-    D=tnrm0*1e-4
+    #D=tnrm0*1e-4
     
     for i in range(max_iter):
         
@@ -169,6 +169,8 @@ def sirtBB(radon, radont, sino_data, xp, max_iter=30, alpha=1, verbose=0, width=
             
             #print(np.mod(i,2)<1)
             if verbose >1:
+                import matplotlib as plt
+                t2i = lambda x: x[num_slices//2,:,:].real
                 plt.imshow(t2i(tomo))
                 plt.title(title)
                 plt.show()

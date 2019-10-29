@@ -6,13 +6,13 @@ import matplotlib.pyplot as plt
 #import imageio
 #import os
 GPU=True
-GPU=False
+#GPU=False
 
 algo='iradon'
-#algo='sirt'
+algo='sirt'
 #algo='tomopy-gridrec'
 
-max_chunk_slice=16*2
+max_chunk_slice=16
 
 
 if algo=='tomopy-gridrec':
@@ -24,17 +24,11 @@ if algo=='tomopy-gridrec':
 from timeit import default_timer as timer
 import time
 
-from communicator import rank, gatherv, get_loop_chunk_slices, get_chunk_slices
-from communicator import size as mpi_size
+from communicator import rank, mpi_size, get_loop_chunk_slices, get_chunk_slices, mpi_barrier
+ 
 
-
-from mpi4py import MPI
-comm = MPI.COMM_WORLD
-
-
-    
 if GPU:
-    from xcale.devmanager import set_visible_device
+    from devmanager import set_visible_device
 
     import cupy as xp
     do,vd,nd=set_visible_device(rank)
@@ -43,6 +37,11 @@ if GPU:
     #print("rank:",rank,"device:",vd, "gb memory:", device_gbsize)
     
     mode = 'cuda'
+    if GPU:
+        cupy = xp
+        mempool = cupy.get_default_memory_pool()
+        pinned_mempool = cupy.get_default_pinned_memory_pool()
+        
 else:
     xp=np
     mode= 'cpu'
@@ -53,7 +52,7 @@ if rank==0: print("GPU: ", GPU,", algorithm",algo)
 
 
 obj_size = 1024*2
-num_slices = 16# size//2
+num_slices = 16*8# size//2
 #num_angles =    obj_size//2
 num_angles =  1501
 #num_angles =    11
@@ -77,7 +76,7 @@ rot_center = 1024
 
 """
 obj_width=0.95
-max_iter = 5
+max_iter = 10
 
 #float_size=32/8; alg_tsize=4; alg_ssize=3
 #slice_gbsize=num_rays*(num_rays*alg_tsize+num_angles*alg_ssize)*(float_size)/((2**10)**3)
@@ -127,6 +126,8 @@ times_loop=times.copy()
 
 start=timer()
 
+#print("[0] rank",rank, "used bytes", mempool.used_bytes())
+
 
 if algo=='tomopy-gridrec':
     import tomopy
@@ -148,11 +149,21 @@ else:
         import solve_sirt 
         solve_sirt.init(xp)
         sirtBB=solve_sirt.sirtBB
-        
+        def reconstruct(data,verbose):
+            tomo,rnrm=sirtBB(radon, iradon, data, xp, max_iter=max_iter, alpha=1.,verbose=verbose)
+            if GPU: 
+                return xp.asnumpy(tomo),rnrm
+            else: return tomo,rnrm
+#print("[1] rank",rank, "used bytes", mempool.used_bytes())
+
+            
         #del radont
-        reconstruct = lambda data,verbose:  sirtBB(radon, iradon, data, xp, max_iter=max_iter, alpha=1.,verbose=verbose_iter)
+#        if GPU:
+#            reconstruct = lambda data,verbose:  xp.asnumpy(sirtBB(radon, iradon, data, xp, max_iter=max_iter, alpha=1.,verbose=verbose_iter))
+#        else:
+#            reconstruct = lambda data,verbose:  sirtBB(radon, iradon, data, xp, max_iter=max_iter, alpha=1.,verbose=verbose_iter)
 
-
+#print("rank",rank, "used bytes", mempool.used_bytes())
 
 end = timer()
 time_radonsetup=(end - start)
@@ -186,7 +197,7 @@ verbose_iter= (1) * (rank == 0) # print every iterations
 
 #print("verbose_iter",verbose_iter)
 verbose= (rank ==0) and verboseall
-
+#print("dir",dir())
 
 ###############################
 for ii in range(loop_chunks.size-1):
@@ -211,7 +222,8 @@ for ii in range(loop_chunks.size-1):
     if GPU: data=xp.array(data)
     end = timer()
     times['c2g']=(end - start)
-    
+    #print("[2]",ii ,"rank",rank, "used bytes", mempool.used_bytes())
+
    
     if verbose: print("reconstructing slices:", end = '') 
     start = timer()
@@ -239,10 +251,11 @@ for ii in range(loop_chunks.size-1):
     for ii in times: times_loop[ii]+=times[ii]
         
 start = timer()
-comm.Barrier()
+mpi_barrier()
 times['barrier']+=timer()-start
 
-if rank>0:     quit()
+if rank>0:     
+    quit()
 
 #print("times last loop_chunk",times)
 end_loop=time.time()
@@ -309,3 +322,16 @@ print("solver time=", times_loop['solver'], "snr=", ssnr(true_obj,tomo))
 #v2t= lambda x: xp.reshape(x,(num_slices, num_rays, num_rays))
 
 #print("psirtBB time=", time_psirtBB, "snr=", ssnr(true_obj,tomo_psirtBB))
+if GPU:
+    cupy = xp
+    mempool = cupy.get_default_memory_pool()
+    pinned_mempool = cupy.get_default_pinned_memory_pool()
+    print(mempool.used_bytes())
+    del data,iradon,theta
+    try: del radon
+    except: None
+        
+    mempool.free_all_blocks()
+    pinned_mempool.free_all_blocks()
+    print(mempool.used_bytes())
+
