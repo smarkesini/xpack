@@ -8,6 +8,7 @@ size = 1
 rank = 0
 comm = None
 
+#print("importing mpi",flush=True)
 
 try: 
     from mpi4py import MPI
@@ -25,7 +26,11 @@ if mpi_enabled:
     size = MPI.COMM_WORLD.Get_size()
     rank = MPI.COMM_WORLD.Get_rank()
 
+#print("imported mpi", flush=True)
+
+
 mpi_size=size
+
 
 def printv(string):
     if rank == 0:

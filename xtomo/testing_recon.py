@@ -1,7 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 #import h5py
-    
+
+#print("hello",flush=True)
 #import tomopy
 #import imageio
 #import os
@@ -9,10 +10,10 @@ GPU=True
 #GPU=False
 
 algo='iradon'
-algo='sirt'
+#algo='sirt'
 #algo='tomopy-gridrec'
 
-max_chunk_slice=16/2
+max_chunk_slice=16
 
 
 if algo=='tomopy-gridrec':
@@ -34,7 +35,10 @@ if GPU:
     do,vd,nd=set_visible_device(rank)
     #device_gbsize=xp.cuda.Device(vd).mem_info[1]/((2**10)**3)
     device_gbsize=xp.cuda.Device(0).mem_info[1]/((2**10)**3)
+    #xp.cuda.profiler.initialize()
+    xp.cuda.profiler.start()
     #print("rank:",rank,"device:",vd, "gb memory:", device_gbsize)
+    #xp.cuda.profile()
     
     mode = 'cuda'
     if GPU:
@@ -48,7 +52,7 @@ else:
     #device_gbsize=(128-32)/mpi_size # GBs used per rank, leave 32 GB for the rest
 
 
-if rank==0: print("GPU: ", GPU,", algorithm",algo)
+if rank==0: print("GPU: ", GPU,", algorithm",algo,flush=True)
 
 
 obj_size = 1024*2
@@ -60,21 +64,27 @@ num_angles =  1501
 num_rays   = obj_size
 rot_center = None
 
-
+"""
 from simulate_data import get_data as gdata
 def get_data(x,chunks=None):    
     return gdata(num_slices,num_rays,num_angles,obj_width,x,chunks=chunks) 
 """
 from read_tomobank import get_data
+rot_center = 1024
+#from read_sigray import get_data
+#rot_center=512
 # (1792, 1501, 2048)
 data_shape = get_data('dims')
 #print("data shape",data_shape)
 num_slices = data_shape[0]
 num_angles = data_shape[1]
 num_rays   = data_shape[2]
-rot_center = 1024
 
-"""
+if type(rot_center)==type(None):
+    rot_center = num_rays//2
+
+
+
 obj_width=0.95
 max_iter = 10
 
@@ -99,7 +109,7 @@ theta = get_data('theta')
 theta=xp.array(theta)
 
  
-
+#print("read theta",flush=True)
 
 ## allocate result
 #tomo = None
@@ -138,10 +148,19 @@ else:
     if algo=='iradon':
         
         iradon = radon_setup(num_rays, theta, xp=xp, center=rot_center, filter_type='hamming', kernel_type = 'gaussian', k_r =1, width=obj_width,iradon_only=True)
-        if GPU:
-            reconstruct = lambda data,verbose:  (xp.asnumpy(iradon(data)),None)
-        else:
-            reconstruct = lambda data,verbose:  (iradon(data),None)
+        def reconstruct(data,verbose):
+            tomo_t=iradon(data)
+            if GPU:
+                start1 = timer()
+                tomo= xp.asnumpy(tomo_t)
+                t=timer()-start1
+                return tomo,rnrm,t
+            else: return tomo_t,None,0.
+            
+#        if GPU:
+#            reconstruct = lambda data,verbose:  (xp.asnumpy(iradon(data)),None,0.)
+#        else:
+#            reconstruct = lambda data,verbose:  (iradon(data),None,0.)
     elif algo == 'sirt':
 
         radon,iradon = radon_setup(num_rays, theta, xp=xp, center=rot_center, filter_type='hamming', kernel_type = 'gaussian', k_r =1, width=obj_width)
@@ -149,11 +168,16 @@ else:
         import solve_sirt 
         solve_sirt.init(xp)
         sirtBB=solve_sirt.sirtBB
+        t=0.
         def reconstruct(data,verbose):
-            tomo,rnrm=sirtBB(radon, iradon, data, xp, max_iter=max_iter, alpha=1.,verbose=verbose)
-            if GPU: 
-                return xp.asnumpy(tomo),rnrm
-            else: return tomo,rnrm
+            tomo_t,rnrm=sirtBB(radon, iradon, data, xp, max_iter=max_iter, alpha=1.,verbose=verbose)
+            if GPU:
+                start1 = timer()
+                tomo= xp.asnumpy(tomo_t)
+                t=timer()-start1
+                return tomo,rnrm,t
+            else: return tomo_t,rnrm,t
+
 #print("[1] rank",rank, "used bytes", mempool.used_bytes())
 
             
@@ -167,7 +191,7 @@ else:
 
 end = timer()
 time_radonsetup=(end - start)
-if rank==0: print("time=", time_radonsetup)
+if rank==0: print("time=", time_radonsetup,flush=True)
 
 # solver
 #from solve_sirt import sirtBB
@@ -214,14 +238,19 @@ for ii in range(loop_chunks.size-1):
     chunks=chunk_slices[rank,:]+loop_chunks[ii]
 
     data = get_data('sino',chunks=chunks)
+    #data = get_data('sino')
     end_read=time.time()
     if rank ==0: times['h5read']=(end_read - start_read)
-    if verbose: print("time ={:3g}".format(times['h5read']),flush=True)
+    if verbose: print("read time ={:3g}".format(times['h5read']),flush=True)
 
     start = timer()
-    if GPU: data=xp.array(data)
+    #data=xp.array(data[chunks[0]:chunks[1],...])
+    data=xp.array(data)
+    #if GPU: data=xp.array(data[chunks[0]:chunks[1],...])
+    #if GPU: data=xp.array(data)
     end = timer()
-    times['c2g']=(end - start)
+    times['c2g']=end - start
+    if verbose: print("cpu2gpu time ={:3g}".format(times['c2g']),flush=True)
     #print("[2]",ii ,"rank",rank, "used bytes", mempool.used_bytes())
 
    
@@ -233,10 +262,11 @@ for ii in range(loop_chunks.size-1):
         #tomo, rnrm =  reconstruct(data,verbose_iter)
         tomo[chunks[0]:chunks[1],...]=tomopy.recon(data, theta, center=None, sinogram_order=True, algorithm="gridrec")
     else:
-        tomo[chunks[0]:chunks[1],...], rnrm =  reconstruct(data,verbose_iter)
+        tomo[chunks[0]:chunks[1],...], rnrm, g2ctime =  reconstruct(data,verbose_iter)
     #tomo_chunk = tomopy.recon(data, theta, center=None, sinogram_order=True, algorithm="gridrec")
-    times['solver']=timer()-start
-    if verbose: print("time ={:3g}".format(times['solver']))
+    times['solver']=timer()-start-g2ctime
+    times['g2c'] =g2ctime
+    if verbose: print("solver time ={:3g}, g2c time={:3g}".format(times['solver'],times['g2c']),flush=True)
 
     #start = timer()
     # gather from GPU to CPU
@@ -254,6 +284,10 @@ start = timer()
 mpi_barrier()
 times['barrier']+=timer()-start
 
+if GPU:
+    print("stopping profiler")
+    xp.cuda.profiler.stop()
+
 if rank>0:     
     quit()
 
@@ -263,6 +297,7 @@ times_loop['loop']=end_loop-start_loop_time
 
 
 print("times full tomo", times_loop,flush=True)
+
 
 
 
@@ -276,9 +311,10 @@ plt.imshow(np.abs(tomo0c))
 plt.show()
 
 #
+#plt.imshow((data[0]))
 #img = None
 #for f in range(num_slices):
-#    im=tomo[f,:,:]
+#    im=tomo[f,:,:]*msk_tomo
 #    if img is None:
 #        img = plt.imshow(im)
 #    else:
@@ -292,47 +328,49 @@ try:
     print("comparing with truth, summary coming...\n\n")
 except:
     true_obj = None
-    quit()
+    #quit()
 
 if type(true_obj) == type(None): 
     print("no tomogram to compare")
-    quit()
+    #quit()
 
-print("phantom shape",true_obj.shape, "n_angles",num_angles, 'algorithm:', algo,"GPU:",GPU,"max_iter:",max_iter)
-print("reading tomo, shape",(num_slices,num_rays,num_rays), "n_angles",num_angles, "max_iter",max_iter)
-
-
-scale   = lambda x,y: np.dot(x.ravel(), y.ravel())/np.linalg.norm(x)**2
-rescale = lambda x,y: scale(x,y)*x
-ssnr   = lambda x,y: np.linalg.norm(y)/np.linalg.norm(y-rescale(x,y))
-ssnr2    = lambda x,y: ssnr(x,y)**2
-
-
-print("times full tomo", times_loop)
-print("solver time=", times_loop['solver'], "snr=", ssnr(true_obj,tomo))
-
-#tomo0=tomo_chunk
-
-
-#print("psirtBB  time=", time_sirtBB, "snr=", ssnr(true_obj,tomo1))
-
-## tomo to cropped image
-#t2i = lambda x: x[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3].real
-## vector to tomo
-#v2t= lambda x: xp.reshape(x,(num_slices, num_rays, num_rays))
-
-#print("psirtBB time=", time_psirtBB, "snr=", ssnr(true_obj,tomo_psirtBB))
-
-#if GPU:
-#    cupy = xp
-#    mempool = cupy.get_default_memory_pool()
-#    pinned_mempool = cupy.get_default_pinned_memory_pool()
-#    print(mempool.used_bytes())
-#    del data,iradon,theta
-#    try: del radon
-#    except: None
-#        
-#    mempool.free_all_blocks()
-#    pinned_mempool.free_all_blocks()
-#    print(mempool.used_bytes())
-#
+else:
+    
+    print("phantom shape",true_obj.shape, "n_angles",num_angles, 'algorithm:', algo,"GPU:",GPU,"max_iter:",max_iter)
+    print("reading tomo, shape",(num_slices,num_rays,num_rays), "n_angles",num_angles, "max_iter",max_iter)
+    
+    
+    scale   = lambda x,y: np.dot(x.ravel(), y.ravel())/np.linalg.norm(x)**2
+    rescale = lambda x,y: scale(x,y)*x
+    ssnr   = lambda x,y: np.linalg.norm(y)/np.linalg.norm(y-rescale(x,y))
+    ssnr2    = lambda x,y: ssnr(x,y)**2
+    
+    
+    print("times full tomo", times_loop)
+    print("solver time=", times_loop['solver'], "snr=", ssnr(true_obj,tomo))
+    
+    #tomo0=tomo_chunk
+    
+    
+    #print("psirtBB  time=", time_sirtBB, "snr=", ssnr(true_obj,tomo1))
+    
+    ## tomo to cropped image
+    #t2i = lambda x: x[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3].real
+    ## vector to tomo
+    #v2t= lambda x: xp.reshape(x,(num_slices, num_rays, num_rays))
+    
+    #print("psirtBB time=", time_psirtBB, "snr=", ssnr(true_obj,tomo_psirtBB))
+    
+    #if GPU:
+    #    cupy = xp
+    #    mempool = cupy.get_default_memory_pool()
+    #    pinned_mempool = cupy.get_default_pinned_memory_pool()
+    #    print(mempool.used_bytes())
+    #    del data,iradon,theta
+    #    try: del radon
+    #    except: None
+    #        
+    #    mempool.free_all_blocks()
+    #    pinned_mempool.free_all_blocks()
+    #    print(mempool.used_bytes())
+    #

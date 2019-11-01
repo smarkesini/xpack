@@ -32,6 +32,7 @@ def ifft(x):
 def fft2(x):
     global plan2D
     if plan2D==None and Plan:
+        #print()
         plan2D=fftpack.get_fft_plan(x, axes=(-2,-1))
     
     #return 

@@ -3,39 +3,56 @@ from __future__ import print_function
 
 #import os
 #import sys
-import argparse
+#import argparse
 import numpy as np
 
 import h5py
-import tomopy
-import dxchange
+#import tomopy
+#import dxchange
 
-from matplotlib import pylab
-import matplotlib.pyplot as plt
+#from matplotlib import pylab
+#import matplotlib.pyplot as plt
 #import json
 #import collections
 
-h5fname ='/data/smarchesini/tomobank_clean/tomo_00001_preprocessed.h5'
+h5fname ='/tomodata/tomobank_clean/tomo_00001_preprocessed.h5'
+#h5fname ='/fastdata/tomobank_clean/tomo_00001_preprocessed.h5'
+
+# f = h5py.File('parallel_test.hdf5', 'w', driver='mpio', comm=MPI.COMM_WORLD)
+from communicator import comm #, rank, mpi_size
+
+if type(comm)==type(None):
+    #print("h5 not parallel")
+    f= h5py.File(h5fname, "r")
+else:
+    f= h5py.File(h5fname, "r")
+    #print("h5parallel")
+    #f= h5py.File(h5fname, "r", driver='mpio', comm=comm)
 
 def read_h5(dirname="data",chunks=None):   
-    with h5py.File(h5fname, "r") as f:
-        #print("reading from:", dirname)
-        if type(chunks)==type(None):
-            data = f[dirname][:]
-        else:
-            data = f[dirname][chunks[0]:chunks[1],...]
+    if type(chunks)==type(None):
+        return f[dirname][:]
+    else:
+        return f[dirname][chunks[0]:chunks[1],...]
 
     #print(data.shape)
-    return data
+    #return data
 
 def get_dims():
-    shape = read_h5(dirname="dims")
-    return shape
+    return f['dims']#[:]
+    #shape = read_h5(dirname="dims")
+    #return shape
+
 def get_sino(h5fname, chunks=None):
-    return read_h5('sino',chunks)
+    if type(chunks)==type(None):
+        return f['sino'][...]
+    else:
+        return f['sino'][chunks[0]:chunks[1],...]
+    #return read_h5('sino',chunks)
 
 def get_theta():
-    return read_h5('theta')
+    return f['theta']#[:]
+    #return read_h5('theta')
 
 
 data_size = get_dims()
@@ -44,10 +61,15 @@ all_chunks = (0, data_size[0])
 
     
 def get_data(kind,chunks=all_chunks):
+#    if type(chunks)!=type(None):
+#        return f[kind][:]
+#    else:
+#        return f[kind][chunks[0]:chunks[1],...]
+        #return f[kind][]
+    
     if   kind =='dims': return get_dims()
     elif kind =='theta': 
-        theta=get_theta()
-        theta = np.float32(theta)
+        theta = get_theta()
         #print("theta type",type(theta),"theta dtype",theta.dtype,"theta shape",theta.shape, "theta", theta*180/np.pi)
         return theta
     elif kind == 'sino': 

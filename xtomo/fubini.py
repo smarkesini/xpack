@@ -366,7 +366,7 @@ def radon_setup(num_rays, theta, xp=np,
     #dpr= deapodization_factor*num_rays*22.58
     
     #print("deapodization time=", timer()- start)
-    deapodization_factor/=(num_rays*154.1)
+    deapodization_factor/=(num_rays*154.1/10)
     deapodization_factor=(deapodization_factor)
 
 
