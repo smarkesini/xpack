@@ -9,8 +9,8 @@ import matplotlib.pyplot as plt
 GPU=True
 #GPU=False
 
-algo='iradon'
-#algo='sirt'
+#algo='iradon'
+algo='sirt'
 #algo='tomopy-gridrec'
 
 max_chunk_slice=16
@@ -63,6 +63,7 @@ num_angles =  1501
 
 num_rays   = obj_size
 rot_center = None
+rot_center = 1403
 
 """
 from simulate_data import get_data as gdata
@@ -70,7 +71,8 @@ def get_data(x,chunks=None):
     return gdata(num_slices,num_rays,num_angles,obj_width,x,chunks=chunks) 
 """
 from read_tomobank import get_data
-rot_center = 1024
+
+#rot_center = 1024
 #from read_sigray import get_data
 #rot_center=512
 # (1792, 1501, 2048)
@@ -148,6 +150,7 @@ else:
     if algo=='iradon':
         
         iradon = radon_setup(num_rays, theta, xp=xp, center=rot_center, filter_type='hamming', kernel_type = 'gaussian', k_r =1, width=obj_width,iradon_only=True)
+        rnrm=0
         def reconstruct(data,verbose):
             tomo_t=iradon(data)
             if GPU:
@@ -225,6 +228,7 @@ verbose= (rank ==0) and verboseall
 
 ###############################
 for ii in range(loop_chunks.size-1):
+#for ii in [loop_chunks.size//2-1]: #range(loop_chunks.size-1):
     nslices = loop_chunks[ii+1]-loop_chunks[ii]
     chunk_slices = get_chunk_slices(nslices) 
 

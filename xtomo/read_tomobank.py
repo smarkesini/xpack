@@ -15,19 +15,30 @@ import h5py
 #import json
 #import collections
 
-h5fname ='/tomodata/tomobank_clean/tomo_00001_preprocessed.h5'
+#h5fname ='/tomodata/tomobank_clean/tomo_00001_preprocessed.h5'
+#h5fname ='/tomodata/tomobank_clean/tomo_00072_preprocessed1.h5'
+h5fname ='/fastdata/tomobank_clean/tomo_00072_preprocessed.h5'
+
 #h5fname ='/fastdata/tomobank_clean/tomo_00001_preprocessed.h5'
 
 # f = h5py.File('parallel_test.hdf5', 'w', driver='mpio', comm=MPI.COMM_WORLD)
 from communicator import comm #, rank, mpi_size
 
-if type(comm)==type(None):
-    #print("h5 not parallel")
-    f= h5py.File(h5fname, "r")
-else:
-    f= h5py.File(h5fname, "r")
-    #print("h5parallel")
-    #f= h5py.File(h5fname, "r", driver='mpio', comm=comm)
+#f= h5py.File(h5fname, "r")
+#dims=f['dims']
+#csize=(dims[1]*dims[2]*16)*4
+#f.close()
+
+csize=0
+f= h5py.File(h5fname, "r",rdcc_nbytes=csize)
+
+#if type(comm)==type(None):
+#    #print("h5 not parallel")
+#    f= h5py.File(h5fname, "r")
+#else:
+#    f= h5py.File(h5fname, "r")
+#    #print("h5parallel")
+#    #f= h5py.File(h5fname, "r", driver='mpio', comm=comm)
 
 def read_h5(dirname="data",chunks=None):   
     if type(chunks)==type(None):

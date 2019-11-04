@@ -62,11 +62,12 @@ import matplotlib.pyplot as plt
 
 #----------------------
 
-h5fname ='/data1/tomobank/tomo_00001/tomo_00001.h5'
+h5fname ='/tomodata/tomobank/tomo_00001/tomo_00001.h5'
+h5fname ='/tomodata/tomobank/tomo_00072/tomo_00072.h5'
+#/tomodata/tomobank/tomo_00072/
 
-
-rot_center = 1024
-#
+#rot_center = 1024
+rot_center = 1403
 def get_theta():
     proj, flat, dark, theta = dxchange.read_aps_32id(h5fname, sino=1)
     return theta

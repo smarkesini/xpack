@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import h5py
 import time
 
-h5fname ='/data1/tomobank_clean/tomo_00001_preprocessed.h5'
+h5fname ='/tomodata/tomobank_clean/tomo_00072_preprocessed1.h5'
 print("writing to ",h5fname)
 
 f = h5py.File(h5fname, 'w')
@@ -37,7 +37,7 @@ theta = get_data('theta')
 
 write_h5(theta,dirname="theta")
 
-max_chunks= 16
+max_chunks= 16*4
 
 
 
@@ -54,11 +54,14 @@ fsino=f.create_dataset('sino', (num_slices,num_angles,num_rays) , chunks=(num_sl
 
 start_loop_time =time.time()
 for ii in range(nchunks):
+    start_time =time.time()
     print("reading slices:",chunks[ii],'{}/{}'.format(ii,nchunks), flush=True)  
-    data = get_data('sino',chunks=chunks[ii])
-    print("done reading, writing clean slices",flush=True)
+    sino = get_data('sino',chunks=chunks[ii])
+    data = np.ascontiguousarray(sino)
+    print("done reading, time=",time.time()-start_time ,"writing clean slices",flush=True)
+    start_write_time=time.time()
     fsino[chunks[ii,0]:chunks[ii,1],...]=data
-    print("done writing", time.time()-start_loop_time, "seconds")
+    print("done writing", time.time()-start_write_time, "total",time.time()-start_loop_time)
     #write_h5(data,dirname="sino",chunks=chunks[ii])
 
 f.close()
