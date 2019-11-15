@@ -14,7 +14,7 @@ algo='sirt'
 algo = 'tv'
 #algo='tomopy-gridrec'
 
-max_chunk_slice=16*2
+max_chunk_slice=16*3
 
 
 if algo=='tomopy-gridrec':
