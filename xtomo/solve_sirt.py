@@ -102,7 +102,7 @@ def sirtBB(radon, radont, sino_data, xp, max_iter=30, alpha=1, verbose=0, width=
     alphai=0
     #rnrm_old = xp.inf
     alpha_old = xp.inf
-    
+    rnrm=0.
     #D=tnrm0*1e-4
     
     for i in range(max_iter):
@@ -110,7 +110,7 @@ def sirtBB(radon, radont, sino_data, xp, max_iter=30, alpha=1, verbose=0, width=
 
         
         residual  =  radon(tomo) - sino_data 
-        rnrm=xp.linalg.norm(residual)/nrm0
+        
         
         """
         if rnrm>rnrm_old:
@@ -161,6 +161,7 @@ def sirtBB(radon, radont, sino_data, xp, max_iter=30, alpha=1, verbose=0, width=
         
         #print("verbosity",verbose>0 and (np.mod(i,1/verbose)==0 or i==max_iter-1))
         if (verbose >0) and (np.mod(i,1/verbose)==0 or i==max_iter-1):
+            rnrm=xp.linalg.norm(residual)/nrm0
             tnrm=xp.linalg.norm(grad)/tnrm0
             title = "SIRT-BB iter=%d, alpha=%g, alphaii=%g rnrm=%g, nrm_grad=%g " %(i, alpha, alphai, rnrm,tnrm)
             #title = "SIRT-BB iter=%d, α=%g, αi=%g rnrm=%g, ‖∇·‖=%g " %(i, alpha, alphai, rnrm,tnrm)

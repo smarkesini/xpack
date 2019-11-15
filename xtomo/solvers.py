@@ -194,4 +194,4 @@ def solveTV(radon,radont, data, r, tau, x0=0, tol=1e-2, maxiter=5, verbose=0):
 
     # rescale
     u    *= 1./Rsf
-    return v2t(u)
+    return v2t(u), resnrm

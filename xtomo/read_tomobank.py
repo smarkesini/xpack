@@ -55,10 +55,12 @@ def get_dims():
     #return shape
 
 def get_sino(h5fname, chunks=None):
-    if type(chunks)==type(None):
-        return f['sino'][...]
-    else:
-        return f['sino'][chunks[0]:chunks[1],...]
+    return f['sino']
+
+#    if type(chunks)==type(None):
+#        return f['sino'][...]
+#    else:
+#        return f['sino'][chunks[0]:chunks[1],...]
     #return read_h5('sino',chunks)
 
 def get_theta():
