@@ -22,7 +22,7 @@ h5fname ='/fastdata/tomobank_clean/tomo_00072_preprocessed.h5'
 #h5fname ='/fastdata/tomobank_clean/tomo_00001_preprocessed.h5'
 
 # f = h5py.File('parallel_test.hdf5', 'w', driver='mpio', comm=MPI.COMM_WORLD)
-from communicator import comm #, rank, mpi_size
+#from communicator import comm #, rank, mpi_size
 
 #f= h5py.File(h5fname, "r")
 #dims=f['dims']
@@ -50,7 +50,8 @@ def read_h5(dirname="data",chunks=None):
     #return data
 
 def get_dims():
-    return f['dims']#[:]
+    return f['sino'].shape#[:]
+    #return f['dims']#[:]
     #shape = read_h5(dirname="dims")
     #return shape
 
@@ -80,16 +81,20 @@ def get_data(kind,chunks=all_chunks):
 #        return f[kind][chunks[0]:chunks[1],...]
         #return f[kind][]
     
-    if   kind =='dims': return get_dims()
-    elif kind =='theta': 
-        theta = get_theta()
-        #print("theta type",type(theta),"theta dtype",theta.dtype,"theta shape",theta.shape, "theta", theta*180/np.pi)
-        return theta
+    if   kind =='dims': 
+        return f['sino'].shape
+    elif kind =='theta':
+        return f['theta']
+#        theta = get_theta()
+#        #print("theta type",type(theta),"theta dtype",theta.dtype,"theta shape",theta.shape, "theta", theta*180/np.pi)
+#        return theta
     elif kind == 'sino': 
-        if type(chunks)!=type(None):
-            return get_sino(h5fname, (chunks[0],chunks[1]) )
-        else:
-            return get_sino(h5fname,(1,2))
+        return f['sino']
+        
+#        if type(chunks)!=type(None):
+#            return get_sino(h5fname, (chunks[0],chunks[1]) )
+#        else:
+#            return get_sino(h5fname,(1,2))
     elif kind == 'tomo':
         print('no tomo')
         return None

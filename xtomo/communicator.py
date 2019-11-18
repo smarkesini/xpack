@@ -143,25 +143,45 @@ def gatherv(data_local,chunk_slices, data = None):
     
     return data
 
+def allocate_shared(shape_obj,rank,mpi_size):
 
-def allocate_shared_tomo(num_slices,num_rays,rank,mpi_size):
-
-    if mpi_size == 0:
-       return np.empty((num_slices, num_rays,num_rays),dtype='float32') 
+    if mpi_size == 1:
+       return np.empty(shape_obj,dtype='float32') 
     
-    slice_size =num_slices* num_rays*num_rays
+    slice_size =np.prod(shape_obj)
+    
     itemsize = MPI.FLOAT.Get_size() 
     if rank == 0: 
         nbytes = slice_size* itemsize 
     else: 
         nbytes = 0
     win = MPI.Win.Allocate_shared(nbytes, itemsize, comm=comm) 
+    # int MPI_Win_allocate_shared(MPI_Aint size, int disp_unit, MPI_Info info, MPI_Comm comm,
+    #                        void *baseptr, MPI_Win * win)
     
     # create a numpy array whose data points to the shared mem
     buf, itemsize = win.Shared_query(0) 
     #print("buf",type(buf),'itemsize',itemsize)
     assert itemsize == MPI.FLOAT.Get_size() 
-    tomo = np.ndarray(buffer=buf, dtype='f', shape=(num_slices,num_rays,num_rays)) 
+    obj = np.ndarray(buffer=buf, dtype='f', shape=shape_obj) 
+    return obj
+
+def attach_shared(obj, rank, mpi_size):
+    if mpi_size == 1:
+        return obj
+    itemsize = MPI.FLOAT.Get_size() 
+
+    ## win = MPI.Win.Allocate_shared(nbytes, itemsize, comm=comm) 
+    # win = MPI.Win.Create_dynamic( comm=comm) 
+    # MPI_Win_attach(MPI_Win win, void *base, MPI_Aint size)
+    # MPI.Win.Attach(mem)
+    # MPI_Win_attach(win, base, size)
+# MPI_Win_create_dynamic(MPI_Info info, MPI_Comm comm, MPI_Win * win)
+# attached using the function 
+# MPI_Win_attach:  MPI.Win.Attach(self, memory)
+ 
+def allocate_shared_tomo(num_slices,num_rays,rank,mpi_size):
+    tomo = allocate_shared((num_slices, num_rays,num_rays),rank,mpi_size)
     return tomo
 
 

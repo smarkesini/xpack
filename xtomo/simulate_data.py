@@ -71,26 +71,36 @@ def fname(num_slices,num_rays,num_angles,obj_width,root_name = root_name):
     file_name="{}_{}_{}_{}_{}.h5".format(root_name,num_slices,num_angles,num_rays,int(obj_width*100))
     return file_name
 
+def dnames_get():
+    dname_tomo="exchange/tomo"
+    dname_sino="exchange/data"
+    dname_theta="exchange/theta"
+    dnames={'sino':dname_sino, 'theta':dname_theta, 'tomo':dname_tomo}
+    return dnames #dname_sino,dname_theta,dname_tomo
 
 def simulate(num_slices,num_rays,num_angles,obj_width,root_name = root_name):
         
+    dnames=dnames_get()
+    
     #grp="sim_{}_{}_{}_{}".format(num_slices,num_angles,num_rays,int(obj_width*100))
     #grp="sim"
 
     #dname_tomo="{}/tomo".format(grp)
     #dname_sino="{}/sino".format(grp)
     #dname_theta="{}/theta".format(grp)
-    dname_tomo="tomo"
-    dname_sino="sino"
-    dname_theta="theta"
     
     #file_name="{}_{}_{}_{}_{}.h5".format(root_name,num_slices,num_angles,num_rays,int(obj_width*100))
     file_name=fname(num_slices,num_rays,num_angles,obj_width,root_name = root_name)
     
 
-    print("will be writing to :",file_name, dname_tomo)
-    print("will be writing to :",file_name, dname_sino)
-    print("will be writing to :",file_name, dname_theta,flush=True)
+#    print("will be writing to :",file_name, dname_tomo)
+#    print("will be writing to :",file_name, dname_sino)
+#    print("will be writing to :",file_name, dname_theta,flush=True)
+
+    print("will be writing to :",file_name, dnames['tomo'])
+    print("will be writing to :",file_name, dnames['sino'])
+    print("will be writing to :",file_name, dnames['theta'],flush=True)
+
     if np.mod(num_angles,2)==0:
         theta    = np.arange(0., 180., 180. / num_angles,dtype='float64')*np.pi/180.
     else:
@@ -137,14 +147,14 @@ def simulate(num_slices,num_rays,num_angles,obj_width,root_name = root_name):
     time_radon=(end - start)
     print("time=", time_radon)
     
-    write_h5(theta,file_name,dirname=dname_theta)
-    write_h5(true_obj,file_name,dirname=dname_tomo)
+    write_h5(theta,file_name,dirname=dnames['theta'])
+    write_h5(true_obj,file_name,dirname=dnames['tomo'])
 
     #write_h5(true_obj,file_name,dirname=dname_tomo)
-    write_h5(sinogram,file_name,dirname=dname_sino)
+    write_h5(sinogram,file_name,dirname=dnames['sino'])
     print("done simulating")
     
-    return dname_tomo,dname_sino,dname_theta
+    return file_name, dnames 
 
 #theta1= read_h5(file_name,dirname=dname_theta)
 #tomo1= read_h5(file_name,dirname=dname_tomo)
@@ -153,14 +163,19 @@ csize=0
 global fid
 fid = None
 
-def init(num_slices,num_rays,num_angles,obj_width,which_data, root_name = root_name):
+def init(num_slices,num_rays,num_angles,obj_width, root_name = root_name):
     file_name = fname(num_slices,num_rays,num_angles,obj_width,root_name = root_name)
+    # name_sino,dname_theta,dname_tomo=dnames()
+    dnames=dnames_get()
+    
     if not os.path.isfile(file_name):
         print("data doesn't exist, generating...")
         simulate(num_slices,num_rays,num_angles,obj_width,root_name = root_name)
- 
+
+
     global fid
     fid= h5py.File(file_name, "r",rdcc_nbytes=csize)
+    return fid, dnames #_sino, dname_theta, dname_tomo
     
 def fclose():
     global fid
@@ -168,17 +183,19 @@ def fclose():
 
 def get_data(num_slices,num_rays,num_angles,obj_width,which_data, root_name = root_name, chunks=None):
     
-    file_name = fname(num_slices,num_rays,num_angles,obj_width,root_name = root_name)
+#    file_name = fname(num_slices,num_rays,num_angles,obj_width,root_name = root_name)
+    
+    init(num_slices,num_rays,num_angles,obj_width, root_name = root_name)
     
     #file_name="{}_{}_{}_{}_{}.h5".format(root_name,num_slices,num_angles,num_rays,int(obj_width*100))
     #print(file_name)
-    if not os.path.isfile(file_name):
-        print("data doesn't exist, generating...")
-        simulate(num_slices,num_rays,num_angles,obj_width,root_name = root_name)
+#    if not os.path.isfile(file_name):
+#        print("data doesn't exist, generating...")
+#        simulate(num_slices,num_rays,num_angles,obj_width,root_name = root_name)
         
     global fid     
-    if type(fid)==type(None):
-        init(num_slices,num_rays,num_angles,obj_width,which_data, root_name = root_name)
+#    if type(fid)==type(None):
+#        init(num_slices,num_rays,num_angles,obj_width,which_data, root_name = root_name)
     #print("tipe fid",type(fid))
    
     if which_data =='theta':
