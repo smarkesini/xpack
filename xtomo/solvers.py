@@ -1,6 +1,18 @@
 import numpy as xp
 np=xp
 
+
+import sys
+def printbar(percent,string='  '):        
+        #percent = ((position + 1) * 100) // (n_tasks + n_workers)
+        #sys.stdout.write(
+        #    '\rProgress: [%-50s] %3i%% ' %
+        #    ('=' * (percent // 2), percent))
+        
+        sys.stdout.write('\r%s Progress: [%-50s] %3i%% ' %(string[0:2],'=' * (percent // 2), percent))
+        sys.stdout.flush()
+        
+
 def cg(A,b, x0=0, maxiter=100, tol=1e-4,  At=None):
     
     if At == None: At=A
@@ -41,8 +53,12 @@ def cg(A,b, x0=0, maxiter=100, tol=1e-4,  At=None):
 #%     Eijkhout, Pozo, Romine, and van der Vorst, SIAM Publications,
 #%     1993. (ftp netlib2.cs.utk.edu; cd linalg; get templates.ps).
 
-def cgs(A, b, x0=0, maxiter=100, tol=1e-4):
+def cgs(A, b, x0=0, maxiter=100, tol=1e-4, verbose = 0 ):
     bnrm2 = xp.linalg.norm( b );
+    
+    rho_1 = 1
+    q = 0.
+    p = 0.
     
     if  ( bnrm2 == 0.0 ):
         bnrm2 = 1.0
@@ -50,9 +66,11 @@ def cgs(A, b, x0=0, maxiter=100, tol=1e-4):
     # r = b - A(x);
     if xp.isscalar(x0):
         # x0==0:
-        r=b
-    else: 
-        r = b - A(x0)
+        #r=b
+        x0 = A(b)
+    #else: 
+        
+    r = b - A(x0)
         
     res = xp.linalg.norm( r ) / bnrm2;
     x=x0
@@ -85,15 +103,35 @@ def cgs(A, b, x0=0, maxiter=100, tol=1e-4):
         if ( res <= tol ): break
 
         rho_1 = rho;
-    
+        
+        if verbose>0: printbar(ii*100//maxiter,'CG')
+
+    #if verbose>0: print('-- CG done')
     if (res <= tol):                      # converged
         flag =  0;
+        if verbose>0: print('-- CG solved')
     elif ( rho == 0.0 ):                  # breakdown
         flag = -1;
+        if verbose>0: print('-- CG breakdown')
     else:                            # no convergence
         flag = 1;
+        if verbose>0: print('-- CG reached maxiter')
+
     
     return x, flag, ii, res
+
+def solveCGLS(radon,radont, data, x0=0., tol=1e-2, maxiter=5, verbose=0):
+    num_slices=data.shape[0]
+    num_rays = data.shape[2]
+    shapetomo=(num_slices, num_rays, num_rays)
+    v2t = lambda x: xp.reshape(x,(shapetomo))
+    RTR = lambda x: xp.reshape(radont(radon(v2t(x))),(-1))
+    RTdata =np.reshape(radont(data),(-1))
+    x0=RTdata
+    tomocg,info, imax, resnrm = cgs(RTR, RTdata, x0=x0, maxiter=maxiter, tol=tol, verbose = verbose)
+    #print("type tomo",type(tomocg))
+    tomocg.shape=shapetomo #(num_slices,num_rays,num_rays)
+    return tomocg,resnrm
 
 ###############################################
 # ========== TV regularization ===============
@@ -140,6 +178,9 @@ def Lap(x): return Div(Grad(x))
 def Pell1(x,τ): return xp.clip(xp.abs(x)-τ,0,None)*xp.sign(x)
 
 
+
+
+
 def solveTV(radon,radont, data, r, tau, x0=0, tol=1e-2, maxiter=5, verbose=0):
     
     # verbose=1: text output, 2: graphic output
@@ -158,7 +199,12 @@ def solveTV(radon,radont, data, r, tau, x0=0, tol=1e-2, maxiter=5, verbose=0):
 
     RTdata=radont(data).ravel()
     # scale the data
-    Rsf=1./xp.mean(t2i(v2t(RTdata)))
+    meanrt=xp.mean(t2i(v2t(RTdata)))
+    if meanrt == 0:
+        Rsf=1.
+    else:
+        Rsf=1./xp.mean(t2i(v2t(RTdata)))
+        
     RTdata*=Rsf
 
     Lambda=0

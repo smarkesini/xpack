@@ -27,15 +27,17 @@ def recon_file(fname,dnames, algo = 'iradon' ,rot_center = None, max_iter = None
     fid= h5py.File(fname, "r",rdcc_nbytes=csize)
     sino  = fid[dnames['sino']]
     theta = fid[dnames['theta']]
-    reconstruct(sino, theta, algo = algo ,rot_center = rot_center, max_iter = max_iter)
+    recon(sino, theta, algo = algo ,rot_center = rot_center, max_iter = max_iter)
     
     
 
-def reconstruct(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None):
+def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU = True, shmem = False, max_chunk_slice=16):
 
     
-    shmem = True
-    GPU   = False
+    #shmem = True
+    #shmem = False
+    
+    #GPU   = True
 
     num_slices = sino.shape[0]
     num_angles = sino.shape[1]
@@ -45,7 +47,7 @@ def reconstruct(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None
     if type(rot_center)==type(None):
         rot_center = num_rays//2
     
-    max_chunk_slice=16*3
+#    max_chunk_slice=16*3
     
     if algo=='tomopy-gridrec':
         GPU=False
@@ -73,7 +75,7 @@ def reconstruct(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None
     #printv("tomo shape (",num_slices,num_rays,num_rays, ") n_angles",num_angles, "max_iter",max_iter)
     printv("tomo shape ({},{},{}) n_angles {} max_iter {}".format(num_slices,num_rays,num_rays ,num_angles, max_iter))
     
-    printv("max chunk size", max_chunk_slice,flush=True)
+    printv("max chunk size ", max_chunk_slice,flush=True)
     
     
     
@@ -165,9 +167,7 @@ def reconstruct(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None
             r = .8   
             #from solvers import Grad
             from solvers import solveTV
-            #def init(data):
-            #    tomo0=iradon(data)
-            #t = 0.
+
             def reconstruct(data,verbose):
                 tomo_t,rnrm = solveTV(radon, iradon, data, r, tau,  tol=1e-2, maxiter=10, verbose=verbose)
                 if GPU:
@@ -176,6 +176,25 @@ def reconstruct(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None
                     t=timer()-start1
                     return tomo,rnrm,t
                 else: return tomo_t,rnrm,0.
+            
+            
+        elif algo == 'CGLS':
+            radon,iradon = radon_setup(num_rays, theta, xp=xp, center=rot_center, filter_type='hamming', kernel_type = 'gaussian', k_r =1, width=obj_width)
+            #from solvers import solveTV
+            from solvers import solveCGLS
+
+            def reconstruct(data,verbose):
+                
+                tomo_t, rnrm = solveCGLS(radon,iradon, data, x0=0, tol=1e-2, maxiter=5, verbose=verbose)
+                #tomo_t,rnrm = solveTV(radon, iradon, data, r, tau,  tol=1e-2, maxiter=10, verbose=verbose)
+                if GPU:
+                    start1 = timer()
+                    tomo= xp.asnumpy(tomo_t)
+                    t=timer()-start1
+                    return tomo,rnrm,t
+                else: return tomo_t,rnrm,0.
+                
+        
     
     
     end = timer()
@@ -189,8 +208,8 @@ def reconstruct(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None
     
     loop_chunks=get_loop_chunk_slices(num_slices, mpi_size, max_chunk_slice )
     
-    printv("nslices",num_slices,"mpi_size", mpi_size,"max_chunk",max_chunk_slice)
-    printv("loop_chunks", loop_chunks)
+    printv("nslices:",num_slices," mpi_size:", mpi_size," max_chunk:",max_chunk_slice)
+    printv("loop_chunks:", loop_chunks)
     
     times_loop['setup']=time_radonsetup
     
@@ -209,6 +228,7 @@ def reconstruct(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None
             from communicator import gatherv
             # gatherv - allocate 
             tomo=None
+            tomo_local=None
             if rank == 0: tomo = np.empty((num_slices,num_rays,num_rays),dtype = 'float32')
     
     else:
@@ -258,10 +278,10 @@ def reconstruct(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None
                 tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter)
                 start_gather = timer()
                 if rank ==0:
-                    ptomo = tomo[loop_chunks[ii]:loop_chunks[ii+1],:,:]
-                else:
-                    ptomo=None
-                gatherv(tomo_chunk,chunk_slices,data=ptomo)
+                    tomo_local = tomo[loop_chunks[ii]:loop_chunks[ii+1],:,:]
+#                else:
+#                    tomo_local=None
+                gatherv(tomo_chunk,chunk_slices,data=tomo_local)
                 mpi_time= timer()-start_gather
                 
     

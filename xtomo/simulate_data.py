@@ -19,7 +19,8 @@ xp = np
 #file_name="/data/tomosim/shepp_logan.h5"
 #file_name="/data/tomosim/shepp_logan"
 
-root_name="/home/pablo/data/tomosim/shepp_logan"
+#"/home/pablo/data/tomosim/shepp_logan"
+root_name=os.path.expanduser('~/data/tomosim/shepp_logan')
 
 
 

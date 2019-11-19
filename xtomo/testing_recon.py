@@ -1,4 +1,34 @@
 import numpy as np
+import argparse
+
+ap = argparse.ArgumentParser()
+ap.add_argument("-G", "--GPU", default = False, type = bool, help="turn on GPU, bool")
+ap.add_argument("-S", "--sh_mem", default = False, type = bool, help="turn on shared memory MPI, bool")
+ap.add_argument("-A", "--algo", default = 'iradon', type = str, help="algorithm: 'iradon', 'sirt', 'cgls', 'tv' ")
+ap.add_argument("-maxiter", "--maxiter", default = 10 , type = int, help="algorithm: 'iradon', 'sirt', 'cgls', 'tv', 'tomopy-gridrec' ")
+ap.add_argument("-rot_center", "--rot_center",  type = int, help="rotation center, int ")
+
+ap.add_argument("-sim", "--simulate",  default = True, type = bool, help="use simulated data, bool")
+ap.add_argument("-max_chunk", "--max_chunk_slice",  default = 16, type = int, help="mach chunks per mpi rank")
+
+
+
+args = vars(ap.parse_args())
+
+#print(args)
+
+GPU   = args['GPU']
+algo  = args['algo']
+shmem = args['sh_mem']
+rot_center = args['rot_center']
+simulate = args['simulate']
+max_chunk = args['max_chunk_slice']
+
+
+from communicator import rank
+#if rank==0: print('GPU:',GPU,'algo:',algo,'shmem:',shmem, 'rot_center:',rot_center,'simulate:',simulate)
+if rank==0: print(args)
+
 #import matplotlib.pyplot as plt
 #import h5py
 
@@ -6,13 +36,17 @@ import numpy as np
 #import tomopy
 #import imageio
 #import os
-GPU=True
-GPU=False
+#GPU=False
 
-shmem=True
+#shmem=True
 #shmem = False
 
-algo='iradon'
+#algo='iradon'
+#import sys
+#print('argv',sys.argv)
+#argv = sys.argv[1:]
+
+
 #algo='sirt'
 #algo = 'tv'
 #algo='tomopy-gridrec'
@@ -25,7 +59,6 @@ algo='iradon'
 
 
 
-rot_center = None
 
 
 simulate=True
@@ -64,10 +97,11 @@ else:
 
 max_iter = 10
 
-from reconstruct import reconstruct
+from reconstruct import recon
 
 #print('sino type',type(sino))
-tomo, times_loop = reconstruct(sino, theta, algo = 'iradon' ,rot_center = rot_center, max_iter = max_iter)
+#tomo, times_loop = reconstruct(sino, theta, algo = 'iradon' ,rot_center = rot_center, max_iter = max_iter)
+tomo, times_loop = recon(sino, theta, algo = algo ,rot_center = rot_center, max_iter = max_iter, GPU=GPU,shmem=shmem, max_chunk_slice = max_chunk)
 
 
 num_slices = tomo.shape[0]
@@ -83,8 +117,9 @@ t2i = lambda x: x[num_slices//2,:,:].real
 tomo0c=t2i(tomo)*msk_tomo[0,...]
 #plt.imshow(np.abs(tomo0c))
 #plt.show()
-import imageio
-imageio.imwrite("test.png", tomo0c)
+
+#import imageio
+#imageio.imwrite("test.png", tomo0c)
 #
 #plt.imshow((data[0]))
 #img = None
