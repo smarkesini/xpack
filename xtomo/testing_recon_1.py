@@ -1,5 +1,5 @@
 import numpy as np
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 #import h5py
 
 #print("hello",flush=True)
@@ -81,9 +81,10 @@ msk_tomo,msk_sino=fubini.masktomo(num_rays, np, width=.95)
 
 t2i = lambda x: x[num_slices//2,:,:].real
 tomo0c=t2i(tomo)*msk_tomo[0,...]
-plt.imshow(np.abs(tomo0c))
-plt.show()
-
+#plt.imshow(np.abs(tomo0c))
+#plt.show()
+import imageio
+imageio.imwrite("test.png", tomo0c)
 #
 #plt.imshow((data[0]))
 #img = None

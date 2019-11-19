@@ -12,13 +12,14 @@ import numpy as np
 #from fubini import radon_setup as radon_setup
 
 from timeit import default_timer as timer 
+from os import path, makedirs
 
 xp = np
 
 #file_name="/data/tomosim/shepp_logan.h5"
 #file_name="/data/tomosim/shepp_logan"
 
-root_name="/data/tomosim/shepp_logan"
+root_name="/home/pablo/data/tomosim/shepp_logan"
 
 
 
@@ -26,6 +27,7 @@ root_name="/data/tomosim/shepp_logan"
 
 def write_h5(value,file_name,dirname="data"):
     print("writing to :", file_name, dirname)
+    if not path.exists(os.path.dirname(file_name)): makedirs(os.path.dirname(file_name))
     with h5py.File(file_name, 'a') as f:
         f.create_dataset(dirname, data = value)
         f.close()
