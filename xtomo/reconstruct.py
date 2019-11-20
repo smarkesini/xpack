@@ -26,7 +26,7 @@ def printv(*args,**kwargs):
         print(' '.join(map(str,args)), end = '')
 # ================== reconstruct ============== #
 
-def recon_file(fname,dnames, algo = 'iradon' ,rot_center = None, max_iter = None):
+def recon_file(fname,dnames, algo = 'iradon' ,rot_center = None, max_iter = None, GPU = True, shmem = False, max_chunk_slice=16):
     csize = 0
     import h5py
     fid= h5py.File(fname, "r",rdcc_nbytes=csize)

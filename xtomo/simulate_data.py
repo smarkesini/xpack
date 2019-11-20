@@ -29,9 +29,9 @@ root_name=os.path.expanduser('~/data/tomosim/shepp_logan')
 def write_h5(value,file_name,dirname="data"):
     print("writing to :", file_name, dirname)
     if not path.exists(os.path.dirname(file_name)): makedirs(os.path.dirname(file_name))
-    with h5py.File(file_name, 'a') as f:
-        f.create_dataset(dirname, data = value)
-        f.close()
+    with h5py.File(file_name, 'a') as fid:
+        fid.create_dataset(dirname, data = value)
+        fid.close()
         
 
 
@@ -166,14 +166,24 @@ csize=0
 global fid
 fid = None
 
+
+#/home/agtrivedi/cupy
+
+from communicator import rank, mpi_barrier
+
 def init(num_slices,num_rays,num_angles,obj_width, root_name = root_name):
     file_name = fname(num_slices,num_rays,num_angles,obj_width,root_name = root_name)
     # name_sino,dname_theta,dname_tomo=dnames()
     dnames=dnames_get()
     
+
     if not os.path.isfile(file_name):
-        print("data doesn't exist, generating...")
-        simulate(num_slices,num_rays,num_angles,obj_width,root_name = root_name)
+        if rank == 0:
+            print("data doesn't exist, generating...")
+            simulate(num_slices,num_rays,num_angles,obj_width,root_name = root_name)
+            mpi_barrier()
+        else:
+            mpi_barrier()
 
 
     global fid
