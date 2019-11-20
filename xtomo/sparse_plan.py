@@ -83,7 +83,9 @@ def load(tipe, num_rays, theta, center, kernel_type, k_r, dcfilter):
         K=np.load(fname)
         
         keys = ('val', 'ind', 'indptr', 'shape')
-        if not keys - K.keys(): return None
+        if bool(keys - K.keys()): 
+            print('wrong sparse plan', K.keys(), K)
+            return None
         #tr=True
         #csr_matrix((data, indices, indptr), [shape=(M, N)])
         #S=scipy.sparse.csr_matrix((K['val'],K['ind'], K['indptr']), shape=(K['shape']))
