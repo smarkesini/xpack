@@ -25,6 +25,8 @@ if mpi_enabled:
     comm = MPI.COMM_WORLD
     size = MPI.COMM_WORLD.Get_size()
     rank = MPI.COMM_WORLD.Get_rank()
+else:
+    print("mpi not enabled")
 
 #print("imported mpi", flush=True)
 

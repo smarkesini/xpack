@@ -99,12 +99,13 @@ def cgs(A, b, x0=0, maxiter=100, tol=1e-4, verbose = 0 ):
 
         r = r - alpha*A(u_hat);
         res = xp.linalg.norm( r ) / bnrm2;           #% check convergence
+
+        if verbose>0: printbar(ii*100//maxiter,'CG')
         
         if ( res <= tol ): break
 
         rho_1 = rho;
         
-        if verbose>0: printbar(ii*100//maxiter,'CG')
 
     #if verbose>0: print('-- CG done')
     if (res <= tol):                      # converged

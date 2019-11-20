@@ -3,15 +3,15 @@ from __future__ import print_function
 
 #import os
 #import sys
-import argparse
+#import argparse
 import numpy as np
 
 import h5py
 import tomopy
 import dxchange
 
-from matplotlib import pylab
-import matplotlib.pyplot as plt
+#from matplotlib import pylab
+#import matplotlib.pyplot as plt
 #import json
 #import collections
 
@@ -62,8 +62,10 @@ import matplotlib.pyplot as plt
 
 #----------------------
 
-h5fname ='/tomodata/tomobank/tomo_00001/tomo_00001.h5'
+#h5fname ='/tomodata/tomobank/tomo_00001/tomo_00001.h5'
 h5fname ='/tomodata/tomobank/tomo_00072/tomo_00072.h5'
+#h5fname ='/tomodata/sigray/Fly_data/Abs_Fly_tomo180_1p125um_4steps_34kV_4x4_2x_50s_042_whitedark.h5.h5'
+
 #/tomodata/tomobank/tomo_00072/
 
 #rot_center = 1024

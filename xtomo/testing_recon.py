@@ -25,7 +25,7 @@ simulate = args['simulate']
 max_chunk = args['max_chunk_slice']
 
 
-from communicator import rank
+from communicator import rank, mpi_size
 #if rank==0: print('GPU:',GPU,'algo:',algo,'shmem:',shmem, 'rot_center:',rot_center,'simulate:',simulate)
 if rank==0: print(args)
 
@@ -150,8 +150,8 @@ if type(true_obj) == type(None):
 
 else:
     
-    print("phantom shape",true_obj.shape, "n_angles",num_angles, 'algorithm:', algo,"GPU:",GPU,"max_iter:",max_iter)
-    print("reading tomo, shape",(num_slices,num_rays,num_rays), "n_angles",num_angles, "max_iter",max_iter)
+    print("phantom shape",true_obj.shape, "n_angles",num_angles, ', algorithm:', algo,", max_iter:",max_iter,",mpi size:",mpi_size,",GPU:",GPU)
+    #print("reading tomo, shape",(num_slices,num_rays,num_rays), "n_angles",num_angles, "max_iter",max_iter)
     
     
     scale   = lambda x,y: np.dot(x.ravel(), y.ravel())/np.linalg.norm(x)**2

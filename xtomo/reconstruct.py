@@ -5,20 +5,25 @@ import time
 from communicator import rank, mpi_size, get_loop_chunk_slices, get_chunk_slices, mpi_barrier
 
 verboseall = True and (rank == 0)
-verbose_iter= (1/20) * verboseall # print every 20 iterations
+verbose_iter= (1/20) * int(verboseall) # print every 20 iterations
+#verbose_iter= int(verboseall) # print every 20 iterations
+#verbose_iter= int(False) # print every 20 iterations
 
 def printv(*args,**kwargs):
-    if verboseall:
-        if len(kwargs)==0:
-            print(''.join(map(str,args)))
-        elif 'flush' in kwargs:
-            if kwargs['flush']:
-                #print(args)
-                print(''.join(map(str,args)),flush=True)
-            else:
-                print(''.join(map(str,args)))
-        elif 'end' in kwargs:
-            print(''.join(map(str,args)), end = '')
+    if not verboseall: return
+    
+    if len(kwargs)==0:
+        print(' '.join(map(str,args)))
+        return
+    elif 'flush' in kwargs:
+        if kwargs['flush']:
+            #print(args)
+            print(' '.join(map(str,args)),flush=True)
+        else:
+            print(' '.join(map(str,args)))
+        return
+    elif 'end' in kwargs:
+        print(' '.join(map(str,args)), end = '')
 # ================== reconstruct ============== #
 
 def recon_file(fname,dnames, algo = 'iradon' ,rot_center = None, max_iter = None):
@@ -47,7 +52,6 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
     if type(rot_center)==type(None):
         rot_center = num_rays//2
     
-#    max_chunk_slice=16*3
     
     if algo=='tomopy-gridrec':
         GPU=False
@@ -129,7 +133,7 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
             return tomo_t, rnrm, 0.
     else:
         from fubini import radon_setup as radon_setup
-        if algo=='iradon':
+        if algo=='iradon' or algo=='iradon':
             
             iradon = radon_setup(num_rays, theta, xp=xp, center=rot_center, filter_type='hamming', kernel_type = 'gaussian', k_r =1, width=obj_width,iradon_only=True)
             rnrm=0
@@ -143,7 +147,7 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
                 else: return tomo_t,None,0.
                 
                 
-        elif algo == 'sirt':
+        elif algo == 'sirt' or algo == 'SIRT':
     
             radon,iradon = radon_setup(num_rays, theta, xp=xp, center=rot_center, filter_type='hamming', kernel_type = 'gaussian', k_r =1, width=obj_width)
     
@@ -159,7 +163,7 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
                     t=timer()-start1
                     return tomo,rnrm,t
                 else: return tomo_t,rnrm, 0.
-        elif algo == 'tv':
+        elif algo == 'tv' or algo =='TV':
             
             radon,iradon = radon_setup(num_rays, theta, xp=xp, center=rot_center, filter_type='hamming', kernel_type = 'gaussian', k_r =1, width=obj_width)
             tau=0.05
@@ -178,14 +182,14 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
                 else: return tomo_t,rnrm,0.
             
             
-        elif algo == 'CGLS':
+        elif algo == 'CGLS' or algo == 'cgls':
             radon,iradon = radon_setup(num_rays, theta, xp=xp, center=rot_center, filter_type='hamming', kernel_type = 'gaussian', k_r =1, width=obj_width)
             #from solvers import solveTV
             from solvers import solveCGLS
 
             def reconstruct(data,verbose):
                 
-                tomo_t, rnrm = solveCGLS(radon,iradon, data, x0=0, tol=1e-2, maxiter=5, verbose=verbose)
+                tomo_t, rnrm = solveCGLS(radon,iradon, data, x0=0, tol=5e-3, maxiter=5, verbose=verbose)
                 #tomo_t,rnrm = solveTV(radon, iradon, data, r, tau,  tol=1e-2, maxiter=10, verbose=verbose)
                 if GPU:
                     start1 = timer()
@@ -209,7 +213,7 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
     loop_chunks=get_loop_chunk_slices(num_slices, mpi_size, max_chunk_slice )
     
     printv("nslices:",num_slices," mpi_size:", mpi_size," max_chunk:",max_chunk_slice)
-    printv("loop_chunks:", loop_chunks)
+    printv("rank",rank,"loop_chunks:", loop_chunks)
     
     times_loop['setup']=time_radonsetup
     
@@ -240,7 +244,9 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
     #for ii in [loop_chunks.size//2-1]: #range(loop_chunks.size-1):
         nslices = loop_chunks[ii+1]-loop_chunks[ii]
         chunk_slices = get_chunk_slices(nslices) 
-    
+        
+        #printv("rank",rank,"size",mpi_size,"loop_chunks:", loop_chunks)
+        
         printv( 'loop_chunk {}/{}:{}, mpi chunks {}'.format(ii+1,loop_chunks.size-1, loop_chunks[ii:ii+2],loop_chunks[ii]+np.append(chunk_slices[:,0],chunk_slices[-1,1]).ravel()))
         
     
@@ -262,7 +268,6 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
         times['c2g']=end - start
 
         
-       
         printv("reconstructing slices, ", end = '') 
         start = timer()
  
@@ -291,7 +296,7 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
 
         printv("solver time ={:3g}, g2c time={:3g}".format(times['solver'],times['g2c']),flush=True)
     
-        for ii in times: times_loop[ii]+=times[ii]
+        for jj in times: times_loop[jj]+=times[jj]
 
             
     start = timer()
@@ -299,7 +304,7 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
     times['barrier']+=timer()-start
     
     if GPU:
-        print("stopping profiler")
+        printv("stopping profiler")
         xp.cuda.profiler.stop()
     
     if rank>0:     
@@ -310,6 +315,6 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
     times_loop['loop']=end_loop-start_loop_time 
     
     
-    print("times full tomo", times_loop,flush=True)
+    #print("times full tomo", times_loop,flush=True)
     
     return tomo, times_loop
