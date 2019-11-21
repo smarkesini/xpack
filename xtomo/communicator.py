@@ -38,8 +38,8 @@ def printv(string):
     if rank == 0:
         print(string)
 def mpi_barrier():
-    if type(comm)!=None:
-        comm.Barrier()
+    if type(comm)==type(None): return
+    if mpi_enabled:  comm.Barrier()
         
     
 #from xcale.communicator import  rank, size

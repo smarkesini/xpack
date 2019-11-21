@@ -26,17 +26,26 @@ def printv(*args,**kwargs):
         print(' '.join(map(str,args)), end = '')
 # ================== reconstruct ============== #
 
-def recon_file(fname,dnames, algo = 'iradon' ,rot_center = None, max_iter = None, GPU = True, shmem = False, max_chunk_slice=16):
+def dnames_get():
+    dname_tomo="exchange/tomo"
+    dname_sino="exchange/data"
+    dname_theta="exchange/theta"
+    dnames={'sino':dname_sino, 'theta':dname_theta, 'tomo':dname_tomo}
+    return dnames #dname_sino,dname_theta,dname_tomo
+
+def recon_file(fname,dnames=None, algo = 'iradon' ,rot_center = None, max_iter = None, GPU = True, shmem = False, max_chunk_slice=16,  reg = None, tau = None):
     csize = 0
     import h5py
     fid= h5py.File(fname, "r",rdcc_nbytes=csize)
+    if type(dnames) == type(None):
+        dnames=dnames_get()
     sino  = fid[dnames['sino']]
     theta = fid[dnames['theta']]
-    recon(sino, theta, algo = algo ,rot_center = rot_center, max_iter = max_iter)
-    
+    tomo, times_loop = recon(sino, theta, algo = algo ,rot_center = rot_center, max_iter = max_iter, GPU=GPU, shmem=shmem, max_chunk_slice=max_chunk_slice,  reg = reg, tau = tau)
+    return tomo, times_loop
     
 
-def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU = True, shmem = False, max_chunk_slice=16):
+def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU = True, shmem = False, max_chunk_slice=16,  reg = None, tau = None):
 
     
     #shmem = True
@@ -166,14 +175,18 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
         elif algo == 'tv' or algo =='TV':
             
             radon,iradon = radon_setup(num_rays, theta, xp=xp, center=rot_center, filter_type='hamming', kernel_type = 'gaussian', k_r =1, width=obj_width)
-            tau=0.05
-            print("τ=",tau)
-            r = .8   
+            if tau==None: 
+                tau=0.05
+            if reg==None:
+                reg=.8
+            
+            print("τ=",tau, "reg",reg)
+            #r = .8   
             #from solvers import Grad
             from solvers import solveTV
 
             def reconstruct(data,verbose):
-                tomo_t,rnrm = solveTV(radon, iradon, data, r, tau,  tol=1e-2, maxiter=10, verbose=verbose)
+                tomo_t,rnrm = solveTV(radon, iradon, data, reg, tau,  tol=1e-2, maxiter=10, verbose=verbose)
                 if GPU:
                     start1 = timer()
                     tomo= xp.asnumpy(tomo_t)

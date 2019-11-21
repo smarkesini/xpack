@@ -1,5 +1,7 @@
 import numpy as np
 import argparse
+from reconstruct import recon, recon_file
+
 
 ap = argparse.ArgumentParser()
 ap.add_argument("-G", "--GPU", default = False, type = bool, help="turn on GPU, bool")
@@ -7,10 +9,13 @@ ap.add_argument("-S", "--sh_mem", default = False, type = bool, help="turn on sh
 ap.add_argument("-A", "--algo", default = 'iradon', type = str, help="algorithm: 'iradon', 'sirt', 'cgls', 'tv' ")
 ap.add_argument("-maxiter", "--maxiter", default = 10 , type = int, help="algorithm: 'iradon', 'sirt', 'cgls', 'tv', 'tomopy-gridrec' ")
 ap.add_argument("-rot_center", "--rot_center",  type = int, help="rotation center, int ")
-
 ap.add_argument("-sim", "--simulate",  default = True, type = bool, help="use simulated data, bool")
-ap.add_argument("-max_chunk", "--max_chunk_slice",  default = 16, type = int, help="mach chunks per mpi rank")
+ap.add_argument("-max_chunk", "--max_chunk_slice",  default = 16, type = int, help="max chunks per mpi rank")
+ap.add_argument("-fin", "--file_in",  default = None, type = str, help="h5 file in")
+ap.add_argument("-fout", "--file_out",  default = None, type = str, help="file out")
 
+ap.add_argument("-reg", "--reg",  default = None, type = float, help="regularization parameter")
+ap.add_argument("-tau", "--tau",  default = None, type = float, help="soft thresholding parameter")
 
 
 args = vars(ap.parse_args())
@@ -21,43 +26,48 @@ GPU   = args['GPU']
 algo  = args['algo']
 shmem = args['sh_mem']
 rot_center = args['rot_center']
-simulate = args['simulate']
-max_chunk = args['max_chunk_slice']
+simulate   = args['simulate']
+max_chunk  = args['max_chunk_slice']
+max_iter   = args['maxiter']
+
+reg = args['reg']
+tau = args['tau']
+
 
 
 from communicator import rank, mpi_size
-#if rank==0: print('GPU:',GPU,'algo:',algo,'shmem:',shmem, 'rot_center:',rot_center,'simulate:',simulate)
 if rank==0: print(args)
 
-#import matplotlib.pyplot as plt
-#import h5py
-
-#print("hello",flush=True)
-#import tomopy
-#import imageio
-#import os
-#GPU=False
-
-#shmem=True
-#shmem = False
-
-#algo='iradon'
-#import sys
-#print('argv',sys.argv)
-#argv = sys.argv[1:]
-
-
-#algo='sirt'
-#algo = 'tv'
-#algo='tomopy-gridrec'
-
-
-
-
-#num_angles =    11
-
-
-
+if type(args['file_in']) is not type(None):
+    fname=args['file_in']
+    tomo, times_loop = recon_file(fname,dnames=None, algo = algo ,rot_center = rot_center, max_iter = max_iter, GPU = GPU, shmem = shmem, max_chunk_slice=max_chunk, reg = reg, tau = tau)
+    if type(args['file_out']) is not type(None):  
+        import os, sys
+        
+        cstring = ' '.join(sys.argv)
+        
+        file_out = args['file_out']
+        if file_out == '0': 
+            file_out = os.path.splitext(fname)[0]
+            file_out=file_out+'_'+algo+'_recon.tif'
+            print('file out was 0, changed to:',file_out)
+            
+        
+        if os.path.splitext(file_out)[-1] in ('.tif','.tiff'):
+            from tifffile import imsave
+            imsave(file_out,tomo, description = cstring)
+            quit()                      
+        import h5py
+        fname=args['file_out']
+        fid = h5py.File(fname, 'w')
+        fid.create_dataset('exchange/tomo', data = tomo)
+        fid.create_dataset('exchange/command', data =' '.join(sys.argv) )
+        fid.close()
+        quit()
+        #from tifffile import imsave
+    
+    #tomo, times_loop =
+    
 
 
 
@@ -95,13 +105,11 @@ else:
 #theta = get_data('theta')
 #sino = get_data('sino')
 
-max_iter = 10
 
-from reconstruct import recon
 
 #print('sino type',type(sino))
 #tomo, times_loop = reconstruct(sino, theta, algo = 'iradon' ,rot_center = rot_center, max_iter = max_iter)
-tomo, times_loop = recon(sino, theta, algo = algo ,rot_center = rot_center, max_iter = max_iter, GPU=GPU,shmem=shmem, max_chunk_slice = max_chunk)
+tomo, times_loop = recon(sino, theta, algo = algo ,rot_center = rot_center, max_iter = max_iter, GPU=GPU,shmem=shmem, max_chunk_slice = max_chunk,  reg = reg, tau = tau)
 
 
 num_slices = tomo.shape[0]
