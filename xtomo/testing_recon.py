@@ -34,6 +34,8 @@ reg = args['reg']
 tau = args['tau']
 
 
+#print("testing_recon max_iter",max_iter)
+#algo='tvrings'
 
 from communicator import rank, mpi_size
 if rank==0: print(args)

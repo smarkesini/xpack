@@ -34,6 +34,8 @@ def dnames_get():
     return dnames #dname_sino,dname_theta,dname_tomo
 
 def recon_file(fname,dnames=None, algo = 'iradon' ,rot_center = None, max_iter = None, GPU = True, shmem = False, max_chunk_slice=16,  reg = None, tau = None):
+    #print("recon_file max_iter",max_iter)
+
     csize = 0
     import h5py
     fid= h5py.File(fname, "r",rdcc_nbytes=csize)
@@ -52,7 +54,7 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
     #shmem = False
     
     #GPU   = True
-
+    
     num_slices = sino.shape[0]
     num_angles = sino.shape[1]
     num_rays   = sino.shape[2]
@@ -73,7 +75,8 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
     
     
     if max_iter == None: max_iter = 10
-    
+    #print("recon max_iter",max_iter)
+
     #float_size=32/8; alg_tsize=4; alg_ssize=3
     #slice_gbsize=num_rays*(num_rays*alg_tsize+num_angles*alg_ssize)*(float_size)/((2**10)**3)
     #
@@ -172,8 +175,26 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
                     t=timer()-start1
                     return tomo,rnrm,t
                 else: return tomo_t,rnrm, 0.
-        elif algo == 'tv' or algo =='TV':
             
+        elif algo == 'CGLS' or algo == 'cgls':
+            radon,iradon = radon_setup(num_rays, theta, xp=xp, center=rot_center, filter_type='hamming', kernel_type = 'gaussian', k_r =1, width=obj_width)
+            #from solvers import solveTV
+            from solvers import solveCGLS
+
+            def reconstruct(data,verbose):
+                
+                tomo_t, rnrm = solveCGLS(radon,iradon, data, x0=0, tol=5e-3, maxiter=max_iter, verbose=verbose)
+                #tomo_t,rnrm = solveTV(radon, iradon, data, r, tau,  tol=1e-2, maxiter=10, verbose=verbose)
+                if GPU:
+                    start1 = timer()
+                    tomo= xp.asnumpy(tomo_t)
+                    t=timer()-start1
+                    return tomo,rnrm,t
+                else: return tomo_t,rnrm,0.
+
+        elif algo == 'tv' or algo =='TV':
+            print("solving tv !!!!!!!!!!")
+            algo = 'tv'
             radon,iradon = radon_setup(num_rays, theta, xp=xp, center=rot_center, filter_type='hamming', kernel_type = 'gaussian', k_r =1, width=obj_width)
             if tau==None: 
                 tau=0.05
@@ -186,30 +207,39 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
             from solvers import solveTV
 
             def reconstruct(data,verbose):
-                tomo_t,rnrm = solveTV(radon, iradon, data, reg, tau,  tol=1e-2, maxiter=10, verbose=verbose)
+                tomo_t,rnrm = solveTV(radon, iradon, data, reg, tau,  tol=1e-2, maxiter=max_iter, verbose=verbose)
                 if GPU:
                     start1 = timer()
                     tomo= xp.asnumpy(tomo_t)
                     t=timer()-start1
                     return tomo,rnrm,t
                 else: return tomo_t,rnrm,0.
-            
-            
-        elif algo == 'CGLS' or algo == 'cgls':
-            radon,iradon = radon_setup(num_rays, theta, xp=xp, center=rot_center, filter_type='hamming', kernel_type = 'gaussian', k_r =1, width=obj_width)
-            #from solvers import solveTV
-            from solvers import solveCGLS
 
+        elif algo == 'tvrings' or algo =='TVRINGS':
+            algo = 'tvrings'
+            radon,iradon = radon_setup(num_rays, theta, xp=xp, center=rot_center, filter_type='hamming', kernel_type = 'gaussian', k_r =1, width=obj_width)
+            if tau==None: 
+                tau=0.05
+            if reg==None:
+                reg=.8
+            
+            print("τ=",tau, "reg",reg)
+            #r = .8   
+            #from solvers import Grad
+            from solvers import solveTV_ring
+            # set up the tv with missing pixels
+            # fradon=lambda x: deadpix*radon(x)
+            # fradont=lambda x: radont(x*deadpix)    
+            print("solving tv_rings")
             def reconstruct(data,verbose):
-                
-                tomo_t, rnrm = solveCGLS(radon,iradon, data, x0=0, tol=5e-3, maxiter=5, verbose=verbose)
-                #tomo_t,rnrm = solveTV(radon, iradon, data, r, tau,  tol=1e-2, maxiter=10, verbose=verbose)
+                tomo_t,rnrm = solveTV_ring(radon, iradon, data, reg, tau,  tol=1e-2, maxiter=max_iter, verbose=verbose)
                 if GPU:
                     start1 = timer()
                     tomo= xp.asnumpy(tomo_t)
                     t=timer()-start1
                     return tomo,rnrm,t
                 else: return tomo_t,rnrm,0.
+
                 
         
     
@@ -251,6 +281,9 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
     else:
         tomo=np.empty((num_slices, num_rays,num_rays),dtype='float32')
         
+    halo=0
+    if algo == 'tv': halo = 2
+    halo+=0
     
     ######### loop through chunks
     for ii in range(loop_chunks.size-1):
@@ -267,8 +300,20 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
         
         printv("reading slices:", end = '')    
         chunks=chunk_slices[rank,:]+loop_chunks[ii]
-        data = sino[chunks[0]:chunks[1],...]
+        
+        #bchunk=np.clip(chunks[0]-halo,0,num_slices)
+        #echunk=np.clip(chunks[1]+halo,0,num_slices)
 
+        #bhalo=chunks[0]-np.clip(chunks[0]-halo,0,num_slices-1)
+        #ehalo=np.clip(chunks[1]+halo,0,num_slices-1)-chunks[1]
+        #data1 = sino[chunks[0]-bhalo:chunks[1]+bhalo,...]
+        #chunksi=np.clip(np.arange(chunks[0]-halo,chunks[1]+halo),0,num_slices-1)
+        #data = sino[chunksi,...]
+        
+        data = sino[chunks[0]:chunks[1],...]
+        
+        #data = sino[bchunk:echunk,...]
+        
         end_read=time.time()
         if rank ==0: times['h5read']=(end_read - start_read)
 
@@ -290,7 +335,13 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
             tomo[chunks[0]:chunks[1],...], rnrm, g2ctime =  reconstruct(data,verbose_iter)
             #tomo[chunks[0]:chunks[1],...]=tomopy.recon(data, theta, center=None, sinogram_order=True, algorithm="gridrec")
         else:
+            #tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter)
+
             if shmem:
+                #tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter)
+                ##tomo_chunk = tomo_chunk[bhalo:-ehalo,...]
+                #tomo[chunks[0]:chunks[1],...] = tomo_chunk[bhalo:-ehalo,...]
+                
                 tomo[chunks[0]:chunks[1],...], rnrm, g2ctime =  reconstruct(data,verbose_iter)
             else:
                 tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter)
@@ -300,6 +351,8 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
 #                else:
 #                    tomo_local=None
                 gatherv(tomo_chunk,chunk_slices,data=tomo_local)
+                #gatherv(tomo_chunk[bhalo:-ehalo,...],chunk_slices,data=tomo_local)
+                
                 mpi_time= timer()-start_gather
                 
     
@@ -327,6 +380,8 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
     end_loop=time.time()
     times_loop['loop']=end_loop-start_loop_time 
     
+    print("tomo shape",(num_slices,num_rays,num_rays), "n_angles",num_angles, ', algorithm:', algo,", max_iter:",max_iter,",mpi size:",mpi_size,",GPU:",GPU)
+    print("times full tomo", times_loop)
     
     #print("times full tomo", times_loop,flush=True)
     

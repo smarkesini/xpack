@@ -9,7 +9,7 @@ def printbar(percent,string='  '):
         #    '\rProgress: [%-50s] %3i%% ' %
         #    ('=' * (percent // 2), percent))
         
-        sys.stdout.write('\r%s Progress: [%-50s] %3i%% ' %(string[0:2],'=' * (percent // 2), percent))
+        sys.stdout.write('\r%s Progress: [%-50s] %3i%% ' %(string,'=' * (percent // 2), percent))
         sys.stdout.flush()
         
 
@@ -183,7 +183,7 @@ def Pell1(x,τ): return xp.clip(xp.abs(x)-τ,0,None)*xp.sign(x)
 
 
 def solveTV(radon,radont, data, r, tau, x0=0, tol=1e-2, maxiter=5, verbose=0):
-    
+   # print("solving TV only")
     # verbose=1: text output, 2: graphic output
     
     num_slices=data.shape[0]
@@ -244,3 +244,81 @@ def solveTV(radon,radont, data, r, tau, x0=0, tol=1e-2, maxiter=5, verbose=0):
     # rescale
     u    *= 1./Rsf
     return v2t(u), resnrm
+
+
+
+def meanfilt(data):
+    datam=np.mean(data,axis=1)
+    datam.shape=(data.shape[0],1,data.shape[2])
+    data-=datam
+    return data
+
+
+def solveTV_ring(radon,radont, data, r, tau, x0=0, tol=1e-2, maxiter=5, verbose=0):
+    #print("solving TV Rings")
+    
+    # verbose=1: text output, 2: graphic output
+    
+    num_slices=data.shape[0]
+    num_rays = data.shape[2]
+    shapetomo=(num_slices,num_rays  ,num_rays)
+    v2t = lambda x: xp.reshape(x,(shapetomo))
+    t2i = lambda x: x[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3].real
+
+    #RTdata=radont(data).ravel()
+    RTdata=radont(meanfilt(data)).ravel()     
+    # scale the data
+    meanrt=xp.mean(t2i(v2t(RTdata)))
+    if meanrt == 0:
+        Rsf=1.
+    else:
+        Rsf=1./meanrt
+        
+    #RTdata*=Rsf
+  
+    cgsmaxit=4 # internal cg solver 
+ 
+    if xp.isscalar(x0):
+        #RTR = lambda x: xp.reshape(radont(radon(v2t(x))),(-1))
+        RTR = lambda x: xp.reshape(radont(meanfilt(radon(v2t(x)))),(-1))
+        #x0=radont(data)
+        u,info, imax, resnrm = cgs(RTR, RTdata, maxiter=cgsmaxit)
+    else: u=x0.ravel()
+
+    ####---- rings-------------
+    #RTdata=radont(meanfilt(data*Rsf)).ravel()    
+    # (Rᵗ R + r ∇ᵗ ∇) ∆
+    RTRpLapt= lambda x: radont(meanfilt(radon(x)))- r*Lap(x)
+    RTRpLap = lambda x: RTRpLapt(v2t(x)).ravel() #i/o vectors
+    ####---- rings-------------
+    
+    Lambda=0
+    
+    for ii in range(1,maxiter+1):
+        
+        # soft thresholding p
+        p=Pell1(Grad(v2t(u))-Lambda,tau)
+        
+        # update tomogram
+        u,info, imax, resnrm = cgs(RTRpLap, RTdata-r*Div(Lambda+p).ravel(),x0=u,tol=tol,maxiter=cgsmaxit)
+        
+        # update multiplier
+        Lambda = Lambda + (p-Grad(v2t(u)))
+        if verbose>0: printbar(ii*100//maxiter,'TV rings')
+#        
+#        if (verbose >0) and (np.mod(ii,1/verbose)==0 or (ii==maxiter and verbose>0)):
+#        #if verbose>0:   
+#            stitle = "TV_ring iter=%d, cgs(convergence=%g,ii=%g,rnrm=%g)" %(ii,info,imax,resnrm)
+#            print(stitle)
+#            
+##            if verbose ==2:
+##                plt.imshow(v2t(u)[num_slices//2,:,:])    
+##                plt.title(stitle)
+##                plt.show()
+
+    # rescale
+    #u    *= 1./Rsf
+    
+    return v2t(u), resnrm
+
+
