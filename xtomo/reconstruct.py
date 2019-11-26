@@ -9,9 +9,11 @@ verbose_iter= (1/20) * int(verboseall) # print every 20 iterations
 #verbose_iter= int(verboseall) # print every 20 iterations
 #verbose_iter= int(False) # print every 20 iterations
 
-def printv(*args,**kwargs):
+def printv0(*args,**kwargs):
     if not verboseall: return
-    
+    #if 'verbose' in kwargs:
+    #    if kwargs['verbose']==0: return
+        
     if len(kwargs)==0:
         print(' '.join(map(str,args)))
         return
@@ -30,12 +32,14 @@ def dnames_get():
     dname_tomo="exchange/tomo"
     dname_sino="exchange/data"
     dname_theta="exchange/theta"
-    dnames={'sino':dname_sino, 'theta':dname_theta, 'tomo':dname_tomo}
+    dname_rc="exchange/rot_center"
+
+    dnames={'sino':dname_sino, 'theta':dname_theta, 'tomo':dname_tomo, 'rot_center':dname_rc}
     return dnames #dname_sino,dname_theta,dname_tomo
 
-def recon_file(fname,dnames=None, algo = 'iradon' ,rot_center = None, max_iter = None, GPU = True, shmem = False, max_chunk_slice=16,  reg = None, tau = None):
+def recon_file(fname,dnames=None, algo = 'iradon' ,rot_center = None, max_iter = None, GPU = True, shmem = False, max_chunk_slice=16,  reg = None, tau = None, verbose = verboseall):
     #print("recon_file max_iter",max_iter)
-
+    if verbose>0: printv0('recon file',fname)
     csize = 0
     import h5py
     fid= h5py.File(fname, "r",rdcc_nbytes=csize)
@@ -43,13 +47,15 @@ def recon_file(fname,dnames=None, algo = 'iradon' ,rot_center = None, max_iter =
         dnames=dnames_get()
     sino  = fid[dnames['sino']]
     theta = fid[dnames['theta']]
-    tomo, times_loop = recon(sino, theta, algo = algo ,rot_center = rot_center, max_iter = max_iter, GPU=GPU, shmem=shmem, max_chunk_slice=max_chunk_slice,  reg = reg, tau = tau)
-    return tomo, times_loop
+    tomo, times_loop = recon(sino, theta, algo = algo ,rot_center = rot_center, max_iter = max_iter, GPU=GPU, shmem=shmem, max_chunk_slice=max_chunk_slice,  reg = reg, tau = tau, verbose = verbose)
+    return tomo, times_loop, sino.shape
     
 
-def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU = True, shmem = False, max_chunk_slice=16,  reg = None, tau = None):
+def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU = True, shmem = False, max_chunk_slice=16,  reg = None, tau = None, verbose = verboseall):
 
-    
+    def printv(*args,**kwargs): 
+        if verbose>0:  printv0(*args,**kwargs)
+        
     #shmem = True
     #shmem = False
     
@@ -383,8 +389,9 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
     bold='\033[1m'
     endb= '\033[0m'
     print(bold+"tomo shape",(num_slices,num_rays,num_rays), "n_angles",num_angles, ', algorithm:', algo,", max_iter:",max_iter,",mpi size:",mpi_size,",GPU:",GPU)
-    print("times full tomo", times_loop,endb)
-    
+    print("times full tomo", times_loop)
+    print("loop+setup time=", times_loop['loop']+times_loop['setup'],endb)
     #print("times full tomo", times_loop,flush=True)
     
     return tomo, times_loop
+

@@ -40,6 +40,19 @@ if rank==0: print(args)
 
 if type(args['file_in']) is not type(None):
     fname=args['file_in']
+    import h5py
+    fid= h5py.File(fname, "r")
+    sino  = fid['exchange/data']
+
+    num_angles =  sino.shape[1]
+    num_rays   =  sino.shape[2]
+    num_slices =  sino.shape[0]
+
+    fid.close()    
+    #if type(dnames) == type(None):
+    #    dnames=dnames_get()
+    #sino  = fid[dnames['sino']]
+    
 elif simulate:
     # from simulate_data import get_data as gdata  
     from simulate_data import init
@@ -63,7 +76,8 @@ elif simulate:
     
     if type( args['file_out'])== type(None):    args['file_out']='0'
       
-    tomo, times_loop = recon_file(fname,dnames=None, algo = algo ,rot_center = rot_center, max_iter = max_iter, GPU = GPU, shmem = shmem, max_chunk_slice=max_chunk, reg = reg, tau = tau)
+
+tomo, times_loop, dshape = recon_file(fname,dnames=None, algo = algo ,rot_center = rot_center, max_iter = max_iter, GPU = GPU, shmem = shmem, max_chunk_slice=max_chunk, reg = reg, tau = tau, verbose=verboseall)
 
 
 '''
@@ -142,7 +156,7 @@ if (type(args['file_out']) is not type(None)) and args['file_out']!='/dev/null':
 
 num_slices = tomo.shape[0]
 num_rays = tomo.shape[1]
-num_angles = sino.shape[1]
+num_angles = dshape[1]
 
 import fubini
 msk_tomo,msk_sino=fubini.masktomo(num_rays, np, width=.95)
@@ -170,14 +184,15 @@ tomo0c=t2i(tomo)*msk_tomo[0,...]
 #
 
     #quit()
-print('checking for truth')
+#print('checking for truth')
 try:
     #true_obj = get_data('tomo')[...]
     true_obj = true_obj[...]
     print("comparing with truth, summary coming...")
 except:
-    print("no truth, quitting \n\n")
-    true_obj = None
+    quit()
+    #print("no truth, quitting \n")
+    #true_obj = None
 
 
 
@@ -201,8 +216,17 @@ else:
     print(bold+"tomo shape",(num_slices,num_rays,num_rays), "n_angles",num_angles, ', algorithm:', algo,", max_iter:",max_iter,",mpi size:",mpi_size,",GPU:",GPU)
     print("times full tomo", times_loop)
 
+#bold='\033[1m'
+#    endb= '\033[0m'
+#    print(bold+"tomo shape",(num_slices,num_rays,num_rays), "n_angles",num_angles, ', algorithm:', algo,", max_iter:",max_iter,",mpi size:",mpi_size,",GPU:",GPU)
+#    print("times full tomo", times_loop)
+#    print("loop+setup time=", times_loop['loop']+times_loop['setup'],endb)
+    
+
     
     print("loop+setup time=", times_loop['loop']+times_loop['setup'], "snr=", ssnr(true_obj,tomo),endb)
+    
+    
     
     #tomo0=tomo_chunk
     
