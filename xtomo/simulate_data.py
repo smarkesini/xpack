@@ -175,7 +175,7 @@ def init(num_slices,num_rays,num_angles,obj_width, root_name = root_name):
     file_name = fname(num_slices,num_rays,num_angles,obj_width,root_name = root_name)
     # name_sino,dname_theta,dname_tomo=dnames()
     dnames=dnames_get()
-    
+    #print("init file_name",file_name)
 
     if not os.path.isfile(file_name):
         if rank == 0:
@@ -188,6 +188,7 @@ def init(num_slices,num_rays,num_angles,obj_width, root_name = root_name):
 
     global fid
     fid= h5py.File(file_name, "r",rdcc_nbytes=csize)
+    #print('init output file name', fid.name)
     return fid, dnames #_sino, dname_theta, dname_tomo
     
 def fclose():
