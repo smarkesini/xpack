@@ -2,7 +2,7 @@ import numpy as np
 from reconstruct import recon, recon_file
 
 import argparse
-import json
+#import json
 #import textwrap
 
 
@@ -11,8 +11,9 @@ ap = argparse.ArgumentParser(
     epilog='_'*60+'\n Note option precedence (high to low):  individual options, opts dictionary, fopts  \n'+'-'*60)
 
 import parse
-
 args=parse.main()
+
+#print("hello", args)
 
 #
 #ap.add_argument("-f", "--file_in",  type = str, help="h5 file in")

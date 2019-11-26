@@ -107,7 +107,7 @@ def simulate(num_slices,num_rays,num_angles,obj_width,root_name = root_name):
     if np.mod(num_angles,2)==0:
         theta    = np.arange(0., 180., 180. / num_angles,dtype='float64')*np.pi/180.
     else:
-        print("all the way to 180")
+        print("all the way to 180 (included)")
         theta    = np.linspace(0, 180., num= num_angles)*np.pi/180.
         theta=theta.astype('float32')
         #theta    = np.arange(0., 180., 180. / num_angles,dtype='float64')*xp.pi/180.

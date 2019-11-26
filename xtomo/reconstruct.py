@@ -380,8 +380,10 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
     end_loop=time.time()
     times_loop['loop']=end_loop-start_loop_time 
     
-    print("tomo shape",(num_slices,num_rays,num_rays), "n_angles",num_angles, ', algorithm:', algo,", max_iter:",max_iter,",mpi size:",mpi_size,",GPU:",GPU)
-    print("times full tomo", times_loop)
+    bold='\033[1m'
+    endb= '\033[0m'
+    print(bold+"tomo shape",(num_slices,num_rays,num_rays), "n_angles",num_angles, ', algorithm:', algo,", max_iter:",max_iter,",mpi size:",mpi_size,",GPU:",GPU)
+    print("times full tomo", times_loop,endb)
     
     #print("times full tomo", times_loop,flush=True)
     
