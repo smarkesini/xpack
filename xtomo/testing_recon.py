@@ -13,47 +13,11 @@ ap = argparse.ArgumentParser(
 import parse
 args=parse.main()
 
-#print("hello", args)
-
-#
-#ap.add_argument("-f", "--file_in",  type = str, help="h5 file in")
-#ap.add_argument("-o", "--file_out",   type = str, help="file out, default none, 0 will autogenerate name")
-#ap.add_argument("-sim", "--simulate",  type = bool, help="use simulated data, bool")
-#ap.add_argument("-sim_shape", "--sim_shape",  type = int,nargs='+', help="simulated data shape, bool")
-#ap.add_argument("-rot_center", "--rot_center",  type = int, help="rotation center, int ")
-#ap.add_argument("-a", "--algo",  type = str, help="algorithm: 'iradon' (default), 'sirt', 'cgls', 'tv', 'tvrings ")
-#ap.add_argument("-G", "--GPU",  type = bool, help="turn on GPU, bool")
-#ap.add_argument("-S", "--shmem",  type = bool, help="turn on shared memory MPI, bool")
-#ap.add_argument("-maxiter", "--maxiter", type = int, help="maxiter, default 10")
-#ap.add_argument("-max_chunk", "--max_chunk_slice",  type = int, help="max chunks per mpi rank")
-#ap.add_argument("-reg", "--reg",  type = float, help="regularization parameter")
-#ap.add_argument("-tau", "--tau", type = float, help="soft thresholding parameter")
-#ap.add_argument("-v", "--verbose",   type = float, help="verbose float (0...1), default 1")
-#ap.add_argument('-opts', '--options', type=json.loads, help="e.g. \'{\"algo\":\"iradon\", \"maxiter\":10, \"tol\":1e-2, \"reg\":1, \"tau\":.05} \' ")
-#ap.add_argument('-fopts', '--foptions', type=str, help="file with options ")
-#
-#Dopts={ 'maxiter':10 ,'algo':'iradon', 'shmem':True, 'GPU':True, 'max_chunk_slice':16, 'verbose':True }
-#
-#args = vars(ap.parse_args())
-#opts = args['options']
-#
-#if args['foptions']!=None:
-#    fopts = json.load(open(args['foptions'],'r'))
-#    Dopts.update(fopts)
-#
-#if opts!=None:
-#    Dopts.update(opts)
-#
-#for key in Dopts:
-#    if args[key]==None: args[key]=Dopts[key]
-#if args['file_in']==None: args['simulate']=True
-
-sim_shape=args['sim_shape']#[256, 181, 256]
+sim_shape=args['sim_shape']
 sim_width=args['sim_width']
 
 
 
-#print("args", args)
 
 GPU   = args['GPU']
 algo  = args['algo']
@@ -96,9 +60,9 @@ elif simulate:
     #def get_data(x,chunks=None):
     args['file_in']=fid.filename
     fname=fid.filename
-    args['file_out']='0'
-    #print("about to be running simulations",sim_shape)
-   
+    
+    if type( args['file_out'])== type(None):    args['file_out']='0'
+      
     tomo, times_loop = recon_file(fname,dnames=None, algo = algo ,rot_center = rot_center, max_iter = max_iter, GPU = GPU, shmem = shmem, max_chunk_slice=max_chunk, reg = reg, tau = tau)
 
 
@@ -147,7 +111,7 @@ tomo, times_loop = recon(sino, theta, algo = algo ,rot_center = rot_center, max_
 
 '''
 
-if type(args['file_out']) is not type(None):  
+if (type(args['file_out']) is not type(None)) and args['file_out']!='/dev/null':  
         import os, sys
         
         cstring = ' '.join(sys.argv)
@@ -163,13 +127,13 @@ if type(args['file_out']) is not type(None):
         if os.path.splitext(file_out)[-1] in ('.tif','.tiff'):
             from tifffile import imsave
             imsave(file_out,tomo, description = cstring)
-            quit()                      
-        import h5py
-        fname=args['file_out']
-        fid = h5py.File(fname, 'w')
-        fid.create_dataset('exchange/tomo', data = tomo)
-        fid.create_dataset('exchange/command', data =' '.join(sys.argv) )
-        fid.close()
+        else:
+            import h5py
+            fname=args['file_out']
+            fid = h5py.File(fname, 'w')
+            fid.create_dataset('exchange/tomo', data = tomo)
+            fid.create_dataset('exchange/command', data =' '.join(sys.argv) )
+            fid.close()
         #quit()
         #from tifffile import imsave
     
@@ -206,12 +170,13 @@ tomo0c=t2i(tomo)*msk_tomo[0,...]
 #
 
     #quit()
-
+print('checking for truth')
 try:
     #true_obj = get_data('tomo')[...]
     true_obj = true_obj[...]
-    print("comparing with truth, summary coming...\n\n")
+    print("comparing with truth, summary coming...")
 except:
+    print("no truth, quitting \n\n")
     true_obj = None
 
 
@@ -222,7 +187,7 @@ if type(true_obj) == type(None):
 
 else:
     
-    print("phantom shape",true_obj.shape, "n_angles",num_angles, ', algorithm:', algo,", max_iter:",max_iter,",mpi size:",mpi_size,",GPU:",GPU)
+    #print("phantom shape",true_obj.shape, "n_angles",num_angles, ', algorithm:', algo,", max_iter:",max_iter,",mpi size:",mpi_size,",GPU:",GPU)
     #print("reading tomo, shape",(num_slices,num_rays,num_rays), "n_angles",num_angles, "max_iter",max_iter)
     
     
@@ -231,9 +196,13 @@ else:
     ssnr   = lambda x,y: np.linalg.norm(y)/np.linalg.norm(y-rescale(x,y))
     ssnr2    = lambda x,y: ssnr(x,y)**2
     
-    
+    bold='\033[1m'
+    endb= '\033[0m'
+    print(bold+"tomo shape",(num_slices,num_rays,num_rays), "n_angles",num_angles, ', algorithm:', algo,", max_iter:",max_iter,",mpi size:",mpi_size,",GPU:",GPU)
     print("times full tomo", times_loop)
-    print("solver time=", times_loop['solver'], "snr=", ssnr(true_obj,tomo))
+
+    
+    print("loop+setup time=", times_loop['loop']+times_loop['setup'], "snr=", ssnr(true_obj,tomo),endb)
     
     #tomo0=tomo_chunk
     

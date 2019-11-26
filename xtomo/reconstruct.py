@@ -193,7 +193,7 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
                 else: return tomo_t,rnrm,0.
 
         elif algo == 'tv' or algo =='TV':
-            print("solving tv !!!!!!!!!!")
+            #print("solving tv !!!!!!!!!!")
             algo = 'tv'
             radon,iradon = radon_setup(num_rays, theta, xp=xp, center=rot_center, filter_type='hamming', kernel_type = 'gaussian', k_r =1, width=obj_width)
             if tau==None: 
