@@ -10,73 +10,27 @@ import h5py
 import tomopy
 import dxchange
 
-#from matplotlib import pylab
-#import matplotlib.pyplot as plt
-#import json
-#import collections
-
-#h5fname ='/data/smarchesini/tomobank_clean/tomo_00001_preprocessed.h5'
-#
-#def read_h5(dirname="data",chunks=None):   
-#    with h5py.File(h5fname, "r") as f:
-#        #print("reading from:", dirname)
-#        if type(chunks)==type(None):
-#            data = f[dirname][:]
-#        else:
-#            data = f[dirname][chunks[0]:chunks[1],...]
-#
-#    #print(data.shape)
-#    return data
-#
-#def get_dims():
-#    shape = read_h5(dirname="dims")
-#    return shape
-#def get_sino(h5fname, chunks=None):
-#    return read_h5('sino',chunks)
-#
-#def get_theta():
-#    return read_h5('theta')
-#
-#
-#data_size = get_dims()
-##print("data shape",data_size)
-#all_chunks = (0, data_size[0])
-#
-#    
-#def get_data(kind,chunks=all_chunks):
-#    if   kind =='dims': return get_dims()
-#    elif kind =='theta': 
-#        theta=get_theta()
-#        theta = np.float32(theta)
-#        #print("theta type",type(theta),"theta dtype",theta.dtype,"theta shape",theta.shape, "theta", theta*180/np.pi)
-#        return theta
-#    elif kind == 'sino': 
-#        if type(chunks)!=type(None):
-#            return get_sino(h5fname, (chunks[0],chunks[1]) )
-#        else:
-#            return get_sino(h5fname,(1,2))
-#    elif kind == 'tomo':
-#        print('no tomo')
-#        return None
-
 
 #----------------------
 
-#h5fname ='/tomodata/tomobank/tomo_00001/tomo_00001.h5'
-h5fname ='/tomodata/tomobank/tomo_00072/tomo_00072.h5'
+h5fname ='/tomodata/tomobank/tomo_00001/tomo_00001.h5'
+rot_center = 1024
+
+#h5fname ='/tomodata/tomobank/tomo_00072/tomo_00072.h5'
+#rot_center = 1403
+
 #h5fname ='/tomodata/sigray/Fly_data/Abs_Fly_tomo180_1p125um_4steps_34kV_4x4_2x_50s_042_whitedark.h5.h5'
 
-#/tomodata/tomobank/tomo_00072/
 
-#rot_center = 1024
-rot_center = 1403
+
+
 def get_theta():
     proj, flat, dark, theta = dxchange.read_aps_32id(h5fname, sino=1)
     return theta
 #
 
 
-def get_dims():
+def get_dims(h5fname=h5fname):
     """
     Read array size of a specific group of Data Exchange file.
 
@@ -139,7 +93,7 @@ def get_sino(h5fname, chunks):
 #
 all_chunks = None
 
-def get_data(kind,chunks=all_chunks):
+def get_data(kind,chunks=all_chunks,h5fname=h5fname):
     if   kind =='dims': return get_dims()
     elif kind =='theta': 
         theta=get_theta()
@@ -154,6 +108,8 @@ def get_data(kind,chunks=all_chunks):
     elif kind == 'tomo':
         print('no tomo')
         return None
+
+
 #
 #data_size = get_data('dims')
 ##print("data shape",data_size)

@@ -142,13 +142,31 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
     
     #print("[0] rank",rank, "used bytes", mempool.used_bytes())
     
-    
+    #print("\n\n",algo,'\n\n\n')
     if algo=='tomopy-gridrec':
         import tomopy
         rnrm=None
         def reconstruct(data,verbose):
             tomo_t = tomopy.recon(data, theta, center=rot_center, sinogram_order=True, algorithm="gridrec")
             return tomo_t, rnrm, 0.
+    elif algo[0:5] =='astra':
+        #print('using astra')
+        import tomopy
+        #import astra
+        rnrm=None
+        number_of_iterations= max_iter
+        options = {'method': 'CGLS', 'num_iter': int(number_of_iterations)}
+        if len(algo)==10:
+            if algo[6:10]=='cuda':
+                options = {'proj_type': 'cuda', 'method': 'CGLS_CUDA', 'num_iter': int(number_of_iterations)}
+        #print('    Doing reconstruction...')
+        def reconstruct(data,verbose):
+#            tomo_t = tomopy.recon(np.swapaxes(data,0,1), theta, center=rot_center, sinogram_order=True, options=options, algorithm=tomopy.astra)
+#            return np.swapaxes(tomo_t,0,1), rnrm, 0.
+            tomo_t = tomopy.recon(data, theta, center=rot_center, sinogram_order=True, options=options, algorithm=tomopy.astra)
+            return tomo_t, rnrm, 0.
+
+        
     else:
         from fubini import radon_setup as radon_setup
         if algo=='iradon' or algo=='iradon':
@@ -245,6 +263,7 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
                     t=timer()-start1
                     return tomo,rnrm,t
                 else: return tomo_t,rnrm,0.
+                
 
                 
         
@@ -376,7 +395,7 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
     times['barrier']+=timer()-start
     
     if GPU:
-        printv("stopping profiler")
+        #printv("stopping profiler")
         xp.cuda.profiler.stop()
     
     if rank>0:     

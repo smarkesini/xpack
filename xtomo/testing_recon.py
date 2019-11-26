@@ -125,28 +125,32 @@ tomo, times_loop = recon(sino, theta, algo = algo ,rot_center = rot_center, max_
 
 '''
 
-if (type(args['file_out']) is not type(None)) and args['file_out']!='/dev/null':  
+if (type(args['file_out']) is not type(None)) and args['file_out']!='-1':  
         import os, sys
         
         cstring = ' '.join(sys.argv)
-        
+        tstring = str(times_loop)
+        #print('cstring',cstring,'sysargv:',str(sys.argv) )
+        #print('tstring,',tstring)        
         file_out = args['file_out']
         if file_out == '0': 
             file_out = os.path.splitext(fname)[0]
             file_out=file_out+'_'+algo+'_recon.tif'
             print('file out was 0, changed to:',file_out)
-            
-        print('file out',args['file_out'])
+            args['file_out']=file_out
+        else: print('file out',file_out)
               
         if os.path.splitext(file_out)[-1] in ('.tif','.tiff'):
             from tifffile import imsave
-            imsave(file_out,tomo, description = cstring)
+            imsave(file_out,tomo, description = cstring+' '+tstring)
         else:
             import h5py
             fname=args['file_out']
             fid = h5py.File(fname, 'w')
             fid.create_dataset('exchange/tomo', data = tomo)
-            fid.create_dataset('exchange/command', data =' '.join(sys.argv) )
+            fid.create_dataset('mish/command', data =cstring )
+            fid.create_dataset('mish/times', data =tstring )
+            
             fid.close()
         #quit()
         #from tifffile import imsave

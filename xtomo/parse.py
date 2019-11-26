@@ -10,7 +10,7 @@ ap = argparse.ArgumentParser(
 
 
 ap.add_argument("-f", "--file_in",  type = str, help="h5 file in")
-ap.add_argument("-o", "--file_out",   type = str, help="file out, default none, 0 will autogenerate name")
+ap.add_argument("-o", "--file_out",   type = str, help="file out, default 0, 0: autogenerate name, -1: skip saving")
 ap.add_argument("-rot_center", "--rot_center",  type = int, help="rotation center, int ")
 ap.add_argument("-a", "--algo",  type = str, help="algorithm: 'iradon' (default), 'sirt', 'cgls', 'tv', 'tvrings' 'tomopy-gridrec'")
 ap.add_argument("-G", "--GPU",  type = int, help="turn on GPU, bool")
