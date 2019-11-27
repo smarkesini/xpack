@@ -2,6 +2,9 @@ import numpy as np
 from reconstruct import recon, recon_file
 
 import argparse
+
+from timeit import default_timer as timer
+time0=timer()
 #import json
 #import textwrap
 
@@ -124,6 +127,7 @@ else:
 tomo, times_loop = recon(sino, theta, algo = algo ,rot_center = rot_center, max_iter = max_iter, GPU=GPU,shmem=shmem, max_chunk_slice = max_chunk,  reg = reg, tau = tau)
 
 '''
+times_begin=timer()
 
 if (type(args['file_out']) is not type(None)) and args['file_out']!='-1':  
         import os, sys
@@ -156,6 +160,8 @@ if (type(args['file_out']) is not type(None)) and args['file_out']!='-1':
         #from tifffile import imsave
     
     #tomo, times_loop =
+
+time_saving=timer()-times_begin
     
 
 num_slices = tomo.shape[0]
@@ -189,15 +195,21 @@ tomo0c=t2i(tomo)*msk_tomo[0,...]
 
     #quit()
 #print('checking for truth')
+time_tot=timer()-time0
+bold='\033[1m'
+endb= '\033[0m'
+print(bold+"loop+setup time=", times_loop['loop']+times_loop['setup'], 'saving',time_saving, 'total', time_tot,endb, end='')
+    
 try:
     #true_obj = get_data('tomo')[...]
     true_obj = true_obj[...]
-    print("comparing with truth, summary coming...")
+    #print("comparing with truth, summary coming...")
 except:
+    print("no tomogram to compare")
+
     quit()
     #print("no truth, quitting \n")
     #true_obj = None
-
 
 
 if type(true_obj) == type(None): 
@@ -208,17 +220,19 @@ else:
     
     #print("phantom shape",true_obj.shape, "n_angles",num_angles, ', algorithm:', algo,", max_iter:",max_iter,",mpi size:",mpi_size,",GPU:",GPU)
     #print("reading tomo, shape",(num_slices,num_rays,num_rays), "n_angles",num_angles, "max_iter",max_iter)
-    
+
     
     scale   = lambda x,y: np.dot(x.ravel(), y.ravel())/np.linalg.norm(x)**2
     rescale = lambda x,y: scale(x,y)*x
     ssnr   = lambda x,y: np.linalg.norm(y)/np.linalg.norm(y-rescale(x,y))
     ssnr2    = lambda x,y: ssnr(x,y)**2
-    
+    #print("loop+setup time=", times_loop['loop']+times_loop['setup'], "snr=", ssnr(true_obj,tomo),endb)
+
     bold='\033[1m'
     endb= '\033[0m'
     print(bold+"tomo shape",(num_slices,num_rays,num_rays), "n_angles",num_angles, ', algorithm:', algo,", max_iter:",max_iter,",mpi size:",mpi_size,",GPU:",GPU)
     print("times full tomo", times_loop)
+    print("loop+setup time=", times_loop['loop']+times_loop['setup'], "snr=", ssnr(true_obj,tomo),endb)
 
 #bold='\033[1m'
 #    endb= '\033[0m'
@@ -228,7 +242,7 @@ else:
     
 
     
-    print("loop+setup time=", times_loop['loop']+times_loop['setup'], "snr=", ssnr(true_obj,tomo),endb)
+    #print("loop+setup time=", times_loop['loop']+times_loop['setup'], "snr=", ssnr(true_obj,tomo),endb)
     
     
     

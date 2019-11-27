@@ -231,10 +231,10 @@ def solveTV(radon,radont, data, r, tau, x0=0, tol=1e-2, maxiter=5, verbose=0):
         Lambda = Lambda + (p-Grad(v2t(u)))
         if verbose>0: printbar(ii*100//maxiter,'TV')
         
-        if (verbose >0) and (np.mod(ii,1/verbose)==0 or (ii==maxiter and verbose>0)):
+        #if (verbose >0) and (np.mod(ii,1/verbose)==0 or (ii==maxiter and verbose>0)):
         #if verbose>0:   
-            stitle = "\nTV iter=%d, cgs(convergence=%g,ii=%g,rnrm=%g)" %(ii,info,imax,resnrm)
-            print(stitle)
+        #    stitle = "\nTV iter=%d, cgs(convergence=%g,ii=%g,rnrm=%g)" %(ii,info,imax,resnrm)
+        #    print(stitle)
             
 #            if verbose ==2:
 #                plt.imshow(v2t(u)[num_slices//2,:,:])    

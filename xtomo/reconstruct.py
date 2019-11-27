@@ -107,9 +107,12 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
         import cupy as xp
         do,vd,nd=set_visible_device(rank)
         #device_gbsize=xp.cuda.Device(vd).mem_info[1]/((2**10)**3)
-        device_gbsize=xp.cuda.Device(0).mem_info[1]/((2**10)**3)
-        #xp.cuda.profiler.initialize()
-        xp.cuda.profiler.start()
+        try:
+            device_gbsize=xp.cuda.Device(0).mem_info[1]/((2**10)**3)
+            #xp.cuda.profiler.initialize()
+            xp.cuda.profiler.start()
+        except:
+            None
         #print("rank:",rank,"device:",vd, "gb memory:", device_gbsize)
         #xp.cuda.profile()
         
@@ -225,7 +228,7 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
             if reg==None:
                 reg=.8
             
-            print("τ=",tau, "reg",reg)
+            #print("τ=",tau, "reg",reg)
             #r = .8   
             #from solvers import Grad
             from solvers import solveTV
@@ -396,7 +399,10 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
     
     if GPU:
         #printv("stopping profiler")
-        xp.cuda.profiler.stop()
+        try:
+            xp.cuda.profiler.stop()
+        except:
+            None
     
     if rank>0:     
         quit()
@@ -405,12 +411,13 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
     end_loop=time.time()
     times_loop['loop']=end_loop-start_loop_time 
     
+    """
     bold='\033[1m'
     endb= '\033[0m'
     print(bold+"tomo shape",(num_slices,num_rays,num_rays), "n_angles",num_angles, ', algorithm:', algo,", max_iter:",max_iter,",mpi size:",mpi_size,",GPU:",GPU)
     print("times full tomo", times_loop)
     print("loop+setup time=", times_loop['loop']+times_loop['setup'],endb)
     #print("times full tomo", times_loop,flush=True)
-    
+    """
     return tomo, times_loop
 
