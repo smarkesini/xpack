@@ -254,7 +254,7 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
             # set up the tv with missing pixels
             # fradon=lambda x: deadpix*radon(x)
             # fradont=lambda x: radont(x*deadpix)    
-            print("solving tv_rings")
+            #print("solving tv_rings")
             def reconstruct(data,verbose):
                 tomo_t,rnrm = solveTV_ring(radon, iradon, data, reg, tau,  tol=1e-2, maxiter=max_iter, verbose=verbose)
                 if GPU:
