@@ -1,7 +1,7 @@
 import numpy as np
 from timeit import default_timer as timer
 import time
-import multiprocessing
+#import multiprocessing
 import threading
 
 from communicator import rank, mpi_size, get_loop_chunk_slices, get_chunk_slices, mpi_barrier
@@ -314,11 +314,14 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
     halo=0
     if algo == 'tv': halo = 2
     halo+=0
-    global done
+    global done, data_odd, data_even
+    #data_odd data_even
     done = [0,0]
     def read_data(ii):
         #ii+=1
         global done
+        global data_odd
+        global data_even
         even = np.mod(ii+1,2)
         nslices = loop_chunks[ii+1]-loop_chunks[ii]
         chunk_slices = get_chunk_slices(nslices)
@@ -330,7 +333,7 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
             done[0] = 1
             #print('read even',ii, 'done[0] set to:', done[0])
         else:
-            print('reading odd',ii,flush=True)
+            #print('reading odd',ii,flush=True)
             done[1] = 0
             data_odd = sino[chunks[0]:chunks[1],...]
             done[1] = 1
@@ -360,8 +363,8 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
             done[0] = 1
 
         # start reading thte next chunk
-        if ii< loop_chunks.size-1:
-            print('lounching next read',ii+1,flush=True)
+        if ii< loop_chunks.size-2:
+            #print('lounching next read',ii+1,flush=True)
             #p1 = multiprocessing.Process(target=read_data, args=( ii+1, ))
             #p1.start()
             t1 = threading.Thread(target=read_data, args=(ii+1,)) 
