@@ -198,8 +198,13 @@ tomo0c=t2i(tomo)*msk_tomo[0,...]
 time_tot=timer()-time0
 bold='\033[1m'
 endb= '\033[0m'
+
+print(bold+"tomo shape",(num_slices,num_rays,num_rays), "n_angles",num_angles, ', algorithm:', algo,", max_iter:",max_iter,",mpi size:",mpi_size,",GPU:",GPU)
+print("times full tomo", times_loop)
+#print("loop+setup time=", times_loop['loop']+times_loop['setup'], "snr=", ssnr(true_obj,tomo),endb)
 print(bold+"loop+setup time=", times_loop['loop']+times_loop['setup'], 'saving',time_saving, 'total', time_tot,endb, end='')
-    
+
+
 try:
     #true_obj = get_data('tomo')[...]
     true_obj = true_obj[...]
@@ -228,11 +233,14 @@ else:
     ssnr2    = lambda x,y: ssnr(x,y)**2
     #print("loop+setup time=", times_loop['loop']+times_loop['setup'], "snr=", ssnr(true_obj,tomo),endb)
 
-    bold='\033[1m'
-    endb= '\033[0m'
-    print(bold+"tomo shape",(num_slices,num_rays,num_rays), "n_angles",num_angles, ', algorithm:', algo,", max_iter:",max_iter,",mpi size:",mpi_size,",GPU:",GPU)
-    print("times full tomo", times_loop)
-    print("loop+setup time=", times_loop['loop']+times_loop['setup'], "snr=", ssnr(true_obj,tomo),endb)
+    #bold='\033[1m'
+    #endb= '\033[0m'
+    #print(bold+"tomo shape",(num_slices,num_rays,num_rays), "n_angles",num_angles, ', algorithm:', algo,", max_iter:",max_iter,",mpi size:",mpi_size,",GPU:",GPU)
+    #print("times full tomo", times_loop)
+    #print("loop+setup time=", times_loop['loop']+times_loop['setup'], "snr=", ssnr(true_obj,tomo),endb)
+    print(bold+"snr=", ssnr(true_obj,tomo),endb)
+
+
 
 #bold='\033[1m'
 #    endb= '\033[0m'

@@ -183,16 +183,11 @@ def clean_raw(h5fname_in=h5fname_in, h5fname_out=None, max_chunks=None):
     elif h5fname_out=='0':
         file_out = os.path.splitext(os.path.splitext(os.path.splitext(h5fname_in)[0])[0])[0]
         h5fname_out=file_out+'_clean.h5'
-        
+
+    print("will be writing to:",h5fname_out)
     #h5fname ='/tomodata/tomobank_clean/tomo_00072_preprocessed1.h5'
-    dims = get_dims(h5fname=h5fname_in)
-    #data_shape = get_data('dims')
-    num_slices = dims[0]
-    num_angles = dims[1]
-    num_rays   = dims[2]
-    #num_slices=num_slices//20
     
-    print("will be writing to:",h5fname_out,'dimensions',dims)
+
     
     fid = h5py.File(h5fname_out, 'w')
     
@@ -203,17 +198,26 @@ def clean_raw(h5fname_in=h5fname_in, h5fname_out=None, max_chunks=None):
     
     dnames={'sino':"exchange/data", 'theta':"exchange/theta", 'rot_center':'exchange/rot_center'}
 
-   
+    start_loop_time =time.time()   
     chunks = [0, num_slices]
-    if max_chunks!=None:
+    if max_chunks==None:
+        #nchunks=int(1)
+        #max_chunks=num_slices
+        print('cleaning the whole sinogram')
+        data, theta = clean_sino(h5fname=h5fname_in)
+        data = np.ascontiguousarray(data)
+        vname='sino'
+        print("writing {} to: {}".format(vname,dnames[vname]))
+        write_h5(data,dirname=dnames['sino'])
+
+    else:
+        dims = get_dims(h5fname=h5fname_in)
+        #data_shape = get_data('dims')
+        num_slices = dims[0]
+        num_angles = dims[1]
+        num_rays   = dims[2]        
         nchunks=int(np.ceil(num_slices/max_chunks))
-    else: 
-        nchunks=int(1)
-        max_chunks=num_slices  
-    
-    start_loop_time =time.time()
-    print("number of chunks=",nchunks)
-    if nchunks>1:
+        print("number of chunks=",nchunks)
         fsino=fid.create_dataset(dnames['sino'], (num_slices,num_angles,num_rays) , chunks=(num_slices,num_angles,max_chunks),dtype='float32')
         chunks_init=np.arange(0,num_slices,max_chunks)
         chunks_end  = np.append(chunks_init[1:],values=[num_slices],axis=0).reshape(int(nchunks),1)
@@ -235,12 +239,7 @@ def clean_raw(h5fname_in=h5fname_in, h5fname_out=None, max_chunks=None):
             #print("done writing", time.time()-start_write_time, "total",time.time()-start_loop_time)
             #write_h5(data,dirname="sino",chunks=chunks[ii])
         print("\n processed and saved in", time.time()-start_loop_time)
-    else:        
-        data, theta = clean_sino(h5fname=h5fname_in)
-        data = np.ascontiguousarray(data)
-        vname='sino'
-        print("writing {} to: {}".format(vname,dnames[vname]))
-        write_h5(data,dirname=dnames['sino'])
+
     
 
     vname='theta'
