@@ -144,7 +144,7 @@ def printbar(percent,string='    '):
 def cleaning(
     filename,
     bffilename = None,
-    inputPath = '/Users/anu/repos/', #input path, location of the data set to reconstruct
+    inputPath = '/', #input path, location of the data set to reconstruct
     outputPath = None,# define an output path (default is inputPath), a sub-folder will be created based on file name
     outputFilename = None, #file name for output tif files (a number and .tiff will be added). default is based on input filename
     fulloutputPath = None, # definte the full output path, no automatic sub-folder will be created
@@ -376,9 +376,8 @@ def clean_raw(h5fname_in=h5fname_in, h5fname_out=None):
 
 from reconstruct import recon
 
-h5fname_in = 'rock.h5'
-h5fname_out = 'rock_output_data.h5'
+#h5fname_in = 'rock.h5'
+#h5fname_out = 'rock_output_data.h5'
 #data, theta, cor = cleaning(h5fname_in)
 
 data, theta, rot_center, h5fname_out = clean_raw(h5fname_in, h5fname_out)
-data = recon(data, theta, algo = 'iradon' ,rot_center = rot_center, max_iter = 5, GPU=False)
