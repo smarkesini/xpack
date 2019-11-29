@@ -37,7 +37,7 @@ def dnames_get():
     dnames={'sino':dname_sino, 'theta':dname_theta, 'tomo':dname_tomo, 'rot_center':dname_rc}
     return dnames #dname_sino,dname_theta,dname_tomo
 
-def recon_file(fname,dnames=None, algo = 'iradon' ,rot_center = None, max_iter = None, GPU = True, shmem = False, max_chunk_slice=16,  reg = None, tau = None, verbose = verboseall):
+def recon_file(fname,dnames=None, algo = 'iradon' ,rot_center = None, max_iter = None, GPU = True, shmem = False, max_chunk_slice=16,  reg = None, tau = None, verbose = verboseall,ncore=None):
     #print("recon_file max_iter",max_iter)
     if verbose>0: printv0('recon file',fname)
     csize = 0
@@ -47,11 +47,11 @@ def recon_file(fname,dnames=None, algo = 'iradon' ,rot_center = None, max_iter =
         dnames=dnames_get()
     sino  = fid[dnames['sino']]
     theta = fid[dnames['theta']]
-    tomo, times_loop = recon(sino, theta, algo = algo ,rot_center = rot_center, max_iter = max_iter, GPU=GPU, shmem=shmem, max_chunk_slice=max_chunk_slice,  reg = reg, tau = tau, verbose = verbose)
+    tomo, times_loop = recon(sino, theta, algo = algo ,rot_center = rot_center, max_iter = max_iter, GPU=GPU, shmem=shmem, max_chunk_slice=max_chunk_slice,  reg = reg, tau = tau, verbose = verbose,ncore=ncore)
     return tomo, times_loop, sino.shape
     
 
-def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU = True, shmem = False, max_chunk_slice=16,  reg = None, tau = None, verbose = verboseall):
+def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU = True, shmem = False, max_chunk_slice=16,  reg = None, tau = None, verbose = verboseall,ncore=None):
 
     def printv(*args,**kwargs): 
         if verbose>0:  printv0(*args,**kwargs)
@@ -149,8 +149,8 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
     if algo=='tomopy-gridrec':
         import tomopy
         rnrm=None
-        def reconstruct(data,verbose):
-            tomo_t = tomopy.recon(data, theta, center=rot_center, sinogram_order=True, algorithm="gridrec")
+        def reconstruct(data,verbose,ncore):
+            tomo_t = tomopy.recon(data, theta, center=rot_center, sinogram_order=True, algorithm="gridrec",ncore=ncore)
             return tomo_t, rnrm, 0.
     elif algo[0:5] =='astra':
         #print('using astra')
@@ -360,7 +360,7 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
         mpi_time=0.
         if algo == 'tomopy-gridrec':
             #tomo, rnrm =  reconstruct(data,verbose_iter)
-            tomo[chunks[0]:chunks[1],...], rnrm, g2ctime =  reconstruct(data,verbose_iter)
+            tomo[chunks[0]:chunks[1],...], rnrm, g2ctime =  reconstruct(data,verbose_iter,ncore)
             #tomo[chunks[0]:chunks[1],...]=tomopy.recon(data, theta, center=None, sinogram_order=True, algorithm="gridrec")
         else:
             #tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter)

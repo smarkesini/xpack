@@ -27,6 +27,7 @@ ap.add_argument("-sim_shape", "--sim_shape",  type = int,nargs='+', help="simula
 ap.add_argument("-sim_width", "--sim_width",  type = int, help="object width between 0-1")
 ap.add_argument('-opts', '--options', type=json.loads, help="e.g. \'{\"algo\":\"iradon\", \"maxiter\":10, \"tol\":1e-2, \"reg\":1, \"tau\":.05} \' ")
 ap.add_argument('-fopts', '--foptions', type=str, help="file with json options  ")
+ap.add_argument("-ncore", "--ncore", type=int, help="ncore for tomopy reconstruction algorithms")
 
 
 Dopts={ 'maxiter':10 ,'algo':'iradon', 'shmem':True, 'GPU':True, 'max_chunk_slice':16, 'verbose':True }

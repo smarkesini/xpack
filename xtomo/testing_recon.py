@@ -15,7 +15,7 @@ ap = argparse.ArgumentParser(
 
 import parse
 args=parse.main()
-
+print(args)
 sim_shape=args['sim_shape']
 sim_width=args['sim_width']
 
@@ -34,6 +34,7 @@ reg = args['reg']
 tau = args['tau']
 verboseall = args['verbose']
 
+ncore = args['ncore']
 
 #print("testing_recon max_iter",max_iter)
 #algo='tvrings'
@@ -80,7 +81,7 @@ elif simulate:
     if type( args['file_out'])== type(None):    args['file_out']='0'
       
 
-tomo, times_loop, dshape = recon_file(fname,dnames=None, algo = algo ,rot_center = rot_center, max_iter = max_iter, GPU = GPU, shmem = shmem, max_chunk_slice=max_chunk, reg = reg, tau = tau, verbose=verboseall)
+tomo, times_loop, dshape = recon_file(fname,dnames=None, algo = algo ,rot_center = rot_center, max_iter = max_iter, GPU = GPU, shmem = shmem, max_chunk_slice=max_chunk, reg = reg, tau = tau, verbose=verboseall,ncore=ncore)
 
 
 '''
