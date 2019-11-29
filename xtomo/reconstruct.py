@@ -37,7 +37,7 @@ def dnames_get():
     dnames={'sino':dname_sino, 'theta':dname_theta, 'tomo':dname_tomo, 'rot_center':dname_rc}
     return dnames #dname_sino,dname_theta,dname_tomo
 
-def recon_file(fname,dnames=None, algo = 'iradon' ,rot_center = None, max_iter = None, GPU = True, shmem = False, max_chunk_slice=16,  reg = None, tau = None, verbose = verboseall,ncore=None):
+def recon_file(fname,dnames=None, algo = 'iradon' ,rot_center = None, max_iter = None, tol=None, GPU = True, shmem = False, max_chunk_slice=16,  reg = None, tau = None, verbose = verboseall,ncore=None, chunks=None):
     #print("recon_file max_iter",max_iter)
     if verbose>0: printv0('recon file',fname)
     csize = 0
@@ -47,15 +47,17 @@ def recon_file(fname,dnames=None, algo = 'iradon' ,rot_center = None, max_iter =
         dnames=dnames_get()
     sino  = fid[dnames['sino']]
     theta = fid[dnames['theta']]
-    tomo, times_loop = recon(sino, theta, algo = algo ,rot_center = rot_center, max_iter = max_iter, GPU=GPU, shmem=shmem, max_chunk_slice=max_chunk_slice,  reg = reg, tau = tau, verbose = verbose,ncore=ncore)
+    if tol==None: tol=5e-3
+    tomo, times_loop = recon(sino, theta, algo = algo ,rot_center = rot_center, max_iter = max_iter, tol=tol, GPU=GPU, shmem=shmem, max_chunk_slice=max_chunk_slice,  reg = reg, tau = tau, verbose = verbose,ncore=ncore, crop=chunks)
     return tomo, times_loop, sino.shape
     
 
-def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU = True, shmem = False, max_chunk_slice=16,  reg = None, tau = None, verbose = verboseall,ncore=None):
+def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, tol=5e-3, GPU = True, shmem = False, max_chunk_slice=16,  reg = None, tau = None, verbose = verboseall,ncore=None, crop=None):
 
     def printv(*args,**kwargs): 
         if verbose>0:  printv0(*args,**kwargs)
         
+    #printv("tolerance:",tol)
     #shmem = True
     #shmem = False
     
@@ -73,10 +75,10 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
     if algo=='tomopy-gridrec':
         GPU=False
         algo='tomopy-gridrec'
-        import psutil
-        nproc=psutil.cpu_count()
+        #import psutil
+        #nproc=psutil.cpu_count()
         #max_chunk_slice=64
-        max_chunk_slice=nproc*4
+        #max_chunk_slice=nproc*4
     
     
     
@@ -108,11 +110,12 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
         do,vd,nd=set_visible_device(rank)
         #device_gbsize=xp.cuda.Device(vd).mem_info[1]/((2**10)**3)
         try:
-            device_gbsize=xp.cuda.Device(0).mem_info[1]/((2**10)**3)
+            device_gbsize=xp.cuda.Device().mem_info[1]/((2**10)**3)
+            printv("gpu memory:",device_gbsize, "GB, chunk memory",max_chunk_slice*num_rays*num_angles*4/(2**10)**2,'MB')
             #xp.cuda.profiler.initialize()
             xp.cuda.profiler.start()
         except:
-            None
+            pass
         #print("rank:",rank,"device:",vd, "gb memory:", device_gbsize)
         #xp.cuda.profile()
         
@@ -210,7 +213,7 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
 
             def reconstruct(data,verbose):
                 
-                tomo_t, rnrm = solveCGLS(radon,iradon, data, x0=0, tol=5e-3, maxiter=max_iter, verbose=verbose)
+                tomo_t, rnrm = solveCGLS(radon,iradon, data, x0=0, tol=tol, maxiter=max_iter, verbose=verbose)
                 #tomo_t,rnrm = solveTV(radon, iradon, data, r, tau,  tol=1e-2, maxiter=10, verbose=verbose)
                 if GPU:
                     start1 = timer()
@@ -234,7 +237,7 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
             from solvers import solveTV
 
             def reconstruct(data,verbose):
-                tomo_t,rnrm = solveTV(radon, iradon, data, reg, tau,  tol=1e-2, maxiter=max_iter, verbose=verbose)
+                tomo_t,rnrm = solveTV(radon, iradon, data, reg, tau,  tol=5e-3, maxiter=max_iter, verbose=verbose)
                 if GPU:
                     start1 = timer()
                     tomo= xp.asnumpy(tomo_t)
@@ -259,7 +262,7 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
             # fradont=lambda x: radont(x*deadpix)    
             #print("solving tv_rings")
             def reconstruct(data,verbose):
-                tomo_t,rnrm = solveTV_ring(radon, iradon, data, reg, tau,  tol=1e-2, maxiter=max_iter, verbose=verbose)
+                tomo_t,rnrm = solveTV_ring(radon, iradon, data, reg, tau,  tol=tol, maxiter=max_iter, verbose=verbose)
                 if GPU:
                     start1 = timer()
                     tomo= xp.asnumpy(tomo_t)

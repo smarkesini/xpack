@@ -364,9 +364,6 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
 
         # start reading thte next chunk
         if ii< loop_chunks.size-2:
-            #print('lounching next read',ii+1,flush=True)
-            #p1 = multiprocessing.Process(target=read_data, args=( ii+1, ))
-            #p1.start()
             t1 = threading.Thread(target=read_data, args=(ii+1,)) 
             t1.start()
 
@@ -374,8 +371,8 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
         if even==1:
             #jj=0
             while done[0]==0:
-                #printv('waiting for data even loop',ii,'wait iter',jj)
-                time.sleep(.001)
+                printv('waiting for data even loop',ii,'wait iter',jj)
+                time.sleep(.01)
                 #jj+=1
 #            while True:
                 #if (done[0]==1): continue
@@ -385,8 +382,8 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
         else:
             #jj=0
             while done[1]==0:
-                #printv('waiting for data odd',ii,'wait iter',jj)
-                time.sleep(.1)
+                printv('waiting for data odd',ii,'wait iter',jj)
+                time.sleep(.01)
             data = data_odd #sino[chunks[0]:chunks[1],...]
             #jj+=1
         #data = sino[bchunk:echunk,...]

@@ -29,10 +29,12 @@ rot_center = args['rot_center']
 simulate   = args['simulate']
 max_chunk  = args['max_chunk_slice']
 max_iter   = args['maxiter']
-
+tol   = args['tol']
+#print('tolerance',tol)
 reg = args['reg']
 tau = args['tau']
 verboseall = args['verbose']
+chunks = args['chunks']
 
 ncore = args['ncore']
 
@@ -81,7 +83,7 @@ elif simulate:
     if type( args['file_out'])== type(None):    args['file_out']='0'
       
 
-tomo, times_loop, dshape = recon_file(fname,dnames=None, algo = algo ,rot_center = rot_center, max_iter = max_iter, GPU = GPU, shmem = shmem, max_chunk_slice=max_chunk, reg = reg, tau = tau, verbose=verboseall,ncore=ncore)
+tomo, times_loop, dshape = recon_file(fname,dnames=None, algo = algo ,rot_center = rot_center, max_iter = max_iter, tol=tol, GPU = GPU, shmem = shmem, max_chunk_slice=max_chunk, reg = reg, tau = tau, verbose=verboseall,ncore=ncore, chunks=chunks)
 
 
 '''
