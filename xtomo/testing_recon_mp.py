@@ -15,7 +15,7 @@ ap = argparse.ArgumentParser(
 
 import parse
 args=parse.main()
-print(args)
+#print(args)
 sim_shape=args['sim_shape']
 sim_width=args['sim_width']
 
@@ -35,8 +35,9 @@ reg = args['reg']
 tau = args['tau']
 verboseall = args['verbose']
 chunks = args['chunks']
-
 ncore = args['ncore']
+
+ringbuffer = args['ring_buffer']
 
 #print("testing_recon max_iter",max_iter)
 #algo='tvrings'
@@ -82,8 +83,14 @@ elif simulate:
     
     if type( args['file_out'])== type(None):    args['file_out']='0'
       
-
-tomo, times_loop, dshape = recon_file(fname,dnames=None, algo = algo ,rot_center = rot_center, max_iter = max_iter, tol=tol, GPU = GPU, shmem = shmem, max_chunk_slice=max_chunk, reg = reg, tau = tau, verbose=verboseall,ncore=ncore, chunks=chunks)
+#print('ringbuffer',ringbuffer)
+tomo, times_loop, dshape = recon_file(fname,dnames=None, algo = algo,
+                                      rot_center = rot_center, 
+                                      max_iter = max_iter, tol=tol, 
+                                      GPU = GPU, shmem = shmem, 
+                                      max_chunk_slice=max_chunk, 
+                                      reg = reg, tau = tau, verbose=verboseall,
+                                      ncore=ncore, chunks=chunks,mpring=ringbuffer)
 
 
 '''
@@ -201,7 +208,12 @@ print(bold+"loop+setup time=", times_loop['loop']+times_loop['setup'], 'saving',
 
 
 
-
+if 'exchange/tomo' not in fid:
+    print("no tomogram to compare")
+    quit()
+else:
+    print(endb+"\n comparing with tomo in file"+bold, end=' ')
+#'exchange/tomo' in 
 try:
     #true_obj = get_data('tomo')[...]
 #    crop=chunks
@@ -211,7 +223,9 @@ try:
 #        else:
 #            loop_offset=crop[0]
 #    true_obj = true_obj[loop_offset:loop_offset+num_slices,...]
-    true_obj = true_obj[...]
+    #true_obj = true_obj[...]
+    true_obj = fid['exchange/tomo'][...]
+    
 
     #print("comparing with truth, summary coming...")
 except:
@@ -236,8 +250,8 @@ else:
 
 
 #t2i = lambda x: x[num_slices//2,:,:].real
-    t2i = lambda x: x[num_slices//2,:,:].real
-    tomo0c=t2i(tomo)*msk_tomo[0,...]
+    #t2i = lambda x: x[num_slices//2,:,:].real
+    #tomo0c=t2i(tomo)*msk_tomo[0,...]
     #plt.imshow(np.abs(tomo0c))
     #print("phantom shape",true_obj.shape, "n_angles",num_angles, ', algorithm:', algo,", max_iter:",max_iter,",mpi size:",mpi_size,",GPU:",GPU)
     #print("reading tomo, shape",(num_slices,num_rays,num_rays), "n_angles",num_angles, "max_iter",max_iter)
@@ -254,7 +268,7 @@ else:
     #print(bold+"tomo shape",(num_slices,num_rays,num_rays), "n_angles",num_angles, ', algorithm:', algo,", max_iter:",max_iter,",mpi size:",mpi_size,",GPU:",GPU)
     #print("times full tomo", times_loop)
     #print("loop+setup time=", times_loop['loop']+times_loop['setup'], "snr=", ssnr(true_obj,tomo),endb)
-    print(bold+"snr=", ssnr(true_obj,tomo),endb)
+    print('\r',' '*50+'\r' +bold+"snr=", ssnr(true_obj,tomo),endb)
 
 
 

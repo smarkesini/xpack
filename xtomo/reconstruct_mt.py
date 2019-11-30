@@ -369,8 +369,9 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, GPU 
 
         even = np.mod(ii+1,2)
         if even==1:
-            #jj=0
+            jj=0
             while done[0]==0:
+                
                 printv('waiting for data even loop',ii,'wait iter',jj)
                 time.sleep(.01)
                 #jj+=1
