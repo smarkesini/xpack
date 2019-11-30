@@ -42,7 +42,7 @@ ringbuffer = args['ring_buffer']
 #print("testing_recon max_iter",max_iter)
 #algo='tvrings'
 
-from communicator import rank, mpi_size
+from communicator import rank, mpi_size, mpi_barrier
 if rank==0: print(args)
 
 if type(args['file_in']) is not type(None):
@@ -56,10 +56,7 @@ if type(args['file_in']) is not type(None):
     num_slices =  sino.shape[0]
 
     fid.close()    
-    #if type(dnames) == type(None):
-    #    dnames=dnames_get()
-    #sino  = fid[dnames['sino']]
-    
+
 elif simulate:
     # from simulate_data import get_data as gdata  
     from simulate_data import init
@@ -84,6 +81,7 @@ elif simulate:
     if type( args['file_out'])== type(None):    args['file_out']='0'
 
 
+tomo_out=None
 if (type(args['file_out']) is not type(None)) and args['file_out']!='-1':  
         import os, sys
         
@@ -98,16 +96,47 @@ if (type(args['file_out']) is not type(None)) and args['file_out']!='-1':
             print('file out was 0, changed to:',file_out)
             args['file_out']=file_out
         else: print('file out',file_out)
+        
+        
+        ## file out mapping
+        if os.path.splitext(file_out)[-1] in ('.tif','.tiff'):
+            from tifffile import memmap
+            #imsave(file_out,tomo, description = cstring+' '+tstring)
+            if rank == 0:
+                tomo_out = memmap(file_out, shape=(num_slices,num_rays,num_rays), dtype='float32')
+                mpi_barrier()
+            else: 
+                mpi_barrier()
+                tomo_out = memmap(file_out) # file should already exist
+                
+        elif os.path.splitext(file_out)[-1] in ('.h5','.hdf5'):
+            import h5py
+            # fname=args['file_out']
+            fid = h5py.File(file_out, 'w')
+            if rank==0:
+                fid.create_dataset('mish/command', data =cstring )            
+                #tomo_out=fid.create_dataset('/exchange/tomo', (num_slices,num_rays,num_rays) , chunks=(max_chunk,num_rays,num_rays),dtype='float32')
+                tomo_out=fid.create_dataset('/exchange/tomo', (num_slices,num_rays,num_rays) , dtype='float32')
+                mpi_barrier()
+            else:
+                mpi_barrier() # file should already exist
+                tomo_out=fid['/exchange/tomo']
+                
+                
+            #fid.create_dataset('mish/times', data =tstring )
+
 
       
 #print('ringbuffer',ringbuffer)
-tomo, times_loop, dshape = recon_file(fname,dnames=None, algo = algo,
+tomo, times_loop, dshape = recon_file(fname,dnames=None, tomo_out=tomo_out, algo = algo,
                                       rot_center = rot_center, 
                                       max_iter = max_iter, tol=tol, 
                                       GPU = GPU, shmem = shmem, 
                                       max_chunk_slice=max_chunk, 
                                       reg = reg, tau = tau, verbose=verboseall,
                                       ncore=ncore, chunks=chunks,mpring=ringbuffer)
+
+
 
 
 '''
@@ -156,6 +185,7 @@ tomo, times_loop = recon(sino, theta, algo = algo ,rot_center = rot_center, max_
 '''
 times_begin=timer()
 
+args['file_out']=-1
 if (type(args['file_out']) is not type(None)) and args['file_out']!='-1':  
         import os, sys
         
@@ -176,7 +206,7 @@ if (type(args['file_out']) is not type(None)) and args['file_out']!='-1':
         if os.path.splitext(file_out)[-1] in ('.tif','.tiff'):
             from tifffile import imsave
             imsave(file_out,tomo, description = cstring+' '+tstring)
-            #im = memmap('temp.tif', shape=(256, 256), dtype='float32')
+            #im = memmap(file_ou, shape=(num_slices,num_rays,num_rays), dtype='float32')
         else:
             import h5py
             fname=args['file_out']

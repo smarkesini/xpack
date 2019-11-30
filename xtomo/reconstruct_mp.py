@@ -33,7 +33,7 @@ def dnames_get():
     dnames={'sino':"exchange/data", 'theta':"exchange/theta", 'tomo':"exchange/tomo", 'rot_center':"exchange/rot_center"}
     return dnames #dname_sino,dname_theta,dname_tomo
 
-def recon_file(fname,dnames=None, algo = 'iradon' ,rot_center = None, 
+def recon_file(fname, tomo_out=None, dnames=None, algo = 'iradon' ,rot_center = None, 
                max_iter = None, tol=None, GPU = True, 
                shmem = False, max_chunk_slice=16,  
                reg = None, tau = None, verbose = verboseall, 
@@ -48,7 +48,7 @@ def recon_file(fname,dnames=None, algo = 'iradon' ,rot_center = None,
     sino  = fid[dnames['sino']]
     theta = fid[dnames['theta']]
     if tol==None: tol=5e-3
-    tomo, times_loop = recon(sino, theta, algo = algo ,
+    tomo, times_loop = recon(sino, theta, algo = algo , tomo_out=tomo_out,
                              rot_center = rot_center, max_iter = max_iter, tol=tol, GPU=GPU, shmem=shmem, max_chunk_slice=max_chunk_slice,  reg = reg, tau = tau, 
                              verbose = verbose,ncore=ncore, crop=chunks, mpring=mpring)
     return tomo, times_loop, sino.shape
@@ -56,7 +56,7 @@ def recon_file(fname,dnames=None, algo = 'iradon' ,rot_center = None,
 
 #########################################
 
-def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, tol=5e-3, GPU = True, shmem = False, max_chunk_slice=16,  reg = None, tau = None, verbose = verboseall,ncore=None, crop=None, mpring=False):
+def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_iter = None, tol=5e-3, GPU = True, shmem = False, max_chunk_slice=16,  reg = None, tau = None, verbose = verboseall,ncore=None, crop=None, mpring=False):
 
     def printv(*args,**kwargs): 
         if verbose>0:  printv0(*args,**kwargs)
@@ -154,6 +154,7 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, tol=
     # solver
     #from solve_sirt import sirtBB
     
+    #divide up loop chunks evenly across mpi ranks
     
     loop_chunks=get_loop_chunk_slices(num_slices, mpi_size, max_chunk_slice )
     
@@ -187,12 +188,12 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, tol=
 
             numel = np.int(np.prod(shape))
             arr_ctypes = sharedctypes.RawArray(np_type_to_ctype[dtype], numel)
-            #arr_ctypes = sharedctypes.RawArray(ctypes.c_float, numel)
-            #print(len(arr_ctypes))
             np_arr = np.frombuffer(arr_ctypes, dtype=dtype, count=numel)
             np_arr.shape = shape
 
             return np_arr 
+        
+    
     if np.mod(mpring,2)==1: # reading ring buffer (1 or 3)
         pr=[0,0] #process even or odd
         data_ring  = shared_array(shape=(2,max_chunk_slice, num_angles, num_rays),dtype=np.float32)
@@ -205,28 +206,32 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, tol=
             chunk_slices = get_chunk_slices(nslices)
             chunks=chunk_slices[rank,:]+loop_chunks[ii]
             data_ring[even,0:chunks[1]-chunks[0],...]= sino[chunks[0]:chunks[1],...]
+
     elif mpring>1: # writing ring buffer (2 or 3)
         pw=[0,0] #process even or odd
         tomo_ring  = shared_array(shape=(2,max_chunk_slice, num_rays, num_rays),dtype=np.float32)
         
-        def write_tomo(tomo,loop_chunks,ii):
+        def copy_tomo(tomo_in,tomo_out,loop_chunks,ii):
             even = np.mod(ii+1,2)
             nslices = loop_chunks[ii+1]-loop_chunks[ii]
             chunk_slices = get_chunk_slices(nslices)
-            chunks=chunk_slices[rank,:]+loop_chunks[ii]
-            tomo_ring[even,0:chunks[1]-chunks[0],...]= tomo[chunks[0]:chunks[1],...]
-            
-            
-#            if even == 1:
-#                data_even[0:chunks[1]-chunks[0],...] = sino[chunks[0]:chunks[1],...]
-#            else:
-#                #data1 = tonumpyarray(data_odd)
-#                data_odd[0:chunks[1]-chunks[0],...] = sino[chunks[0]:chunks[1],...]
- 
+            #chunks=chunk_slices[rank,:]+loop_chunks[ii]
+            chunks=chunk_slices[rank,:]#+loop_chunks[ii]
+            #tomo_ring[even,0:chunks[1]-chunks[0],...]= tomo[chunks[0]:chunks[1],...]
+            chunks+=loop_chunks[ii]
+            # make a copy first
+            tomo_ring[even,0:chunks[1]-chunks[0],...]= tomo_in[0:chunks[1]-chunks[0],...]
+            tomo_out[chunks[0]:chunks[1],...]=tomo_ring[even,0:chunks[1]-chunks[0],...]
+        def write_tomo(tomo_in,tomo_out,loop_chunks,chunks,ii):
+            tomo_out[chunks[0]:chunks[1],...]=tomo_ring[even,0:chunks[1]-chunks[0],...]
+   
     # MP ring buffer setup
     ######################################### 
     
+    # gather the results: write to memmap, shared memory, gatherv
+    
     if algo!='tomopy-gridrec':
+
         if shmem:
             #from communicator import allocate_shared_tomo
             from communicator import allocate_shared
@@ -240,12 +245,6 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, tol=
                 printv("reverting to mpi gatherv that but it may not work\n",'='*60,endb)
                 shmem=False
 
-#                from communicator import gatherv
-#                 # gatherv - allocate 
-#                tomo=None
-#                tomo_local=None
-#                if rank == 0: tomo = np.empty((num_slices,num_rays,num_rays),dtype = 'float32')
-#       else:
                 
         if not shmem:
             from communicator import gatherv
@@ -254,7 +253,7 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, tol=
             tomo_local=None
             if rank == 0: tomo = np.empty((num_slices,num_rays,num_rays),dtype = 'float32')
     
-    else:
+    else: # tomopy with no mpi no ring buffer
         tomo=np.empty((num_slices, num_rays,num_rays),dtype='float32')
         
     halo=0
@@ -263,10 +262,7 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, tol=
     
     ######### loop through chunks
     for ii in range(loop_chunks.size-1):
-    #iii=-1
-    #for ii in range(loop_chunks.size-2,0,-1):
-        #iii+=1
-    #for ii in [loop_chunks.size//2-1]: #range(loop_chunks.size-1):
+
         nslices = loop_chunks[ii+1]-loop_chunks[ii]
         chunk_slices = get_chunk_slices(nslices) 
         
@@ -280,6 +276,7 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, tol=
         printv("reading slices:", end = '')    
         chunks=chunk_slices[rank,:]+loop_chunks[ii]
         
+        # halo for TV - to do ...
         #bchunk=np.clip(chunks[0]-halo,0,num_slices)
         #echunk=np.clip(chunks[1]+halo,0,num_slices)
 
@@ -293,25 +290,18 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, tol=
 
         # ring buffer read
         even = np.mod(ii+1,2)
+        # read directly the first round, or if mpring is odd (1 or 3) 
         if (not np.mod(mpring,2)) or ii==0:
             data = sino[chunks[0]+loop_offset:chunks[1]+loop_offset,...]
-        else:
+        # read ring buffer
+        else: 
             pr[even].join()
             data=data_ring[even,0:chunks[1]-chunks[0],...]
-
-#            if even:
-#                data=data_even[0:chunks[1]-chunks[0],...]
-#                
-#            else:
-#                data=data_odd[0:chunks[1]-chunks[0],...]
             pr[even].terminate()
-
+        # launch next read 
         if np.mod(mpring,2) and ii<loop_chunks.size-2:
             pr[1-even] = mp.Process(target=read_data, args=(sino, loop_chunks, ii+1))
             pr[1-even].start()
-        
-                
-        #data = sino[bchunk:echunk,...]
         
         end_read=time.time()
         if rank ==0: times['h5read']=(end_read - start_read)
