@@ -36,7 +36,7 @@ ap.add_argument('-opts', '--options', type=json.loads, help="e.g. \'{\"algo\":\"
 ap.add_argument('-fopts', '--foptions', type=str, help="file with json options  ")
 ap.add_argument("-ncore", "--ncore", type=int, help="ncore for tomopy reconstruction algorithms")
 
-
+ 
 Dopts={ 'algo':'iradon', 'maxiter':10, 'shmem':True, 'GPU':True, 
        'max_chunk_slice':16, 'verbose':True, 'tol':5e-3}
 Dopts['sim_shape']=[128, 181, 256] 
