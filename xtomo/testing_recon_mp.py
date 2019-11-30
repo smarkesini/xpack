@@ -82,6 +82,23 @@ elif simulate:
     fname=fid.filename
     
     if type( args['file_out'])== type(None):    args['file_out']='0'
+
+
+if (type(args['file_out']) is not type(None)) and args['file_out']!='-1':  
+        import os, sys
+        
+        cstring = ' '.join(sys.argv)
+        #tstring = str(times_loop)
+        #print('cstring',cstring,'sysargv:',str(sys.argv) )
+        #print('tstring,',tstring)        
+        file_out = args['file_out']
+        if file_out == '0': 
+            file_out = os.path.splitext(fname)[0]
+            file_out=file_out+'_'+algo+'_recon.tif'
+            print('file out was 0, changed to:',file_out)
+            args['file_out']=file_out
+        else: print('file out',file_out)
+
       
 #print('ringbuffer',ringbuffer)
 tomo, times_loop, dshape = recon_file(fname,dnames=None, algo = algo,
@@ -142,21 +159,24 @@ times_begin=timer()
 if (type(args['file_out']) is not type(None)) and args['file_out']!='-1':  
         import os, sys
         
-        cstring = ' '.join(sys.argv)
+#        cstring = ' '.join(sys.argv)
+#        tstring = str(times_loop)
+#        #print('cstring',cstring,'sysargv:',str(sys.argv) )
+#        #print('tstring,',tstring)        
+#        file_out = args['file_out']
+#        if file_out == '0': 
+#            file_out = os.path.splitext(fname)[0]
+#            file_out=file_out+'_'+algo+'_recon.tif'
+#            print('file out was 0, changed to:',file_out)
+#            args['file_out']=file_out
+#        else: print('file out',file_out)
+#              
         tstring = str(times_loop)
-        #print('cstring',cstring,'sysargv:',str(sys.argv) )
-        #print('tstring,',tstring)        
-        file_out = args['file_out']
-        if file_out == '0': 
-            file_out = os.path.splitext(fname)[0]
-            file_out=file_out+'_'+algo+'_recon.tif'
-            print('file out was 0, changed to:',file_out)
-            args['file_out']=file_out
-        else: print('file out',file_out)
-              
+
         if os.path.splitext(file_out)[-1] in ('.tif','.tiff'):
             from tifffile import imsave
             imsave(file_out,tomo, description = cstring+' '+tstring)
+            #im = memmap('temp.tif', shape=(256, 256), dtype='float32')
         else:
             import h5py
             fname=args['file_out']

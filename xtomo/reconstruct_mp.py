@@ -64,17 +64,17 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, tol=
     #timing
     def printvt(*args,**kwargs): 
         if verbose>1:  printv0(*args,**kwargs)
-        
-    #printv("tolerance:",tol)
-    #shmem = True
-    #shmem = False
-    
-    #GPU   = True
     
     num_slices = sino.shape[0]
     num_angles = sino.shape[1]
     num_rays   = sino.shape[2]
     obj_width  = .95
+
+    if type(rot_center)==type(None):
+        rot_center = num_rays//2
+
+    times={'loop':0, 'setup':0, 'h5read':0, 'solver':0, 'c2g':0, 'g2c':0, 'barrier':0, 'gather':0 }
+    times_loop=times.copy()
     
     loop_offset=0
     if crop!=None:
@@ -87,19 +87,12 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, tol=
             loop_offset=crop[0]
             num_slices=crop[1]-crop[0]
     
-    if type(rot_center)==type(None):
-        rot_center = num_rays//2
     
     
     if algo=='tomopy-gridrec':
         GPU=False
-        algo='tomopy-gridrec'
-        #import psutil
-        #nproc=psutil.cpu_count()
-        #max_chunk_slice=64
-        #max_chunk_slice=nproc*4
-    
-    
+        #algo='tomopy-gridrec'
+
     
     if max_iter == None: max_iter = 10
     #print("recon max_iter",max_iter)
@@ -137,32 +130,14 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, tol=
             xp.cuda.profiler.start()
         except:
             pass
-        #print("rank:",rank,"device:",vd, "gb memory:", device_gbsize)
-        #xp.cuda.profile()
-        
-#        #mode = 'cuda'
-#        if GPU:
-#            cupy = xp
-#            mempool = cupy.get_default_memory_pool()
-#            pinned_mempool = cupy.get_default_pinned_memory_pool()
-            
     else:
         xp=np
-        #mode= 'cpu'
-        #device_gbsize=(128-32)/mpi_size # GBs used per rank, leave 32 GB for the rest
-    
-    
-    
-        
-    
+
     theta=xp.array(theta)
-    
     
     # set up radon
     printv("setting up the solver. ", end = '')
     
-    times={'loop':0, 'setup':0, 'h5read':0, 'solver':0, 'c2g':0, 'g2c':0, 'barrier':0, 'gather':0 }
-    times_loop=times.copy()
     
     
     start=timer()
@@ -198,7 +173,7 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, tol=
     # MP ring buffer setup
     #mpring=True
     printv("multiprocessing ring buffer",mpring,flush=True)
-    if np.mod(mpring,2)==1:
+    if mpring>0:
         import multiprocessing as mp
         import ctypes
         from multiprocessing import sharedctypes
@@ -218,12 +193,8 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, tol=
             np_arr.shape = shape
 
             return np_arr 
-        #shape_chunk=(max_chunk_slice, num_angles, num_rays)
-        
-        #data_even = shared_array(shape=shape_chunk,dtype=np.float32)
-        #data_odd  = shared_array(shape=shape_chunk,dtype=np.float32)
-        p=[0,0] #process even or odd
-        #data_ring=[data_even,data_odd]
+    if np.mod(mpring,2)==1: # reading ring buffer (1 or 3)
+        pr=[0,0] #process even or odd
         data_ring  = shared_array(shape=(2,max_chunk_slice, num_angles, num_rays),dtype=np.float32)
         
         def read_data(sino, loop_chunks, ii):
@@ -234,6 +205,17 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, tol=
             chunk_slices = get_chunk_slices(nslices)
             chunks=chunk_slices[rank,:]+loop_chunks[ii]
             data_ring[even,0:chunks[1]-chunks[0],...]= sino[chunks[0]:chunks[1],...]
+    elif mpring>1: # writing ring buffer (2 or 3)
+        pw=[0,0] #process even or odd
+        tomo_ring  = shared_array(shape=(2,max_chunk_slice, num_rays, num_rays),dtype=np.float32)
+        
+        def write_tomo(tomo,loop_chunks,ii):
+            even = np.mod(ii+1,2)
+            nslices = loop_chunks[ii+1]-loop_chunks[ii]
+            chunk_slices = get_chunk_slices(nslices)
+            chunks=chunk_slices[rank,:]+loop_chunks[ii]
+            tomo_ring[even,0:chunks[1]-chunks[0],...]= tomo[chunks[0]:chunks[1],...]
+            
             
 #            if even == 1:
 #                data_even[0:chunks[1]-chunks[0],...] = sino[chunks[0]:chunks[1],...]
@@ -281,6 +263,9 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, tol=
     
     ######### loop through chunks
     for ii in range(loop_chunks.size-1):
+    #iii=-1
+    #for ii in range(loop_chunks.size-2,0,-1):
+        #iii+=1
     #for ii in [loop_chunks.size//2-1]: #range(loop_chunks.size-1):
         nslices = loop_chunks[ii+1]-loop_chunks[ii]
         chunk_slices = get_chunk_slices(nslices) 
@@ -311,7 +296,7 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, tol=
         if (not np.mod(mpring,2)) or ii==0:
             data = sino[chunks[0]+loop_offset:chunks[1]+loop_offset,...]
         else:
-            p[even].join()
+            pr[even].join()
             data=data_ring[even,0:chunks[1]-chunks[0],...]
 
 #            if even:
@@ -319,11 +304,11 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, tol=
 #                
 #            else:
 #                data=data_odd[0:chunks[1]-chunks[0],...]
-            p[even].terminate()
+            pr[even].terminate()
 
         if np.mod(mpring,2) and ii<loop_chunks.size-2:
-            p[1-even] = mp.Process(target=read_data, args=(sino, loop_chunks, ii+1))
-            p[1-even].start()
+            pr[1-even] = mp.Process(target=read_data, args=(sino, loop_chunks, ii+1))
+            pr[1-even].start()
         
                 
         #data = sino[bchunk:echunk,...]
@@ -331,7 +316,7 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, tol=
         end_read=time.time()
         if rank ==0: times['h5read']=(end_read - start_read)
 
-        printv("\rread time ={:3g}".format(times['h5read']),flush=True)
+        printv("\rread time ={:3g}".format(times['h5read']),end=' ')
 
         # copy to gpu or cpu
         start = timer()
@@ -341,7 +326,7 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, tol=
 
         
         printv("reconstructing slices, ", end = '') 
-        start = timer()
+        start_solver = timer()
  
         mpi_time=0.
         if algo == 'tomopy-gridrec':
@@ -359,11 +344,12 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, tol=
                 tomo[chunks[0]:chunks[1],...], rnrm, g2ctime =  reconstruct(data,verbose_iter)
             else:
                 tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter)
-                
+                start_gather = timer()                
                 if rank ==0:
                     tomo_local = tomo[loop_chunks[ii]:loop_chunks[ii+1],:,:]
 #                else:
 #                    tomo_local=None
+                    
                 gatherv(tomo_chunk[0:chunks[1]-chunks[0]],chunk_slices,data=tomo_local)
                 #gatherv(tomo_chunk[bhalo:-ehalo,...],chunk_slices,data=tomo_local)
                 
@@ -373,10 +359,10 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, tol=
         #printv("mpi time ={:3g}".format(times['gather']),flush=True)
 
     
-        times['solver'] = timer()-start
+        times['solver'] = timer()-start_solver-mpi_time
         times['g2c']    = g2ctime
 
-        printv("solver time ={:3g}, gather={:3g}, g2c time={:3g}".format(times['solver'], times['gather'], times['g2c']),flush=True)
+        printv("\r read time={:3g}, solver ={:3g}, gather={:3g}, g2c ={:3g}".format(times['h5read'],times['solver'], times['gather'], times['g2c']),flush=True)
     
         for jj in times: times_loop[jj]+=times[jj]
 

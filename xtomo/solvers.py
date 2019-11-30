@@ -116,7 +116,7 @@ def cgs(A, b, x0=0, maxiter=100, tol=1e-4, verbose = 0 ):
         if verbose>0: print('-- CG breakdown')
     else:                            # no convergence
         flag = 1;
-        if verbose>0: print('-- CG reached maxiter')
+        if verbose>0: print('-- CG maxiter, nrms:',res)
 
     
     return x, flag, ii, res
