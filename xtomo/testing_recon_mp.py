@@ -82,7 +82,16 @@ elif simulate:
 
 
 tomo_out=None
+
+times_of=timer()
+
+if args['file_out']=='-1': # not saving
+    ringbuffer=np.mod(ringbuffer,2)
+
+
 if (type(args['file_out']) is not type(None)) and args['file_out']!='-1':  
+        if rank==0: print("setting up output file")
+
         import os, sys
         
         cstring = ' '.join(sys.argv)
@@ -93,7 +102,7 @@ if (type(args['file_out']) is not type(None)) and args['file_out']!='-1':
         if file_out == '0': 
             file_out = os.path.splitext(fname)[0]
             file_out=file_out+'_'+algo+'_recon.tif'
-            print('file out was 0, changed to:',file_out)
+            if rank ==0: print('file out was 0, changed to:',file_out)
             args['file_out']=file_out
         else: print('file out',file_out)
         
@@ -102,29 +111,39 @@ if (type(args['file_out']) is not type(None)) and args['file_out']!='-1':
         if os.path.splitext(file_out)[-1] in ('.tif','.tiff'):
             from tifffile import memmap
             #imsave(file_out,tomo, description = cstring+' '+tstring)
-            if rank == 0:
+            if rank == 0:       
+                if os.path.exists(file_out): print('file exist, overwriting')
                 tomo_out = memmap(file_out, shape=(num_slices,num_rays,num_rays), dtype='float32')
+                #print('rank 0 created file')
                 mpi_barrier()
+                print('rank 0 created file and passed barrier')
+
             else: 
+                #print('rank',rank,'wating for barrier')
                 mpi_barrier()
+                #print('rank',rank,'barrier done')
                 tomo_out = memmap(file_out) # file should already exist
                 
         elif os.path.splitext(file_out)[-1] in ('.h5','.hdf5'):
             import h5py
             # fname=args['file_out']
-            fid = h5py.File(file_out, 'w')
             if rank==0:
+                fid = h5py.File(file_out, 'w')
                 fid.create_dataset('mish/command', data =cstring )            
                 #tomo_out=fid.create_dataset('/exchange/tomo', (num_slices,num_rays,num_rays) , chunks=(max_chunk,num_rays,num_rays),dtype='float32')
                 tomo_out=fid.create_dataset('/exchange/tomo', (num_slices,num_rays,num_rays) , dtype='float32')
+                
                 mpi_barrier()
             else:
+                fid = h5py.File(file_out, 'a')
                 mpi_barrier() # file should already exist
+
                 tomo_out=fid['/exchange/tomo']
                 
                 
             #fid.create_dataset('mish/times', data =tstring )
-
+times_of=timer()-times_of
+if rank ==0: print('output file setup time',times_of)
 
       
 #print('ringbuffer',ringbuffer)

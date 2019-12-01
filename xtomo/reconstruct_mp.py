@@ -148,20 +148,17 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     
     end = timer()
     time_radonsetup=(end - start)
-    #if rank==0: print("time=", time_radonsetup,flush=True)
+    times_loop['setup']=time_radonsetup
     printv("time=", time_radonsetup,flush=True)
     
-    # solver
-    #from solve_sirt import sirtBB
+
     
-    #divide up loop chunks evenly across mpi ranks
-    
+    #divide up loop chunks evenly across mpi ranks    
     loop_chunks=get_loop_chunk_slices(num_slices, mpi_size, max_chunk_slice )
     
     printv("nslices:",num_slices," mpi_size:", mpi_size," max_chunk:",max_chunk_slice)
     printv("rank",rank,"loop_chunks:", loop_chunks)
     
-    times_loop['setup']=time_radonsetup
     
     start_loop_time =time.time()
     
@@ -206,33 +203,42 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
             chunk_slices = get_chunk_slices(nslices)
             chunks=chunk_slices[rank,:]+loop_chunks[ii]
             data_ring[even,0:chunks[1]-chunks[0],...]= sino[chunks[0]:chunks[1],...]
-
-    elif mpring>1: # writing ring buffer (2 or 3)
-        pw=[0,0] #process even or odd
+    #print('here')
+    if mpring>1: # writing ring buffer (2 or 3)
+        printv('ring buffer writing to file')
+        pw=[0,0] #process even or odd        
         tomo_ring  = shared_array(shape=(2,max_chunk_slice, num_rays, num_rays),dtype=np.float32)
         
-        def copy_tomo(tomo_in,tomo_out,loop_chunks,ii):
+#        def copy_tomo(tomo_in,tomo_out,loop_chunks,ii):
+#            even = np.mod(ii+1,2)
+#            nslices = loop_chunks[ii+1]-loop_chunks[ii]
+#            chunk_slices = get_chunk_slices(nslices)
+#            #chunks=chunk_slices[rank,:]+loop_chunks[ii]
+#            chunks=chunk_slices[rank,:]#+loop_chunks[ii]
+#            #tomo_ring[even,0:chunks[1]-chunks[0],...]= tomo[chunks[0]:chunks[1],...]
+#            chunks+=loop_chunks[ii]
+#            # make a copy first
+#            tomo_ring[even,0:chunks[1]-chunks[0],...]= tomo_in[0:chunks[1]-chunks[0],...]
+#            tomo_out[chunks[0]:chunks[1],...]=tomo_ring[even,0:chunks[1]-chunks[0],...]
+        def write_tomo(tomo_out,chunks,ii):
             even = np.mod(ii+1,2)
-            nslices = loop_chunks[ii+1]-loop_chunks[ii]
-            chunk_slices = get_chunk_slices(nslices)
-            #chunks=chunk_slices[rank,:]+loop_chunks[ii]
-            chunks=chunk_slices[rank,:]#+loop_chunks[ii]
-            #tomo_ring[even,0:chunks[1]-chunks[0],...]= tomo[chunks[0]:chunks[1],...]
-            chunks+=loop_chunks[ii]
-            # make a copy first
-            tomo_ring[even,0:chunks[1]-chunks[0],...]= tomo_in[0:chunks[1]-chunks[0],...]
-            tomo_out[chunks[0]:chunks[1],...]=tomo_ring[even,0:chunks[1]-chunks[0],...]
-        def write_tomo(tomo_in,tomo_out,loop_chunks,chunks,ii):
             tomo_out[chunks[0]:chunks[1],...]=tomo_ring[even,0:chunks[1]-chunks[0],...]
    
     # MP ring buffer setup
     ######################################### 
     
     # gather the results: write to memmap, shared memory, gatherv
-    
-    if algo!='tomopy-gridrec':
-
-        if shmem:
+    #print('there')
+    if algo[0:min(len(algo),6)]!='tomopy': # not for tomopy-...
+        #print('there1')
+#        if tomo_out!=-1:
+#            print('there2')
+#            pass
+#            #tomo=tomo_out
+#            #shmem=1 # trick it to avoid mpi gather
+        if shmem and (mpring<2):
+            #print('there shared')
+#        if shmem:
             #from communicator import allocate_shared_tomo
             from communicator import allocate_shared
             try:
@@ -244,22 +250,25 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
                 printv(bold+"shared memory is not working, set the flag -S to 0")
                 printv("reverting to mpi gatherv that but it may not work\n",'='*60,endb)
                 shmem=False
-
+        #print('hi there shmem,type(tomo_out)',type(tomo_out),flush=True)
                 
-        if not shmem:
+        if (not shmem) and (mpring<2):
+            printv('using gatherv distributed mpi', flush=True)
+            
             from communicator import gatherv
             # gatherv - allocate 
             tomo=None
             tomo_local=None
             if rank == 0: tomo = np.empty((num_slices,num_rays,num_rays),dtype = 'float32')
-    
+        #print('neither?')
     else: # tomopy with no mpi no ring buffer
+        print('tomopy')
         tomo=np.empty((num_slices, num_rays,num_rays),dtype='float32')
-        
+    #print('finally')
     halo=0
-    if algo == 'tv': halo = 2
+    if algo == 'tv': halo = 2 #not used at the moment
     halo+=0
-    
+    printv('starting loop')
     ######### loop through chunks
     for ii in range(loop_chunks.size-1):
 
@@ -324,17 +333,34 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
             tomo[chunks[0]:chunks[1],...], rnrm, g2ctime =  reconstruct(data,verbose_iter,ncore)
             #tomo[chunks[0]:chunks[1],...]=tomopy.recon(data, theta, center=None, sinogram_order=True, algorithm="gridrec")
         else:
-            #tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter)
+            #tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter,)
+            tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter)
             start_gather = timer()
-            if shmem:
-                #tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter)
+
+            if mpring>1: # 2 or 3                
+
+                if ii>1: 
+                    #printv('\n iter',ii,'joining pw[',even,']',pw[even])
+                    pw[even].join() #make sure this is done
+                tomo_ring[even,0:chunks[1]-chunks[0],...]=tomo_chunk
+                # kill the previous job
+                if ii>1: pw[even].terminate()
+                # start writing
+                #printv('\n writin iter',ii,'starting pw[]',even)
+                pw[even] = mp.Process(target=write_tomo, args=(tomo_out,chunks,ii))
+                pw[even].start()
+                
+            elif shmem:
+#                tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter)
                 ##tomo_chunk = tomo_chunk[bhalo:-ehalo,...]
                 #tomo[chunks[0]:chunks[1],...] = tomo_chunk[bhalo:-ehalo,...]
-                
-                tomo[chunks[0]:chunks[1],...], rnrm, g2ctime =  reconstruct(data,verbose_iter)
+                #tomo_chunk
+                start_gather = timer() # this is in shared memory
+                tomo[chunks[0]:chunks[1],...] = tomo_chunk
+                #tomo[chunks[0]:chunks[1],...], rnrm, g2ctime =  reconstruct(data,verbose_iter)
             else:
-                tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter)
-                start_gather = timer()                
+#                tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter)
+#                start_gather = timer()                
                 if rank ==0:
                     tomo_local = tomo[loop_chunks[ii]:loop_chunks[ii+1],:,:]
 #                else:
@@ -368,8 +394,6 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
         except:
             None
     
-    if rank>0:     
-        quit()
     
     #print("times last loop_chunk",times)
     end_loop=time.time()
@@ -383,5 +407,15 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     print("loop+setup time=", times_loop['loop']+times_loop['setup'],endb)
     #print("times full tomo", times_loop,flush=True)
     """
+    # make sure all writing is done
+    if mpring>1:
+        pw[1-even].join()
+        pw[1-even].terminate()
+        pw[even].join()
+        pw[even].terminate()
+        
+        
+    if rank>0: quit()
+
     return tomo, times_loop
 
