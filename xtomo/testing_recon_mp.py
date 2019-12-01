@@ -19,9 +19,6 @@ args=parse.main()
 sim_shape=args['sim_shape']
 sim_width=args['sim_width']
 
-
-
-
 GPU   = args['GPU']
 algo  = args['algo']
 shmem = args['shmem']
@@ -86,7 +83,9 @@ tomo_out=None
 times_of=timer()
 
 if args['file_out']=='-1': # not saving
-    ringbuffer=np.mod(ringbuffer,2)
+    if ringbuffer>1: 
+        if rank==0: print('output file was "-1", no ring buffer without output file')
+        ringbuffer=np.mod(ringbuffer,2)
 
 
 if (type(args['file_out']) is not type(None)) and args['file_out']!='-1':  
@@ -99,12 +98,22 @@ if (type(args['file_out']) is not type(None)) and args['file_out']!='-1':
         #print('cstring',cstring,'sysargv:',str(sys.argv) )
         #print('tstring,',tstring)        
         file_out = args['file_out']
-        if file_out == '0': 
+#        if simulate:
+#            import simulate_data# import fname
+#            #sim_shape=
+#            fname=simulate_data.fname(num_angles,num_rays,num_slices,obj_width)
+#        
+        if file_out == '0' or file_out=='*': 
             file_out = os.path.splitext(fname)[0]
             file_out=file_out+'_'+algo+'_recon.tif'
             if rank ==0: print('file out was 0, changed to:',file_out)
             args['file_out']=file_out
-        else: print('file out',file_out)
+        elif file_out == '0.h5' or file_out=='*.h5':
+            file_out = os.path.splitext(fname)[0]
+            file_out=file_out+'_'+algo+'_recon.h5'
+            if rank ==0: print('file out was *.h5, changed to:',file_out)
+            args['file_out']=file_out
+        #else: print('file out',file_out)
         
         
         ## file out mapping
@@ -113,24 +122,20 @@ if (type(args['file_out']) is not type(None)) and args['file_out']!='-1':
             #imsave(file_out,tomo, description = cstring+' '+tstring)
             if rank == 0:       
                 if os.path.exists(file_out): 
-                    print('file exist, overwriting')
+                    if rank ==0: print('file exist, overwriting')
                     tomo_out = memmap(file_out) # file should already exist
                     if tomo_out.shape==(num_slices,num_rays,num_rays):
-                        print("reusing")
+                        #print("reusing")
                         tomo_out = memmap(file_out) # file  already exist
                     else:
-                        print("new shape",tomo_out.shape)
+                        if rank ==0: print("new shape",tomo_out.shape)
                         tomo_out = memmap(file_out, shape=(num_slices,num_rays,num_rays), dtype='float32')
                 else:
-                    tomo_out = memmap(file_out, shape=(num_slices,num_rays,num_rays), dtype='float32')
+                    tomo_out = memmap(file_out, shape=(num_slices,num_rays,num_rays), dtype='float32',description=cstring)
 
-
-                        
-
-                
                 #print('rank 0 created file')
                 mpi_barrier()
-                print('rank 0 created file and passed barrier')
+                # print('rank 0 created file and passed barrier')
 
             else: 
                 #print('rank',rank,'wating for barrier')
@@ -142,15 +147,16 @@ if (type(args['file_out']) is not type(None)) and args['file_out']!='-1':
             import h5py
             # fname=args['file_out']
             if rank==0:
+                print('creating h5 file',file_out,end=' ')
                 fid = h5py.File(file_out, 'w')
                 fid.create_dataset('mish/command', data =cstring )            
                 #tomo_out=fid.create_dataset('/exchange/tomo', (num_slices,num_rays,num_rays) , chunks=(max_chunk,num_rays,num_rays),dtype='float32')
-                tomo_out=fid.create_dataset('/exchange/tomo', (num_slices,num_rays,num_rays) , dtype='float32')
-                
+                tomodset=fid.create_dataset('/exchange/tomo', (num_slices,num_rays,num_rays) , dtype='float32')
+                tomo_out=tomodset[...]
                 mpi_barrier()
             else:
-                fid = h5py.File(file_out, 'a')
                 mpi_barrier() # file should already exist
+                fid = h5py.File(file_out, 'a')
 
                 tomo_out=fid['/exchange/tomo']
                 
@@ -172,7 +178,10 @@ tomo, times_loop, dshape = recon_file(fname,dnames=None, tomo_out=tomo_out, algo
 
 if rank>0: quit()
 
-print("done recon")
+#print('\n test',np.linalg.norm(np.reshape(tomo_out,(-1))))
+
+#print("done recon",end=' ')
+
 
 '''
 
@@ -221,10 +230,36 @@ tomo, times_loop = recon(sino, theta, algo = algo ,rot_center = rot_center, max_
 times_begin=timer()
 
 #print("done recon")
+if ringbuffer >1:
+    if os.path.splitext(file_out)[-1] in ('.h5','.hdf5'):
+        tstring = str(times_loop)
+        fid.create_dataset('mish/times', data =tstring )            
+        #fid.close()        
+    elif os.path.splitext(file_out)[-1] in ('.tif','.tiff'):
+        #tomo=tomo_out
+        print('flushing',end=' ')
+        #tomo_out.flush()
+        print('\r flushed, t=',timer()-times_begin)#,end=' ')
+        
+        #tomo_out.close()
+        pass
+
+#print("flushed")
+    
+        
 """
+
+    #fid = h5py.File(fname, 'w')
+    
+# DID NOT SAVE
+
+#if ringbuffer <2 and (type(args['file_out']) is not type(None)) and args['file_out']!='-1': # did not save during iterations
+
+    
+    #   description 
 #args['file_out']=-1
-if (type(args['file_out']) is not type(None)) and args['file_out']!='-1':  
-        import os, sys
+#if (type(args['file_out']) is not type(None)) and args['file_out']!='-1':  
+#        import os, sys
         
 #        cstring = ' '.join(sys.argv)
 #        tstring = str(times_loop)
@@ -291,7 +326,7 @@ endb= '\033[0m'
 
 times_loop['outfile']=times_of
 print(bold+"tomo shape",(num_slices,num_rays,num_rays), "n_angles",num_angles, ', algorithm:', algo,", max_iter:",max_iter,",mpi size:",mpi_size,",GPU:",GPU)
-print("times full tomo", times_loop)
+print("times full tomo", times_loop,flush=True)
 #print("loop+setup time=", times_loop['loop']+times_loop['setup'], "snr=", ssnr(true_obj,tomo),endb)
 print(bold+"loop+setup time=", times_loop['loop']+times_loop['setup'], 'saving',time_saving, 'total', time_tot,endb, end='')
 
@@ -347,8 +382,14 @@ else:
     #print("phantom shape",true_obj.shape, "n_angles",num_angles, ', algorithm:', algo,", max_iter:",max_iter,",mpi size:",mpi_size,",GPU:",GPU)
     #print("reading tomo, shape",(num_slices,num_rays,num_rays), "n_angles",num_angles, "max_iter",max_iter)
 
+    print('\r'+'*'*60)
+    #print('type',type(tomo))
+    print('tomo norm',np.linalg.norm(np.reshape(tomo,(-1))))
+    print('\r'+'*'*60)
     
-    scale   = lambda x,y: np.dot(x.ravel(), y.ravel())/np.linalg.norm(x)**2
+    #scale   = lambda x,y: np.dot(x.ravel(), y.ravel())/np.linalg.norm(x)**2
+    scale   = lambda x,y: np.dot(np.reshape(x,(-1)), np.reshape(y,(-1)))/np.linalg.norm(x)**2
+    #scale   = lambda x,y: np.dot(x.flat(), y.flat())/np.linalg.norm(x)**2
     rescale = lambda x,y: scale(x,y)*x
     ssnr   = lambda x,y: np.linalg.norm(y)/np.linalg.norm(y-rescale(x,y))
     ssnr2    = lambda x,y: ssnr(x,y)**2

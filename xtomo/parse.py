@@ -36,17 +36,18 @@ ap.add_argument('-opts', '--options', type=json.loads, help="e.g. \'{\"algo\":\"
 ap.add_argument('-fopts', '--foptions', type=str, help="file with json options  ")
 ap.add_argument("-ncore", "--ncore", type=int, help="ncore for tomopy reconstruction algorithms")
 
-ap.add_argument("-rb", "--ring_buffer", type=int, default=0, help="input ring buffer  1=true, 0=false")
+ap.add_argument("-rb", "--ring_buffer", type=int, default=0, help="ring buffer 0 none,1:input,2=output,3=2+1")
 
- 
+
+# default options
 Dopts={ 'algo':'iradon', 'maxiter':10, 'shmem':True, 'GPU':True, 
        'max_chunk_slice':16, 'verbose':True, 'tol':5e-3}
 Dopts['sim_shape']=[128, 181, 256] 
 Dopts['sim_width']=.95
 
 
-#sim_shape=[256, 181, 256]
-#sim_width=0.95
+sim_shape=[256, 181, 256]
+sim_width=0.95
 global args
 
 args = vars(ap.parse_args())

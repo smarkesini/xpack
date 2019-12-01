@@ -15,12 +15,17 @@ def printbar(percent,string='  '):
 
 def cg(A,b, x0=0, maxiter=100, tol=1e-4,  At=None):
     
+    #if b.size==0: return np.empty(0,dtype=np.float), -1, 0, 0
+    
     if At == None: At=A
     
     bnrm = xp.linalg.norm( b );
     
     if  ( bnrm == 0.0 ):
-        bnrm = 1.0
+        #bnrm = 1.0
+        # 0 is the solution
+        x=A(b)
+        return x, 1, 0, 0
     
     
     flag = 0
@@ -54,6 +59,10 @@ def cg(A,b, x0=0, maxiter=100, tol=1e-4,  At=None):
 #%     1993. (ftp netlib2.cs.utk.edu; cd linalg; get templates.ps).
 
 def cgs(A, b, x0=0, maxiter=100, tol=1e-4, verbose = 0 ):
+    if b.size==0: 
+        printbar(00,'CG')
+        print('-- CG b=empty')
+        return np.empty(0,dtype=np.float), -1, 0, 0
     bnrm2 = xp.linalg.norm( b );
     
     rho_1 = 1
@@ -61,7 +70,15 @@ def cgs(A, b, x0=0, maxiter=100, tol=1e-4, verbose = 0 ):
     p = 0.
     
     if  ( bnrm2 == 0.0 ):
-        bnrm2 = 1.0
+        #bnrm2 = 1.0
+        # we have a solution
+        if verbose>0: 
+            printbar(00,'CG')
+            print('-- CG ||b||=0 input')
+            
+        x=A(b)
+        #x=np.zeros((A.shape[0],1),dtype=b.dtype)
+        return x, 1, 0, 0
     
     # r = b - A(x);
     if xp.isscalar(x0):
@@ -99,7 +116,7 @@ def cgs(A, b, x0=0, maxiter=100, tol=1e-4, verbose = 0 ):
 
         r = r - alpha*A(u_hat);
         res = xp.linalg.norm( r ) / bnrm2;           #% check convergence
-
+        
         if verbose>0: printbar(ii*100//maxiter,'CG')
         
         if ( res <= tol ): break
