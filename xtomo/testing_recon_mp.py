@@ -112,8 +112,22 @@ if (type(args['file_out']) is not type(None)) and args['file_out']!='-1':
             from tifffile import memmap
             #imsave(file_out,tomo, description = cstring+' '+tstring)
             if rank == 0:       
-                if os.path.exists(file_out): print('file exist, overwriting')
-                tomo_out = memmap(file_out, shape=(num_slices,num_rays,num_rays), dtype='float32')
+                if os.path.exists(file_out): 
+                    print('file exist, overwriting')
+                    tomo_out = memmap(file_out) # file should already exist
+                    if tomo_out.shape==(num_slices,num_rays,num_rays):
+                        print("reusing")
+                        tomo_out = memmap(file_out) # file  already exist
+                    else:
+                        print("new shape",tomo_out.shape)
+                        tomo_out = memmap(file_out, shape=(num_slices,num_rays,num_rays), dtype='float32')
+                else:
+                    tomo_out = memmap(file_out, shape=(num_slices,num_rays,num_rays), dtype='float32')
+
+
+                        
+
+                
                 #print('rank 0 created file')
                 mpi_barrier()
                 print('rank 0 created file and passed barrier')
@@ -156,7 +170,9 @@ tomo, times_loop, dshape = recon_file(fname,dnames=None, tomo_out=tomo_out, algo
                                       ncore=ncore, chunks=chunks,mpring=ringbuffer)
 
 
+if rank>0: quit()
 
+print("done recon")
 
 '''
 
@@ -204,7 +220,9 @@ tomo, times_loop = recon(sino, theta, algo = algo ,rot_center = rot_center, max_
 '''
 times_begin=timer()
 
-args['file_out']=-1
+#print("done recon")
+"""
+#args['file_out']=-1
 if (type(args['file_out']) is not type(None)) and args['file_out']!='-1':  
         import os, sys
         
@@ -235,6 +253,7 @@ if (type(args['file_out']) is not type(None)) and args['file_out']!='-1':
             fid.create_dataset('mish/times', data =tstring )
             
             fid.close()
+"""            
         #quit()
         #from tifffile import imsave
     
@@ -270,6 +289,7 @@ time_tot=timer()-time0
 bold='\033[1m'
 endb= '\033[0m'
 
+times_loop['outfile']=times_of
 print(bold+"tomo shape",(num_slices,num_rays,num_rays), "n_angles",num_angles, ', algorithm:', algo,", max_iter:",max_iter,",mpi size:",mpi_size,",GPU:",GPU)
 print("times full tomo", times_loop)
 #print("loop+setup time=", times_loop['loop']+times_loop['setup'], "snr=", ssnr(true_obj,tomo),endb)
@@ -281,7 +301,7 @@ if 'exchange/tomo' not in fid:
     print("no tomogram to compare")
     quit()
 else:
-    print(endb+"\n comparing with tomo in file"+bold, end=' ')
+    print(endb+"\n comparing with tomo in the file", end=' ')
 #'exchange/tomo' in 
 try:
     #true_obj = get_data('tomo')[...]
@@ -304,19 +324,21 @@ except:
     #print("no truth, quitting \n")
     #true_obj = None
 
+#print('still alive')
 
 if type(true_obj) == type(None): 
     print("no tomogram to compare")
-    #quit()
+    quit()
 
 else:
-    
-
+#    print('still alive 2')
 
     import fubini
     msk_tomo,msk_sino=fubini.masktomo(num_rays, np, width=.95)
 #msk_tomo=msk_tomo[0,...]
 
+#    if ringbuffer>1:
+#        print('loading back the file for comparison, some patience...')
 
 #t2i = lambda x: x[num_slices//2,:,:].real
     #t2i = lambda x: x[num_slices//2,:,:].real
@@ -330,6 +352,10 @@ else:
     rescale = lambda x,y: scale(x,y)*x
     ssnr   = lambda x,y: np.linalg.norm(y)/np.linalg.norm(y-rescale(x,y))
     ssnr2    = lambda x,y: ssnr(x,y)**2
+    
+    print('\r ...', end=' ')
+    snr=ssnr(true_obj,tomo)
+    print('\r done computing',end=' ')
     #print("loop+setup time=", times_loop['loop']+times_loop['setup'], "snr=", ssnr(true_obj,tomo),endb)
 
     #bold='\033[1m'
@@ -337,7 +363,7 @@ else:
     #print(bold+"tomo shape",(num_slices,num_rays,num_rays), "n_angles",num_angles, ', algorithm:', algo,", max_iter:",max_iter,",mpi size:",mpi_size,",GPU:",GPU)
     #print("times full tomo", times_loop)
     #print("loop+setup time=", times_loop['loop']+times_loop['setup'], "snr=", ssnr(true_obj,tomo),endb)
-    print('\r',' '*50+'\r' +bold+"snr=", ssnr(true_obj,tomo),endb)
+    print('\r',' '*50+'\r' +bold+"snr=", snr,endb,'\n')
 
 
 

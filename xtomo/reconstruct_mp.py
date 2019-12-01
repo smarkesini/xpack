@@ -382,7 +382,6 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     
         for jj in times: times_loop[jj]+=times[jj]
 
-            
     start = timer()
     mpi_barrier()
     times['barrier']+=timer()-start
@@ -413,9 +412,11 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
         pw[1-even].terminate()
         pw[even].join()
         pw[even].terminate()
+        tomo=tomo_out
+
         
         
-    if rank>0: quit()
+    #if rank>0: quit()
 
     return tomo, times_loop
 

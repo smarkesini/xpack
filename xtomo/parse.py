@@ -36,7 +36,7 @@ ap.add_argument('-opts', '--options', type=json.loads, help="e.g. \'{\"algo\":\"
 ap.add_argument('-fopts', '--foptions', type=str, help="file with json options  ")
 ap.add_argument("-ncore", "--ncore", type=int, help="ncore for tomopy reconstruction algorithms")
 
-ap.add_argument("-rb", "--ring_buffer", type=int, help="input ring buffer  1=true, 0=false")
+ap.add_argument("-rb", "--ring_buffer", type=int, default=0, help="input ring buffer  1=true, 0=false")
 
  
 Dopts={ 'algo':'iradon', 'maxiter':10, 'shmem':True, 'GPU':True, 
