@@ -204,14 +204,14 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
         pr=[0,0] #process even or odd
         data_ring  = shared_array(shape=(2,max_chunk_slice, num_angles, num_rays),dtype=np.float32)
         
-#        def read_data(sino, loop_chunks, ii):
-        def read_data(sino, chunks, ii):
+        def read_data(sino, loop_chunks, ii):
+#        def read_data(sino, chunks, ii):
             """no synchronization."""
             #info("start %s" % (i,))
             even = np.mod(ii+1,2)
-            #nslices = loop_chunks[ii+1]-loop_chunks[ii]
-            #chunk_slices = get_chunk_slices(nslices)
-            #chunks=chunk_slices[rank,:]+loop_chunks[ii]
+            nslices = loop_chunks[ii+1]-loop_chunks[ii]
+            chunk_slices = get_chunk_slices(nslices)
+            chunks=chunk_slices[rank,:]+loop_chunks[ii]
             data_ring[even,0:chunks[1]-chunks[0],...]= sino[chunks[0]:chunks[1],...]
     #print('here')
     if mpring>1: # writing ring buffer (2 or 3)
@@ -221,7 +221,7 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
         #global tomo_out 
         #def write_tomo(tomo_out,chunks,ii):
         #import h5py
-        def write_tomo(tomo_out,chunks,ii):
+        def write_tomo(tomo_out,chunks):
             #fid = h5py.File(tomo_out.file_name, 'a')
             #t_out=fid['/exchange/tomo']
             #t_out[chunks[0]:chunks[1],...]=tomo_ring[even,0:chunks[1]-chunks[0],...]
@@ -322,8 +322,8 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
             pr[even].terminate()
         # launch next read 
         if np.mod(mpring,2) and ii<loop_chunks.size-2:
-            #pr[1-even] = mp.Process(target=read_data, args=(sino, loop_chunks, ii+1))
-            pr[1-even] = mp.Process(target=read_data, args=(sino, chunks, ii+1))
+            pr[1-even] = mp.Process(target=read_data, args=(sino, loop_chunks, ii+1))
+            #pr[1-even] = mp.Process(target=read_data, args=(sino, chunks, ii+1))
             pr[1-even].start()
         
         end_read=time.time()
@@ -361,7 +361,7 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
                 if ii>1: pw[even].terminate()
                 # start writing
                 #printv('\n writin iter',ii,'starting pw[]',even)
-                pw[even] = mp.Process(target=write_tomo, args=(tomo_out,chunks,ii))
+                pw[even] = mp.Process(target=write_tomo, args=(tomo_out,chunks))
                 pw[even].start()
                 
                 #print('\n recon norm loop',np.linalg.norm(tomo_out))
