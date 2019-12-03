@@ -2,13 +2,14 @@ import numpy as np
 from timeit import default_timer as timer
 import time
 
+
 from communicator import rank, mpi_size, get_loop_chunk_slices, get_chunk_slices, mpi_barrier
 
 verboseall = True and (rank == 0)
 verbose_iter= (1/20) * int(verboseall) # print every 20 iterations
 #verbose_iter= int(verboseall) # print every 20 iterations
 #verbose_iter= int(False) # print every 20 iterations
-
+ 
 def printv0(*args,**kwargs):
     if not verboseall: return
     #if 'verbose' in kwargs:
@@ -29,17 +30,23 @@ def printv0(*args,**kwargs):
 # ================== reconstruct ============== #
 
 def dnames_get():
-    dname_tomo="exchange/tomo"
-    dname_sino="exchange/data"
-    dname_theta="exchange/theta"
-    dname_rc="exchange/rot_center"
-
-    dnames={'sino':dname_sino, 'theta':dname_theta, 'tomo':dname_tomo, 'rot_center':dname_rc}
+    dnames={'sino':"exchange/data", 'theta':"exchange/theta", 'tomo':"exchange/tomo", 'rot_center':"exchange/rot_center"}
     return dnames #dname_sino,dname_theta,dname_tomo
 
-def recon_file(fname,dnames=None, algo = 'iradon' ,rot_center = None, max_iter = None, tol=None, GPU = True, shmem = False, max_chunk_slice=16,  reg = None, tau = None, verbose = verboseall,ncore=None, chunks=None):
+def recon_file(fname, tomo_out=None, dnames=None, algo = 'iradon' ,rot_center = None, 
+               max_iter = None, tol=None, GPU = True, 
+               shmem = False, max_chunk_slice=16,  
+               reg = None, tau = None, verbose = verboseall, 
+               ncore=None, chunks=None,mpring=True):
     #print("recon_file max_iter",max_iter)
-    if verbose>0: printv0('recon file',fname)
+    if verbose>0: 
+        printv0('reconstructing',fname)
+        try:
+            printv0('saving to',tomo_out.filename)
+        except:
+            pass
+    
+#    if verbose>0: printv0('saving to',tomo_out.filename)
     csize = 0
     import h5py
     fid= h5py.File(fname, "r",rdcc_nbytes=csize)
@@ -48,39 +55,54 @@ def recon_file(fname,dnames=None, algo = 'iradon' ,rot_center = None, max_iter =
     sino  = fid[dnames['sino']]
     theta = fid[dnames['theta']]
     if tol==None: tol=5e-3
-    tomo, times_loop = recon(sino, theta, algo = algo ,rot_center = rot_center, max_iter = max_iter, tol=tol, GPU=GPU, shmem=shmem, max_chunk_slice=max_chunk_slice,  reg = reg, tau = tau, verbose = verbose,ncore=ncore, crop=chunks)
+    tomo, times_loop = recon(sino, theta, algo = algo , tomo_out=tomo_out,
+                             rot_center = rot_center, max_iter = max_iter, tol=tol, GPU=GPU, shmem=shmem, max_chunk_slice=max_chunk_slice,  reg = reg, tau = tau, 
+                             verbose = verbose,ncore=ncore, crop=chunks, mpring=mpring)
     return tomo, times_loop, sino.shape
     
 
-def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, tol=5e-3, GPU = True, shmem = False, max_chunk_slice=16,  reg = None, tau = None, verbose = verboseall,ncore=None, crop=None):
+#########################################
+
+def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_iter = None, tol=5e-3, GPU = True, shmem = False, max_chunk_slice=16,  reg = None, tau = None, verbose = verboseall,ncore=None, crop=None, mpring=False):
 
     def printv(*args,**kwargs): 
         if verbose>0:  printv0(*args,**kwargs)
-        
-    #printv("tolerance:",tol)
-    #shmem = True
-    #shmem = False
     
-    #GPU   = True
+    #timing
+    def printvt(*args,**kwargs): 
+        if verbose>1:  printv0(*args,**kwargs)
     
     num_slices = sino.shape[0]
     num_angles = sino.shape[1]
     num_rays   = sino.shape[2]
     obj_width  = .95
-    
+
     if type(rot_center)==type(None):
         rot_center = num_rays//2
+
+    times={'loop':0, 'setup':0, 'h5read':0, 'solver':0, 'c2g':0, 'g2c':0, 'barrier':0, 'gather':0 }
+    times_loop=times.copy()
+    
+    #cropped output
+    loop_offset=0
+    if type(crop)!=type(None):
+        if len(crop)==1:
+            crop=[(num_slices-crop)//2,(num_slices-crop)//2+crop]
+            
+            #loop_offset=num_slices//2
+            #num_slices=min([crop[0],num_slices])
+            #loop_offset-=num_slices//2
+#                    else:
+        loop_offset=crop[0]
+        num_slices=crop[1]-crop[0]
+        printv('offset',loop_offset,'chunks',crop)
+    
     
     
     if algo=='tomopy-gridrec':
         GPU=False
-        algo='tomopy-gridrec'
-        #import psutil
-        #nproc=psutil.cpu_count()
-        #max_chunk_slice=64
-        #max_chunk_slice=nproc*4
-    
-    
+        #algo='tomopy-gridrec'
+
     
     if max_iter == None: max_iter = 10
     #print("recon max_iter",max_iter)
@@ -111,227 +133,182 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, tol=
         #device_gbsize=xp.cuda.Device(vd).mem_info[1]/((2**10)**3)
         try:
             device_gbsize=xp.cuda.Device().mem_info[1]/((2**10)**3)
-            printv("gpu memory:",device_gbsize, "GB, chunk memory",max_chunk_slice*num_rays*num_angles*4/(2**10)**2,'MB')
+            printv("gpu memory:",device_gbsize, 
+                   "GB, chunk sino memory:",max_chunk_slice*num_rays*num_angles*4/(2**10)**2,'MB',
+                   ", chunk tomo memory:",max_chunk_slice*(num_rays**2)*4/(2**10)**2,'MB')
             #xp.cuda.profiler.initialize()
             xp.cuda.profiler.start()
         except:
             pass
-        #print("rank:",rank,"device:",vd, "gb memory:", device_gbsize)
-        #xp.cuda.profile()
-        
-#        #mode = 'cuda'
-#        if GPU:
-#            cupy = xp
-#            mempool = cupy.get_default_memory_pool()
-#            pinned_mempool = cupy.get_default_pinned_memory_pool()
-            
     else:
         xp=np
-        #mode= 'cpu'
-        #device_gbsize=(128-32)/mpi_size # GBs used per rank, leave 32 GB for the rest
-    
-    
-    
-        
-    
+
     theta=xp.array(theta)
-    
     
     # set up radon
     printv("setting up the solver. ", end = '')
     
-    times={'loop':0, 'setup':0, 'h5read':0, 'solver':0, 'c2g':0, 'g2c':0, 'barrier':0, 'gather':0 }
-    times_loop=times.copy()
     
     
     start=timer()
-    
+    from wrap_algorithms import wrap
+    reconstruct=wrap(sino.shape,theta,rot_center,algo,xp=xp, obj_width=obj_width, max_iter=max_iter, tol=tol, reg=reg, tau=tau, ncore=ncore, verbose=verbose)   
+       
     #print("[0] rank",rank, "used bytes", mempool.used_bytes())
-    
-    #print("\n\n",algo,'\n\n\n')
-    if algo=='tomopy-gridrec':
-        import tomopy
-        rnrm=None
-        def reconstruct(data,verbose,ncore):
-            tomo_t = tomopy.recon(data, theta, center=rot_center, sinogram_order=True, algorithm="gridrec",ncore=ncore)
-            return tomo_t, rnrm, 0.
-    elif algo[0:5] =='astra':
-        #print('using astra')
-        import tomopy
-        #import astra
-        rnrm=None
-        number_of_iterations= max_iter
-        options = {'method': 'CGLS', 'num_iter': int(number_of_iterations)}
-        if len(algo)==10:
-            if algo[6:10]=='cuda':
-                options = {'proj_type': 'cuda', 'method': 'CGLS_CUDA', 'num_iter': int(number_of_iterations)}
-        #print('    Doing reconstruction...')
-        def reconstruct(data,verbose):
-#            tomo_t = tomopy.recon(np.swapaxes(data,0,1), theta, center=rot_center, sinogram_order=True, options=options, algorithm=tomopy.astra)
-#            return np.swapaxes(tomo_t,0,1), rnrm, 0.
-            tomo_t = tomopy.recon(data, theta, center=rot_center, sinogram_order=True, options=options, algorithm=tomopy.astra)
-            return tomo_t, rnrm, 0.
-
-        
-    else:
-        from fubini import radon_setup as radon_setup
-        if algo=='iradon' or algo=='iradon':
-            
-            iradon = radon_setup(num_rays, theta, xp=xp, center=rot_center, filter_type='hamming', kernel_type = 'gaussian', k_r =1, width=obj_width,iradon_only=True)
-            rnrm=0
-            def reconstruct(data,verbose):
-                tomo_t=iradon(data)
-                if GPU:
-                    start1 = timer()
-                    tomo= xp.asnumpy(tomo_t)
-                    t=timer()-start1
-                    return tomo,rnrm,t
-                else: return tomo_t,None,0.
-                
-                
-        elif algo == 'sirt' or algo == 'SIRT':
-    
-            radon,iradon = radon_setup(num_rays, theta, xp=xp, center=rot_center, filter_type='hamming', kernel_type = 'gaussian', k_r =1, width=obj_width)
-    
-            import solve_sirt 
-            solve_sirt.init(xp)
-            sirtBB=solve_sirt.sirtBB
-            #t=0.
-            def reconstruct(data,verbose):
-                tomo_t,rnrm=sirtBB(radon, iradon, data, xp, max_iter=max_iter, alpha=1.,verbose=verbose)
-                if GPU:
-                    start1 = timer()
-                    tomo= xp.asnumpy(tomo_t)
-                    t=timer()-start1
-                    return tomo,rnrm,t
-                else: return tomo_t,rnrm, 0.
-            
-        elif algo == 'CGLS' or algo == 'cgls':
-            radon,iradon = radon_setup(num_rays, theta, xp=xp, center=rot_center, filter_type='hamming', kernel_type = 'gaussian', k_r =1, width=obj_width)
-            #from solvers import solveTV
-            from solvers import solveCGLS
-
-            def reconstruct(data,verbose):
-                
-                tomo_t, rnrm = solveCGLS(radon,iradon, data, x0=0, tol=tol, maxiter=max_iter, verbose=verbose)
-                #tomo_t,rnrm = solveTV(radon, iradon, data, r, tau,  tol=1e-2, maxiter=10, verbose=verbose)
-                if GPU:
-                    start1 = timer()
-                    tomo= xp.asnumpy(tomo_t)
-                    t=timer()-start1
-                    return tomo,rnrm,t
-                else: return tomo_t,rnrm,0.
-
-        elif algo == 'tv' or algo =='TV':
-            #print("solving tv !!!!!!!!!!")
-            algo = 'tv'
-            radon,iradon = radon_setup(num_rays, theta, xp=xp, center=rot_center, filter_type='hamming', kernel_type = 'gaussian', k_r =1, width=obj_width)
-            if tau==None: 
-                tau=0.05
-            if reg==None:
-                reg=.8
-            
-            #print("τ=",tau, "reg",reg)
-            #r = .8   
-            #from solvers import Grad
-            from solvers import solveTV
-
-            def reconstruct(data,verbose):
-                tomo_t,rnrm = solveTV(radon, iradon, data, reg, tau,  tol=5e-3, maxiter=max_iter, verbose=verbose)
-                if GPU:
-                    start1 = timer()
-                    tomo= xp.asnumpy(tomo_t)
-                    t=timer()-start1
-                    return tomo,rnrm,t
-                else: return tomo_t,rnrm,0.
-
-        elif algo == 'tvrings' or algo =='TVRINGS':
-            algo = 'tvrings'
-            radon,iradon = radon_setup(num_rays, theta, xp=xp, center=rot_center, filter_type='hamming', kernel_type = 'gaussian', k_r =1, width=obj_width)
-            if tau==None: 
-                tau=0.05
-            if reg==None:
-                reg=.8
-            
-            print("τ=",tau, "reg",reg)
-            #r = .8   
-            #from solvers import Grad
-            from solvers import solveTV_ring
-            # set up the tv with missing pixels
-            # fradon=lambda x: deadpix*radon(x)
-            # fradont=lambda x: radont(x*deadpix)    
-            #print("solving tv_rings")
-            def reconstruct(data,verbose):
-                tomo_t,rnrm = solveTV_ring(radon, iradon, data, reg, tau,  tol=tol, maxiter=max_iter, verbose=verbose)
-                if GPU:
-                    start1 = timer()
-                    tomo= xp.asnumpy(tomo_t)
-                    t=timer()-start1
-                    return tomo,rnrm,t
-                else: return tomo_t,rnrm,0.
-                
-
-                
-        
-    
     
     end = timer()
     time_radonsetup=(end - start)
-    #if rank==0: print("time=", time_radonsetup,flush=True)
+    times_loop['setup']=time_radonsetup
     printv("time=", time_radonsetup,flush=True)
     
-    # solver
-    #from solve_sirt import sirtBB
+
     
-    
+    #divide up loop chunks evenly across mpi ranks    
     loop_chunks=get_loop_chunk_slices(num_slices, mpi_size, max_chunk_slice )
     
     printv("nslices:",num_slices," mpi_size:", mpi_size," max_chunk:",max_chunk_slice)
-    printv("rank",rank,"loop_chunks:", loop_chunks)
+    printv("rank",rank,"loop_chunks:", loop_chunks+loop_offset)
     
-    times_loop['setup']=time_radonsetup
     
     start_loop_time =time.time()
     
     # if rank == 0: tomo=np.empty((num_slices, num_rays,num_rays),dtype='float32')
+    #if algo=='tomopy-gridrec':
+    #    shmem=False
     
     
-    if algo!='tomopy-gridrec':
-        if shmem:
+    ######################################### 
+    # MP ring buffer setup
+    #mpring=True
+    if loop_chunks.size-1<2: mpring=0
+    
+    if mpring>0:
+        printv("multiprocessing ring buffer",mpring,flush=True)
+        import multiprocessing as mp
+        import ctypes
+        from multiprocessing import sharedctypes
+        
+        def shared_array(shape=(1,), dtype=np.float32):  
+            np_type_to_ctype = {np.float32: ctypes.c_float,
+                                np.float64: ctypes.c_double,
+                                np.bool: ctypes.c_bool,
+                                np.uint8: ctypes.c_ubyte,
+                                np.uint64: ctypes.c_ulonglong}
+
+            numel = np.int(np.prod(shape))
+            arr_ctypes = sharedctypes.RawArray(np_type_to_ctype[dtype], numel)
+            np_arr = np.frombuffer(arr_ctypes, dtype=dtype, count=numel)
+            np_arr.shape = shape
+
+            return np_arr 
+        
+    
+    if np.mod(mpring,2)==1: # reading ring buffer (1 or 3)
+        pr=[0,0] #process even or odd
+        data_ring  = shared_array(shape=(2,max_chunk_slice, num_angles, num_rays),dtype=np.float32)
+        
+        def read_data(sino, loop_chunks, ii):
+#        def read_data(sino, chunks, ii):
+            """no synchronization."""
+            #info("start %s" % (i,))
+            even = np.mod(ii+1,2)
+            nslices = loop_chunks[ii+1]-loop_chunks[ii]
+            chunk_slices = get_chunk_slices(nslices)
+            chunks=chunk_slices[rank,:]+loop_chunks[ii]
+            data_ring[even,0:chunks[1]-chunks[0],...]= sino[chunks[0]:chunks[1],...]
+    #print('here')
+    if mpring>1: # writing ring buffer (2 or 3)
+        printv('ring buffer writing to file')
+        pw=[0,0] #process even or odd        
+        pflush=None # flushing
+        tomo_ring  = shared_array(shape=(2,max_chunk_slice, num_rays, num_rays),dtype=np.float32)
+        #global tomo_out 
+        #def write_tomo(tomo_out,chunks,ii):
+        #import h5py
+        def write_tomo(tomo_out,chunks):
+            #fid = h5py.File(tomo_out.file_name, 'a')
+            #t_out=fid['/exchange/tomo']
+            #t_out[chunks[0]:chunks[1],...]=tomo_ring[even,0:chunks[1]-chunks[0],...]
+            #fid.close()
+            #global tomo_out 
+            #even = np.mod(ii+1,2)
+            #if rank==0: print('\n writing out', tomo_ring[even,(chunks[1]-chunks[0])//2,num_rays//2,num_rays//2])
+            #####t
+            tomo_out[chunks[0]-loop_offset:chunks[1]-loop_offset,...]=tomo_ring[even,0:chunks[1]-chunks[0],...]
+            #print('\n written h5', tomo_out[chunks[0]+(chunks[1]-chunks[0])//2,num_rays//2,num_rays//2],'\n')
+            #print('\n mp recon norm',np.linalg.norm(tomo_out))
+            #if rank==0: tomo_out.flush()
+        def flush(tomo_out,ii):
+            print('\nflushing',ii)
+            tomo_out.flush()
+            print('\nflushed',ii,'\n')
+   
+    # MP ring buffer setup
+    ######################################### 
+    
+    ##########################################
+    # gather the results: write to memmap, shared memory, gatherv
+
+    if algo[0:min(len(algo),6)]!='tomopy': # not for tomopy-...
+        #print('there1')
+#        if tomo_out!=-1:
+#            print('there2')
+#            pass
+#            #tomo=tomo_out
+#            #shmem=1 # trick it to avoid mpi gather
+        if shmem and (mpring<2):
+            #print('there shared')
+#        if shmem:
             #from communicator import allocate_shared_tomo
             from communicator import allocate_shared
-            #print("using shared memory to communicate")
-            tomo = allocate_shared((num_slices,num_rays,num_rays),rank,mpi_size)
-        else:
+            try:
+                #print("using shared memory to communicate")
+                tomo = allocate_shared((num_slices,num_rays,num_rays),rank,mpi_size)
+            except:
+                bold='\033[1m'
+                endb= '\033[0m'
+                printv(bold+"shared memory is not working, set the flag -S to 0")
+                printv("reverting to mpi gatherv that but it may not work\n",'='*60,endb)
+                shmem=False
+        #print('hi there shmem,type(tomo_out)',type(tomo_out),flush=True)
+                
+        if (not shmem) and (mpring<2):
+            printv('using gatherv distributed mpi', flush=True)
+            
             from communicator import gatherv
             # gatherv - allocate 
             tomo=None
             tomo_local=None
             if rank == 0: tomo = np.empty((num_slices,num_rays,num_rays),dtype = 'float32')
-    
-    else:
+        #print('neither?')
+    else: # tomopy with no mpi no ring buffer
+        print('tomopy')
         tomo=np.empty((num_slices, num_rays,num_rays),dtype='float32')
-        
+    #print('finally')
     halo=0
-    if algo == 'tv': halo = 2
+    if algo == 'tv': halo = 2 #not used at the moment
     halo+=0
-    
+    #print('number of loops',)
     ######### loop through chunks
+    loop_chunks+=loop_offset
+    printv('starting loop')
     for ii in range(loop_chunks.size-1):
-    #for ii in [loop_chunks.size//2-1]: #range(loop_chunks.size-1):
+
         nslices = loop_chunks[ii+1]-loop_chunks[ii]
         chunk_slices = get_chunk_slices(nslices) 
         
         #printv("rank",rank,"size",mpi_size,"loop_chunks:", loop_chunks)
         
+        chunks=chunk_slices[rank,:]+loop_chunks[ii]
         printv( 'loop_chunk {}/{}:{}, mpi chunks {}'.format(ii+1,loop_chunks.size-1, loop_chunks[ii:ii+2],loop_chunks[ii]+np.append(chunk_slices[:,0],chunk_slices[-1,1]).ravel()))
         
     
         start_read = time.time()
         
         printv("reading slices:", end = '')    
-        chunks=chunk_slices[rank,:]+loop_chunks[ii]
         
+        
+        # halo for TV - to do ...
         #bchunk=np.clip(chunks[0]-halo,0,num_slices)
         #echunk=np.clip(chunks[1]+halo,0,num_slices)
 
@@ -339,16 +316,30 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, tol=
         #ehalo=np.clip(chunks[1]+halo,0,num_slices-1)-chunks[1]
         #data1 = sino[chunks[0]-bhalo:chunks[1]+bhalo,...]
         #chunksi=np.clip(np.arange(chunks[0]-halo,chunks[1]+halo),0,num_slices-1)
-        #data = sino[chunksi,...]
+        #data xrxrm= sino[chunksi,...]
         
-        data = sino[chunks[0]:chunks[1],...]
-        
-        #data = sino[bchunk:echunk,...]
+        #data = sino[chunks[0]:chunks[1],...]
+
+        # ring buffer read
+        even = np.mod(ii+1,2)
+        # read directly the first round, or if mpring is odd (1 or 3) 
+        if (not np.mod(mpring,2)) or ii==0:
+            data = sino[chunks[0]:chunks[1],...]
+        # read ring buffer
+        else: 
+            pr[even].join()
+            data=data_ring[even,0:chunks[1]-chunks[0],...]
+            pr[even].terminate()
+        # launch next read 
+        if np.mod(mpring,2) and ii<loop_chunks.size-2:
+            pr[1-even] = mp.Process(target=read_data, args=(sino, loop_chunks, ii+1))
+            #pr[1-even] = mp.Process(target=read_data, args=(sino, chunks, ii+1))
+            pr[1-even].start()
         
         end_read=time.time()
         if rank ==0: times['h5read']=(end_read - start_read)
 
-        printv("read time ={:3g}".format(times['h5read']),flush=True)
+        printv("\rread time ={:3g}".format(times['h5read']),end=' ')
 
         # copy to gpu or cpu
         start = timer()
@@ -358,44 +349,85 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, tol=
 
         
         printv("reconstructing slices, ", end = '') 
-        start = timer()
+        start_solver = timer()
  
         mpi_time=0.
         if algo == 'tomopy-gridrec':
             #tomo, rnrm =  reconstruct(data,verbose_iter)
-            tomo[chunks[0]:chunks[1],...], rnrm, g2ctime =  reconstruct(data,verbose_iter,ncore)
+            tomo[chunks[0]-loop_offset:chunks[1]-loop_offset,...], rnrm, g2ctime =  reconstruct(data,verbose_iter,ncore)
             #tomo[chunks[0]:chunks[1],...]=tomopy.recon(data, theta, center=None, sinogram_order=True, algorithm="gridrec")
         else:
-            #tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter)
+            #tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter,)
+            tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter)
+            start_gather = timer()
 
-            if shmem:
-                #tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter)
+            if mpring>1: # 2 or 3                
+
+                if ii>1: 
+                    #printv('\n iter',ii,'joining pw[',even,']',pw[even])
+                    pw[even].join() #make sure this is done
+
+                
+                    
+                tomo_ring[even,0:chunks[1]-chunks[0],...]=tomo_chunk
+                # kill the previous job
+                if ii>1: pw[even].terminate()
+                # start writing
+                #printv('\n writin iter',ii,'starting pw[]',even)
+                
+                pw[even] = mp.Process(target=write_tomo, args=(tomo_out,chunks))
+                pw[even].start()
+
+                # flush data to disk
+                if rank ==0 and ii>0: 
+                    if pflush==None:
+                        pflush=mp.Process(target=flush,args=(tomo_out,ii))
+                        pflush.start()
+                    if not pflush.is_alive():
+                        pflush=mp.Process(target=flush,args=(tomo_out,ii))
+
+                        pflush.start()
+
+                
+                
+                
+                #print('\n recon norm loop',np.linalg.norm(tomo_out))
+                
+            elif shmem:
+#                tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter)
                 ##tomo_chunk = tomo_chunk[bhalo:-ehalo,...]
                 #tomo[chunks[0]:chunks[1],...] = tomo_chunk[bhalo:-ehalo,...]
-                
-                tomo[chunks[0]:chunks[1],...], rnrm, g2ctime =  reconstruct(data,verbose_iter)
+                #tomo_chunk
+                start_gather = timer() # this is in shared memory
+                tomo[chunks[0]-loop_offset:chunks[1]-loop_offset,...] = tomo_chunk
+                #tomo[chunks[0]:chunks[1],...], rnrm, g2ctime =  reconstruct(data,verbose_iter)
             else:
-                tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter)
-                start_gather = timer()
+#                tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter)
+#                start_gather = timer()                
                 if rank ==0:
-                    tomo_local = tomo[loop_chunks[ii]:loop_chunks[ii+1],:,:]
+                    tomo_local = tomo[loop_chunks[ii]-loop_offset:loop_chunks[ii+1]-loop_offset,:,:]
 #                else:
 #                    tomo_local=None
-                gatherv(tomo_chunk,chunk_slices,data=tomo_local)
+                    
+                gatherv(tomo_chunk[0:chunks[1]-chunks[0]],chunk_slices,data=tomo_local)
                 #gatherv(tomo_chunk[bhalo:-ehalo,...],chunk_slices,data=tomo_local)
                 
-                mpi_time= timer()-start_gather
-                
-    
-        times['solver'] = timer()-start-g2ctime
-        times['g2c']    = g2ctime
+        mpi_time= timer()-start_gather
         times['gather'] = mpi_time
 
-        printv("solver time ={:3g}, g2c time={:3g}".format(times['solver'],times['g2c']),flush=True)
+        #printv("mpi time ={:3g}".format(times['gather']),flush=True)
+
+    
+        times['solver'] = timer()-start_solver-mpi_time
+        times['g2c']    = g2ctime
+
+        printv("\r read time={:3g}, solver ={:3g}, gather={:3g}, g2c ={:3g}".format(times['h5read'],times['solver'], times['gather'], times['g2c']),flush=True)
     
         for jj in times: times_loop[jj]+=times[jj]
 
-            
+    #if rank==0:
+    #    print('\n recon norm',np.linalg.norm(tomo_out))
+
     start = timer()
     mpi_barrier()
     times['barrier']+=timer()-start
@@ -407,8 +439,6 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, tol=
         except:
             None
     
-    if rank>0:     
-        quit()
     
     #print("times last loop_chunk",times)
     end_loop=time.time()
@@ -422,5 +452,17 @@ def recon(sino, theta, algo = 'iradon' ,rot_center = None, max_iter = None, tol=
     print("loop+setup time=", times_loop['loop']+times_loop['setup'],endb)
     #print("times full tomo", times_loop,flush=True)
     """
+    # make sure all writing is done
+    if mpring>1:
+        pw[1-even].join()
+        pw[1-even].terminate()
+        pw[even].join()
+        pw[even].terminate()
+        tomo=tomo_out
+
+        
+    if rank>0: quit()
+    print('done')    
+
     return tomo, times_loop
 
