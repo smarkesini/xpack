@@ -445,7 +445,9 @@ def iradon(sinogram_stack, deapodization_factor, S, k_r , hfilter,xp,fft):
         # merge two sinograms into one complex
 
         if i > num_slices-2:
-            qt=sinogram_stack[i]
+            #qt=sinogram_stack[i]
+            qt=sinogram_stack[i].astype(np.complex64)
+            
         else:
             qt=sinogram_stack[i]+1j*sinogram_stack[i+1]
             
@@ -508,7 +510,8 @@ def radon(tomo_stack, deapodization_factor, ST, k_r, num_angles,xp,fft ):
         
         # merge two slices into complex
         if i > num_slices-2:
-            tomo_slice = tomo_stack[i]
+            tomo_slice =tomo_stack[i].astype(np.complex64)
+            
             
         else:
             tomo_slice = tomo_stack[i]+1j*tomo_stack[i+1]

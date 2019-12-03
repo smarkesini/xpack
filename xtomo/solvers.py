@@ -60,8 +60,9 @@ def cg(A,b, x0=0, maxiter=100, tol=1e-4,  At=None):
 
 def cgs(A, b, x0=0, maxiter=100, tol=1e-4, verbose = 0 ):
     if b.size==0: 
-        printbar(00,'CG')
-        print('-- CG b=empty')
+        if verbose>0:
+            printbar(00,'CG')
+            print('-- CG b=empty')
         return np.empty(0,dtype=np.float), -1, 0, 0
     bnrm2 = xp.linalg.norm( b );
     

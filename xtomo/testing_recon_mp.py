@@ -77,6 +77,28 @@ elif simulate:
     
     if type( args['file_out'])== type(None):    args['file_out']='0'
 
+# compute the crop points:
+    #cropped output
+    loop_offset=0
+    #print('chunks',chunks,'type',type(chunks))
+    #print("type chunks",type(chunks))
+    if type(chunks)!=type(None):
+        chunks=np.int64(chunks)
+        if len(chunks)==1: 
+            #chunks=[(num_slices-chunks)//2,chunks]
+            #chunks=np.concatenate([(num_slices-chunks)//2,(num_slices-chunks)//2+chunks])
+            chunks=np.array([0,chunks[0]])+(num_slices-chunks[0])//2
+            
+        chunks=np.clip(np.array(chunks),0,num_slices-1)
+    #print("chunks",chunks)
+#            loop_offset=num_slices//2
+#            num_slices=min([crop[0],num_slices])
+#            loop_offset-=num_slices//2            
+#        else:
+#            loop_offset=crop[0]
+#            num_slices=crop[1]-crop[0]
+    
+    
 
 tomo_out=None
 
@@ -178,6 +200,16 @@ tomo, times_loop, dshape = recon_file(fname,dnames=None, tomo_out=tomo_out, algo
 
 if rank>0: quit()
 
+bold='\033[1m'
+endb= '\033[0m'
+
+#times_loop['outfile']=times_of
+print(bold+"tomo shape",(num_slices,num_rays,num_rays), "n_angles",num_angles, ', algorithm:', algo,", max_iter:",max_iter,",mpi size:",mpi_size,",GPU:",GPU)
+print("times full tomo", times_loop,flush=True)
+#print("loop+setup time=", times_loop['loop']+times_loop['setup'], "snr=", ssnr(true_obj,tomo),endb)
+print(bold+"loop+setup time=", times_loop['loop']+times_loop['setup'], 'saving', 'total',endb)
+
+
 #print('\n test',np.linalg.norm(np.reshape(tomo_out,(-1))))
 
 #print("done recon",end=' ')
@@ -238,12 +270,20 @@ if ringbuffer >1:
     elif os.path.splitext(file_out)[-1] in ('.tif','.tiff'):
         #tomo=tomo_out
         print('flushing',end=' ')
-        #tomo_out.flush()
+        tomo_out.flush()
         print('\r flushed, t=',timer()-times_begin)#,end=' ')
         
         #tomo_out.close()
-        pass
+#        pass
+elif  (type(args['file_out']) is not type(None)) and args['file_out']!='-1':
+    print('saving...',end=' ')
+    tstring = str(times_loop)
+    # did not save during iterations
+    if os.path.splitext(file_out)[-1] in ('.tif','.tiff'):
+            from tifffile import imsave
+            imsave(file_out,tomo, description = cstring+' '+tstring)
 
+    
 #print("flushed")
     
         
@@ -348,7 +388,11 @@ try:
 #            loop_offset=crop[0]
 #    true_obj = true_obj[loop_offset:loop_offset+num_slices,...]
     #true_obj = true_obj[...]
-    true_obj = fid['exchange/tomo'][...]
+    if type(chunks)!=type(None):
+        true_obj = fid['exchange/tomo'][chunks[0]:chunks[1],...]
+    else:
+        true_obj = fid['exchange/tomo'][...]
+
     
 
     #print("comparing with truth, summary coming...")
