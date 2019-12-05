@@ -147,7 +147,7 @@ def dict2sparse(K,xp,tipe):
 
         S=cupyx.scipy.sparse.csr_matrix(S)
     else:
-        import scipy
+        import scipy.sparse
         #import sparse_plan        
         if tipe=='S':
             S=scipy.sparse.csr_matrix((K['val'],(K['row'], K['col'])), shape=(K['shape']))

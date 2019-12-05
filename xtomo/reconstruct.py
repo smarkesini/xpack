@@ -126,20 +126,25 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     
     
     if GPU:
-        from devmanager import set_visible_device
-    
-        import cupy as xp
-        do,vd,nd=set_visible_device(rank)
-        #device_gbsize=xp.cuda.Device(vd).mem_info[1]/((2**10)**3)
         try:
-            device_gbsize=xp.cuda.Device().mem_info[1]/((2**10)**3)
-            printv("gpu memory:",device_gbsize, 
-                   "GB, chunk sino memory:",max_chunk_slice*num_rays*num_angles*4/(2**10)**2,'MB',
-                   ", chunk tomo memory:",max_chunk_slice*(num_rays**2)*4/(2**10)**2,'MB')
-            #xp.cuda.profiler.initialize()
-            xp.cuda.profiler.start()
+            
+            from devmanager import set_visible_device
+            
+            import cupy as xp
+            do,vd,nd=set_visible_device(rank)
+            #device_gbsize=xp.cuda.Device(vd).mem_info[1]/((2**10)**3)
+            try:
+                device_gbsize=xp.cuda.Device().mem_info[1]/((2**10)**3)
+                printv("gpu memory:",device_gbsize, 
+                       "GB, chunk sino memory:",max_chunk_slice*num_rays*num_angles*4/(2**10)**2,'MB',
+                       ", chunk tomo memory:",max_chunk_slice*(num_rays**2)*4/(2**10)**2,'MB')
+                #xp.cuda.profiler.initialize()
+                xp.cuda.profiler.start()
+            except:
+                pass
         except:
-            pass
+            xp=np
+            GPU=False
     else:
         xp=np
 
