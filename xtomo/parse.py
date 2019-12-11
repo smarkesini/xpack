@@ -41,7 +41,9 @@ ap.add_argument("-rb", "--ring_buffer", type=int, default=0, help="ring buffer 0
 
 # default options
 Dopts={ 'algo':'iradon', 'maxiter':10, 'shmem':True, 'GPU':True, 
-       'max_chunk_slice':16, 'verbose':True, 'tol':5e-3}
+       'max_chunk_slice':16, 'verbose':True, 'tol':5e-3, 'reg':1., 'tau':.05}
+#reg=1., tau=0.05
+
 Dopts['sim_shape']=[128, 181, 256] 
 Dopts['sim_width']=.95
 

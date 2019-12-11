@@ -14,7 +14,7 @@ def printv0(*args,**kwargs):
     if not verboseall: return
     #if 'verbose' in kwargs:
     #    if kwargs['verbose']==0: return
-        
+    #print('rank',rank, end=' ')    
     if len(kwargs)==0:
         print(' '.join(map(str,args)))
         return
@@ -75,7 +75,7 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     num_slices = sino.shape[0]
     num_angles = sino.shape[1]
     num_rays   = sino.shape[2]
-    obj_width  = .95
+    obj_width  = .98
 
     if type(rot_center)==type(None):
         rot_center = num_rays//2
@@ -117,7 +117,15 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     
     
     
-    printv("GPU:{} , algorithm:{}".format(GPU,algo))
+    printv("GPU:{} , algorithm:{}".format(GPU,algo), end=' ')
+    if algo in ('cgls','sirt'):
+        printv(", maxit:{}".format(max_iter))
+    elif algo in ('tv', 'TV'):
+        printv(", maxit:{}, reg:{}, tau:{}".format(max_iter,reg,tau))
+    else:
+        printv('')
+        
+    
     #printv("tomo shape (",num_slices,num_rays,num_rays, ") n_angles",num_angles, "max_iter",max_iter)
     printv("tomo shape ({},{},{}) n_angles {} max_iter {}".format(num_slices,num_rays,num_rays ,num_angles, max_iter))
     
@@ -244,9 +252,9 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
             #print('\n mp recon norm',np.linalg.norm(tomo_out))
             #if rank==0: tomo_out.flush()
         def flush(tomo_out,ii):
-            print('\nflushing',ii)
+            #print('\nflushing',ii)
             tomo_out.flush()
-            print('\nflushed',ii,'\n')
+            #print('flushed',ii,'\n')
    
     # MP ring buffer setup
     ######################################### 
