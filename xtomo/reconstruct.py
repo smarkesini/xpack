@@ -1,7 +1,7 @@
 import numpy as np
 from timeit import default_timer as timer
 import time
-
+import warnings
 
 from communicator import rank, mpi_size, get_loop_chunk_slices, get_chunk_slices, mpi_barrier
 
@@ -101,6 +101,9 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     
     if algo=='tomopy-gridrec':
         GPU=False
+        mpring=0
+        if mpi_size>1 and rank==0: 
+                warnings.warn('tomopy should not use MPI')
         #algo='tomopy-gridrec'
 
     
@@ -368,6 +371,8 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
         if algo == 'tomopy-gridrec':
             #tomo, rnrm =  reconstruct(data,verbose_iter)
             tomo[chunks[0]-loop_offset:chunks[1]-loop_offset,...], rnrm, g2ctime =  reconstruct(data,verbose_iter,ncore)
+            start_gather = timer()
+
             #tomo[chunks[0]:chunks[1],...]=tomopy.recon(data, theta, center=None, sinogram_order=True, algorithm="gridrec")
         else:
             #tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter,)
