@@ -37,23 +37,16 @@ the input file is assumed in sinogram order, with data in \exchange\data and ang
 rotation center and other parameters are optionals and described by using the -h flag.
 
 
-From Python, given some projection data, one can do e.g.:
-
-
-> # transpose projection stack to sinograms
-> data=np.ascontiguousarray(np.swapaxes(data_normalized,0,1))
-> num_rays=data.shape[0]
-> num_angles=data.shape[1]
-
-theta: angles of the sinogram
-
-> theta= np.linspace(0,180,num_angles,dtype=np.float32)*np.pi/180
-
-To reconstruct tomogram, set xp=numpy or xp=cupy, then something like:
-
+From Python, given some projection data e.g.:
 > from fubini import radon_setup
 > radon, iradon = radon_setup(num_rays, theta, xp=xp, center=None,filter_type='hamming')
 > tomogram=iradon(data)
+
+set xp=numpy or xp=cupy for GPU. The data should be in sinogram order, e.g.:
+
+> data=np.ascontiguousarray(np.swapaxes(data_normalized,0,1))
+> num_rays=data.shape[0]
+> num_angles=data.shape[1]
 
 More advanced algorithms. e.g.:
 
