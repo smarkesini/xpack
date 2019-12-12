@@ -23,38 +23,48 @@ To use tomopy-gridrec and tomopy-astra: tomopy
 
 From the command line: 
 > python recon.py 
+
 without any input it will generate a simulation (using tomopy) and start reconstructing
+
 > python recon.py -h 
+
 for further information, e.g. the follwing will reconstruct on 2 GPUs, using TV denoising, 
 and write the output onto the same folder as the input.
+
 >$ mpirun -n 2 recon.py -f file_in.h5 -o '*' --GPU 1 -a 'tv'
+
 the input file is assumed in sinogram order, with data in \exchange\data and angles in \exchange\theta
 rotation center and other parameters are optionals and described by using the -h flag.
 
 
 From Python, given some projection data, one can do e.g.:
 
-transpose projection stack to sinograms
+
+> # transpose projection stack to sinograms
 > data=np.ascontiguousarray(np.swapaxes(data_normalized,0,1))
 > num_rays=data.shape[0]
 > num_angles=data.shape[1]
+
 theta: angles of the sinogram
+
 > theta= np.linspace(0,180,num_angles,dtype=np.float32)*np.pi/180
+
 To reconstruct tomogram, set xp=numpy or xp=cupy, then something like:
+
 > from fubini import radon_setup
 > radon, iradon = radon_setup(num_rays, theta, xp=xp, center=None,filter_type='hamming')
 > tomogram=iradon(data)
+
 More advanced algorithms. e.g.:
+
 > from wrap_algorithms import wrap
 > reconstruct=wrap(sino_shape,theta,rot_center,algo,xp=np, obj_width=.98, max_iter=10, tol=1e-3, reg=1., tau=0.05)
 > tomogram = reconstruct(sinogram_stack, verbose)
+
 If things don't fit in memory, 
+
 > from loop_sino import recon
 > tomo, times_loop= recon(sino, theta, algo = 'iradon', ...)
-
-
-
-
 
 
 ## Bibliography
