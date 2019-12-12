@@ -181,6 +181,8 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     
     #divide up loop chunks evenly across mpi ranks    
     loop_chunks=get_loop_chunk_slices(num_slices, mpi_size, max_chunk_slice )
+    loop_chunks+=loop_offset
+
     
     printv("nslices:",num_slices," mpi_size:", mpi_size," max_chunk:",max_chunk_slice)
     printv("rank",rank,"loop_chunks:", loop_chunks+loop_offset)
@@ -223,16 +225,15 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
         pr=[0,0] #process even or odd
         data_ring  = shared_array(shape=(2,max_chunk_slice, num_angles, num_rays),dtype=np.float32)
         
-        def read_data(sino, loop_chunks, ii):
-#        def read_data(sino, chunks, ii):
+        # def read_data(sino, loop_chunks, ii):
+        def read_data(ii):
             """no synchronization."""
-            #info("start %s" % (i,))
             even = np.mod(ii+1,2)
             nslices = loop_chunks[ii+1]-loop_chunks[ii]
             chunk_slices = get_chunk_slices(nslices)
             chunks=chunk_slices[rank,:]+loop_chunks[ii]
             data_ring[even,0:chunks[1]-chunks[0],...]= sino[chunks[0]:chunks[1],...]
-    #print('here')
+
     if mpring>1: # writing ring buffer (2 or 3)
         printv('ring buffer writing to file')
         pw=[0,0] #process even or odd        
@@ -306,7 +307,7 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     halo+=0
     #print('number of loops',)
     ######### loop through chunks
-    loop_chunks+=loop_offset
+    #loop_chunks+=loop_offset
     printv('starting loop')
     for ii in range(loop_chunks.size-1):
 
@@ -346,11 +347,13 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
             pr[even].join()
             data=data_ring[even,0:chunks[1]-chunks[0],...]
             pr[even].terminate()
+
         # launch next read 
         if np.mod(mpring,2) and ii<loop_chunks.size-2:
-            pr[1-even] = mp.Process(target=read_data, args=(sino, loop_chunks, ii+1))
-            #pr[1-even] = mp.Process(target=read_data, args=(sino, chunks, ii+1))
+            #pr[1-even] = mp.Process(target=read_data, args=(sino, loop_chunks, ii+1))
+            pr[1-even] = mp.Process(target=read_data, args=(ii+1,))
             pr[1-even].start()
+
         
         end_read=time.time()
         if rank ==0: times['h5read']=(end_read - start_read)

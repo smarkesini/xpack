@@ -87,7 +87,7 @@ def cgs(A, b, x0=0, maxiter=100, tol=1e-4, verbose = 0 ):
         #r=b
         x0 = A(b)
     #else: 
-        
+
     r = b - A(x0)
         
     res = xp.linalg.norm( r ) / bnrm2;
@@ -144,10 +144,13 @@ def solveCGLS(radon,radont, data, x0=0., tol=1e-2, maxiter=5, verbose=0):
     num_rays = data.shape[2]
     shapetomo=(num_slices, num_rays, num_rays)
     v2t = lambda x: xp.reshape(x,(shapetomo))
+    
     RTR = lambda x: xp.reshape(radont(radon(v2t(x))),(-1))
-    RTdata =np.reshape(radont(data),(-1))
-    x0=RTdata
-    tomocg,info, imax, resnrm = cgs(RTR, RTdata, x0=x0, maxiter=maxiter, tol=tol, verbose = verbose)
+
+    RTdata =xp.reshape(radont(data),(-1))
+    #print('shape RTdata',RTdata.shape)
+    #x0=RTdata
+    tomocg,info, imax, resnrm = cgs(RTR, RTdata, x0=RTdata, maxiter=maxiter, tol=tol, verbose = verbose)
     #print("type tomo",type(tomocg))
     tomocg.shape=shapetomo #(num_slices,num_rays,num_rays)
     return tomocg,resnrm

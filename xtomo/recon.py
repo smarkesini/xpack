@@ -1,5 +1,7 @@
 import numpy as np
-from reconstruct import  recon_file #, recon
+#from reconstruct import  recon_file #, recon
+from loop_sino import  recon_file #, recon
+
 
 import argparse
 

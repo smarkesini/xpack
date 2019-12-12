@@ -7,7 +7,7 @@ import numpy as np
 eps=np.finfo(np.float32).eps
 pi=np.pi
 
-from timeit import default_timer as timer
+#from timeit import default_timer as timer
 #sparse_cache='~/.cache/xpack/sparse.npz'
 
 def gaussian_kernel(x, k_r, sigma, xp): #using sigma=2 since this is the default value for sigma
