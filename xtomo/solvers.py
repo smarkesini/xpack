@@ -212,7 +212,7 @@ def solveTV(radon,radont, data, r, tau, x0=0, tol=1e-2, maxiter=5, verbose=0):
     shapetomo=(num_slices,num_rays  ,num_rays)
     
     v2t = lambda x: xp.reshape(x,(shapetomo))
-    t2i = lambda x: x[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3].real
+   # t2i = lambda x: x[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3].real
     
     # (Rᵗ R + r ∇ᵗ ∇) ∆
     RTRpLapt= lambda x: radont(radon(x))- r*Lap(x)
@@ -221,13 +221,13 @@ def solveTV(radon,radont, data, r, tau, x0=0, tol=1e-2, maxiter=5, verbose=0):
 
     RTdata=radont(data).ravel()
     # scale the data
-    meanrt=xp.mean(t2i(v2t(RTdata)))
-    if meanrt == 0:
-        Rsf=1.
-    else:
-        Rsf=1./xp.mean(t2i(v2t(RTdata)))
+    #meanrt=xp.mean(t2i(v2t(RTdata)))
+    #if meanrt == 0:
+    #    Rsf=1.
+    #else:
+    #    Rsf=1./xp.mean(t2i(v2t(RTdata)))
         
-    RTdata*=Rsf
+    #RTdata*=Rsf
 
     Lambda=0
     
@@ -263,7 +263,7 @@ def solveTV(radon,radont, data, r, tau, x0=0, tol=1e-2, maxiter=5, verbose=0):
 #                plt.show()
 
     # rescale
-    u    *= 1./Rsf
+    #u    *= 1./Rsf
     return v2t(u), resnrm
 
 
