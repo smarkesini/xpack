@@ -374,7 +374,7 @@ def clean_raw(h5fname_in=h5fname_in, h5fname_out=None):
 
 
 
-from reconstruct import recon
+#from reconstruct import recon
 
 #h5fname_in = 'rock.h5'
 #h5fname_out = 'rock_output_data.h5'
