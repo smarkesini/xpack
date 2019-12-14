@@ -325,9 +325,14 @@ def masktomo(num_rays,xp,width=.95):
     
     xx=xx**2
     rr2=xx+xx.T
-    msk_tomo=rr2<(num_rays//2*width)**2
+    rr=np.sqrt(rr2)
+    msk_tomo=((1+np.arctan((width*num_rays/2-np.abs(rr)))*2/np.pi)/2)
+    #msk_tomo*=rr<(num_rays//2*width)
+
     msk_tomo.shape=(1,num_rays,num_rays)
+    
     return msk_tomo, msk_sino
+
 
 def radon_setup(num_rays, theta, xp=np, 
                 center=None, filter_type = 'hamming', 

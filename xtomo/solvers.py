@@ -284,17 +284,17 @@ def solveTV_ring(radon,radont, data, r, tau, x0=0, tol=1e-2, maxiter=5, verbose=
     num_rays = data.shape[2]
     shapetomo=(num_slices,num_rays  ,num_rays)
     v2t = lambda x: xp.reshape(x,(shapetomo))
-    t2i = lambda x: x[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3].real
+#    t2i = lambda x: x[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3].real
 
     #RTdata=radont(data).ravel()
     RTdata=radont(meanfilt(data)).ravel()     
     # scale the data
-    meanrt=xp.mean(t2i(v2t(RTdata)))
-    if meanrt == 0:
-        Rsf=1.
-    else:
-        Rsf=1./meanrt
-        
+#    meanrt=xp.mean(t2i(v2t(RTdata)))
+#    if meanrt == 0:
+#        Rsf=1.
+#    else:
+#        Rsf=1./meanrt
+#        
     #RTdata*=Rsf
   
     cgsmaxit=4 # internal cg solver 
