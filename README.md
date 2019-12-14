@@ -36,8 +36,7 @@ rotation center and other parameters are optionals and described by using the -h
 
 
 From Python, given some projection data e.g.:
-> from fubini import radon_setup
-
+> from fubini import radon_setup  
 > radon, iradon = radon_setup(num_rays, theta, xp=xp, center=None,filter_type='hamming')  
 > tomogram=iradon(data)  
 
