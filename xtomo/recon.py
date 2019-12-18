@@ -20,7 +20,7 @@ args=parse.main()
 #print(args)
 sim_shape=args['sim_shape']
 sim_width=args['sim_width']
-
+time_file = args['time_file']
 GPU   = args['GPU']
 algo  = args['algo']
 shmem = args['shmem']
@@ -382,6 +382,23 @@ print("times full tomo", times_loop,flush=True)
 #print("loop+setup time=", times_loop['loop']+times_loop['setup'], "snr=", ssnr(true_obj,tomo),endb)
 print(bold+"loop+setup time=", times_loop['loop']+times_loop['setup'], 'saving',time_saving, 'total', time_tot,endb, end='')
 
+
+if time_file == 1:
+    root_name=os.path.expanduser('~/data/')
+    fname = 'runtime_data.txt'
+    f = open(root_name + fname, 'a+')
+    print('\n Created new file', fname, 'if it does not exist; otherwise appending.')
+    
+    dataset = args['file_in']
+    f.write('\nTesting: %s using %s algorithm ' % (dataset, algo))
+    if type(max_chunk) is not type(None):
+        f.write('with max_chunk = %d ' % (max_chunk))
+    if type(chunks) is not type(None):
+        f.write('and chunk = %d' % (chunks))
+    
+    f.write('\nTomogram shape = (%d, %d, %d) \nNumber of angles = %d \nMPI size = %d' % (num_slices, num_rays, num_rays, num_angles, mpi_size))
+    f.write('\nLoop time = %f, Setup time = %f, Saving time = %f, Total time = %f\n\n' % (times_loop['loop'], times_loop['setup'], time_saving, time_tot))
+    f.write('--------------------------------------------------------------------\n')
 
 
 if 'exchange/tomo' not in fid:

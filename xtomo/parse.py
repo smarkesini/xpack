@@ -25,7 +25,7 @@ ap.add_argument("-maxiter", "--maxiter", type = int, help="maxiter, default 10")
 ap.add_argument("-tol", "--tol", type = float, help="tolerance, default 5e-3")
 ap.add_argument("-max_chunk", "--max_chunk_slice",  type = int, help="max chunks per mpi rank")
 ap.add_argument("-chunks", "--chunks",  type = int, nargs='+', help="chunks to reconstruct")
-
+ap.add_argument("-time_file", "--time_file", type = int, help="1: save timings to a txt file")
 ap.add_argument("-reg", "--reg",  type = float, help="regularization parameter")
 ap.add_argument("-tau", "--tau", type = float, help="soft thresholding parameter")
 ap.add_argument("-v", "--verbose",   type = float, help="verbose float between (0-1), default 1")
