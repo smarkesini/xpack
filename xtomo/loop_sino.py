@@ -236,7 +236,7 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
 
             tomo_out[chunks[0]-loop_offset:chunks[1]-loop_offset,...]=tomo_ring[even,0:chunks[1]-chunks[0],...]
 
-        def flush(tomo_out,ii):
+        def flush():
             #print('\nflushing',ii)
             tomo_out.flush()
             #print('flushed',ii,'\n')
@@ -249,13 +249,16 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
 
     if algo[0:min(len(algo),6)]!='tomopy': # not for tomopy-...
         if shmem and (mpring<2):
-            from communicator import allocate_shared
-            try:
-                tomo = allocate_shared((num_slices,num_rays,num_rays),rank,mpi_size)
-            except:
-                printv(bold+"shared memory is not working, set the flag -S to 0")
-                printv("reverting to mpi gatherv that but it may not work\n",'='*60,endb)
-                shmem=False
+            if type(tomo_out)!=type(None): #np.memmap:
+                tomo=tomo_out
+            else:
+                from communicator import allocate_shared
+                try:
+                    tomo = allocate_shared((num_slices,num_rays,num_rays),rank,mpi_size)
+                except:
+                    printv(bold+"shared memory is not working, set the flag -S to 0")
+                    printv("reverting to mpi gatherv that but it may not work\n",'='*60,endb)
+                    shmem=False
         #print('hi there shmem,type(tomo_out)',type(tomo_out),flush=True)
                 
         if (not shmem) and (mpring<2):
@@ -265,7 +268,11 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
             # gatherv - allocate 
             tomo=None
             tomo_local=None
-            if rank == 0: tomo = np.empty((num_slices,num_rays,num_rays),dtype = 'float32')
+            if rank == 0: 
+                if type(tomo_out)==type(None):
+                    tomo = tomo_out
+                else:
+                    tomo = np.empty((num_slices,num_rays,num_rays),dtype = 'float32')
         #print('neither?')
     else: # tomopy with no mpi no ring buffer
         print('tomopy')
@@ -355,12 +362,13 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
                 if ii>1: 
                     #printv('\n iter',ii,'joining pw[',even,']',pw[even])
                     pw[even].join() #make sure this is done
+                    pw[even].terminate()
 
                 
                     
                 tomo_ring[even,0:chunks[1]-chunks[0],...]=tomo_chunk
                 # kill the previous job
-                if ii>1: pw[even].terminate()
+                # if ii>1: pw[even].terminate()
 
                 
                 pw[even] = mp.Process(target=write_tomo, args=(tomo_out,chunks))
@@ -369,11 +377,10 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
                 # flush data to disk
                 if rank ==0 : 
                     if pflush==None:
-                        pflush=mp.Process(target=flush,args=(tomo_out,ii))
+                        pflush=mp.Process(target=flush)
                         pflush.start()
-                    if not pflush.is_alive():
-                        pflush=mp.Process(target=flush,args=(tomo_out,ii))
-
+                    elif not pflush.is_alive():
+                        pflush=mp.Process(target=flush)
                         pflush.start()
 
                 
@@ -425,6 +432,7 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     print("loop+setup time=", times_loop['loop']+times_loop['setup'],endb)
     #print("times full tomo", times_loop,flush=True)
     """
+    time_write=time.time()
     # make sure all writing is done
     if mpring>1:
         pw[1-even].join()
@@ -437,8 +445,11 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     if rank>0: quit()
     if mpring>1:
         tomo_out.flush()
+
+    time_write=time.time()-time_write
+    times_loop['write']=time_write
     
-    print('done')    
+    #print('done')    
 
     return tomo, times_loop
 

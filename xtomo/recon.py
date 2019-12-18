@@ -161,7 +161,7 @@ if (type(args['file_out']) is not type(None)) and args['file_out']!='-1':
                         tomo_out = memmap(file_out) # file  already exist
                     else:
                         if rank ==0: print("new shape",tomo_out.shape)
-                        tomo_out = memmap(file_out, shape=(num_slices_cropped,num_rays,num_rays), dtype='float32')
+                        tomo_out = memmap(file_out, shape=(num_slices_cropped,num_rays,num_rays), dtype='float32',description=cstring)
                 else:
                     tomo_out = memmap(file_out, shape=(num_slices_cropped,num_rays,num_rays), dtype='float32',description=cstring)
 
@@ -279,8 +279,12 @@ if ringbuffer >1:
         #fid.close()        
     elif os.path.splitext(file_out)[-1] in ('.tif','.tiff'):
         #tomo=tomo_out
+        
         print('flushing',end=' ')
-        tomo_out.flush()
+        if type(tomo_out)==np.memmap:
+            tomo_out.flush()
+        if type(tomo)==np.memmap:
+            tomo.flush()
         print('\r flushed, t=',timer()-times_begin)#,end=' ')
         
         #tomo_out.close()
