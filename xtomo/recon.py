@@ -34,6 +34,8 @@ reg = args['reg']
 tau = args['tau']
 verboseall = args['verbose']
 chunks = args['chunks']
+chunks_val = chunks[0]
+#print(chunks_val[0])
 ncore = args['ncore']
 
 ringbuffer = args['ring_buffer']
@@ -394,7 +396,7 @@ if time_file == 1:
     if type(max_chunk) is not type(None):
         f.write('with max_chunk = %d ' % (max_chunk))
     if type(chunks) is not type(None):
-        f.write('and chunk = %d' % (chunks))
+        f.write('and chunk = %d' % (chunks_val))
     
     f.write('\nTomogram shape = (%d, %d, %d) \nNumber of angles = %d \nMPI size = %d' % (num_slices, num_rays, num_rays, num_angles, mpi_size))
     f.write('\nLoop time = %f, Setup time = %f, Saving time = %f, Total time = %f\n\n' % (times_loop['loop'], times_loop['setup'], time_saving, time_tot))
