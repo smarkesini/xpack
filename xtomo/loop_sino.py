@@ -57,6 +57,8 @@ def recon_file(fname, tomo_out=None, dnames=None, algo = 'iradon' ,rot_center = 
     tomo, times_loop = recon(sino, theta, algo = algo , tomo_out=tomo_out,
                              rot_center = rot_center, max_iter = max_iter, tol=tol, GPU=GPU, shmem=shmem, max_chunk_slice=max_chunk_slice,  reg = reg, tau = tau, 
                              verbose = verbose,ncore=ncore, crop=chunks, mpring=mpring)
+    
+    
     return tomo, times_loop, sino.shape
     
 
@@ -365,7 +367,7 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
                 pw[even].start()
 
                 # flush data to disk
-                if rank ==0 and ii>0: 
+                if rank ==0 : 
                     if pflush==None:
                         pflush=mp.Process(target=flush,args=(tomo_out,ii))
                         pflush.start()
@@ -433,6 +435,9 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
 
         
     if rank>0: quit()
+    if mpring>1:
+        tomo_out.flush()
+    
     print('done')    
 
     return tomo, times_loop

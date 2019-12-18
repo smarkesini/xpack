@@ -81,17 +81,25 @@ elif simulate:
 
 # compute the crop points:
     #cropped output
-    loop_offset=0
-    #print('chunks',chunks,'type',type(chunks))
-    #print("type chunks",type(chunks))
-    if type(chunks)!=type(None):
-        chunks=np.int64(chunks)
-        if len(chunks)==1: 
-            #chunks=[(num_slices-chunks)//2,chunks]
-            #chunks=np.concatenate([(num_slices-chunks)//2,(num_slices-chunks)//2+chunks])
-            chunks=np.array([0,chunks[0]])+(num_slices-chunks[0])//2
-            
-        chunks=np.clip(np.array(chunks),0,num_slices-1)
+loop_offset=0
+#print('chunks',chunks,'type',type(chunks))
+#print("type chunks",type(chunks))
+if type(chunks)!=type(None):
+    chunks=np.int64(chunks)
+    if len(chunks)==1: 
+        #chunks=[(num_slices-chunks)//2,chunks]
+        #chunks=np.concatenate([(num_slices-chunks)//2,(num_slices-chunks)//2+chunks])
+        chunks=np.array([0,chunks[0]])+(num_slices-chunks[0])//2
+        
+    chunks=np.clip(np.array(chunks),0,num_slices)
+    num_slices_cropped=np.int(chunks[1]-chunks[0])
+    print('='*50)
+    print(num_slices_cropped, type(num_slices_cropped), num_slices, type(num_slices))
+    print('='*50)
+    
+else:
+    num_slices_cropped=num_slices
+    
     #print("chunks",chunks)
 #            loop_offset=num_slices//2
 #            num_slices=min([crop[0],num_slices])
@@ -143,19 +151,19 @@ if (type(args['file_out']) is not type(None)) and args['file_out']!='-1':
         ## file out mapping
         if os.path.splitext(file_out)[-1] in ('.tif','.tiff'):
             from tifffile import memmap
-            #imsave(file_out,tomo, description = cstring+' '+tstring)
+
             if rank == 0:       
                 if os.path.exists(file_out): 
                     if rank ==0: print('file exist, overwriting')
                     tomo_out = memmap(file_out) # file should already exist
-                    if tomo_out.shape==(num_slices,num_rays,num_rays):
+                    if tomo_out.shape==(num_slices_cropped,num_rays,num_rays):
                         #print("reusing")
                         tomo_out = memmap(file_out) # file  already exist
                     else:
                         if rank ==0: print("new shape",tomo_out.shape)
-                        tomo_out = memmap(file_out, shape=(num_slices,num_rays,num_rays), dtype='float32')
+                        tomo_out = memmap(file_out, shape=(num_slices_cropped,num_rays,num_rays), dtype='float32')
                 else:
-                    tomo_out = memmap(file_out, shape=(num_slices,num_rays,num_rays), dtype='float32',description=cstring)
+                    tomo_out = memmap(file_out, shape=(num_slices_cropped,num_rays,num_rays), dtype='float32',description=cstring)
 
                 #print('rank 0 created file')
                 mpi_barrier()
@@ -175,7 +183,7 @@ if (type(args['file_out']) is not type(None)) and args['file_out']!='-1':
                 fid = h5py.File(file_out, 'w')
                 fid.create_dataset('mish/command', data =cstring )            
                 #tomo_out=fid.create_dataset('/exchange/tomo', (num_slices,num_rays,num_rays) , chunks=(max_chunk,num_rays,num_rays),dtype='float32')
-                tomodset=fid.create_dataset('/exchange/tomo', (num_slices,num_rays,num_rays) , dtype='float32')
+                tomodset=fid.create_dataset('/exchange/tomo', (num_slices_cropped,num_rays,num_rays) , dtype='float32')
                 tomo_out=tomodset[...]
                 mpi_barrier()
             else:
@@ -206,7 +214,7 @@ bold='\033[1m'
 endb= '\033[0m'
 
 #times_loop['outfile']=times_of
-print(bold+"tomo shape",(num_slices,num_rays,num_rays), "n_angles",num_angles, ', algorithm:', algo,", max_iter:",max_iter,",mpi size:",mpi_size,",GPU:",GPU)
+print(bold+"tomo shape",(num_slices_cropped,num_rays,num_rays), "n_angles",num_angles, ', algorithm:', algo,", max_iter:",max_iter,",mpi size:",mpi_size,",GPU:",GPU)
 print("times full tomo", times_loop,flush=True)
 #print("loop+setup time=", times_loop['loop']+times_loop['setup'], "snr=", ssnr(true_obj,tomo),endb)
 print(bold+"loop+setup time=", times_loop['loop']+times_loop['setup'], 'saving', 'total',endb)
@@ -282,8 +290,10 @@ elif  (type(args['file_out']) is not type(None)) and args['file_out']!='-1':
     tstring = str(times_loop)
     # did not save during iterations
     if os.path.splitext(file_out)[-1] in ('.tif','.tiff'):
-            from tifffile import imsave
-            imsave(file_out,tomo, description = cstring+' '+tstring)
+        tomo_out.flush()
+        del tomo_out
+        #from tifffile import imsave
+            #imsave(file_out,tomo, description = cstring+' '+tstring)
 
     
 #print("flushed")
