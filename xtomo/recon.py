@@ -395,12 +395,16 @@ print(bold+"loop+setup time=", times_loop['loop']+times_loop['setup'], 'saving',
 
 
 if time_file == 1:
+    import os
+    import datetime
     root_name=os.path.expanduser('~/data/')
     fname = 'runtime_data.txt'
     f = open(root_name + fname, 'a+')
     print('\n Created new file', fname, 'if it does not exist; otherwise appending.')
     
     dataset = args['file_in']
+    #f.write('\nprint("Current date and time: ' % datetime.datetime.now())
+    f.write('\nCurrent time %s.' % (datetime.datetime.now()))
     f.write('\nTesting: %s using %s algorithm ' % (dataset, algo))
     if type(max_chunk) is not type(None):
         f.write('with max_chunk = %d ' % (max_chunk))
