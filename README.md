@@ -1,16 +1,16 @@
 ## Description:
 
 Distributed heterogeneous iterative solver for tomography. 
-Solvers are: iradon (non-iterative), preconditioned sirt (with BB-step [1]), CGLS (using CG-squared [2], TV (split bregman[3]), tvrings[4], tomopy-gridrec [5a] [5b], tomopy-astra [6a] using cgls [6b].
+Solvers are: iradon (non-iterative), preconditioned sirt (with BB-step [1], Ram-Lak-Hamming preconditioner), CGLS (using CG-squared [2]), TV (split bregman[3]), tvrings[4], tomopy-gridrec [5a] [5b], tomopy-astra [6a] using cgls [6b].
 
 ## Installation:
 Clone the repo and enjoy!
 
 ## Requirements:
-Python (>=3.7), numpy, either scipy (for CPU) or [cupy >=7.0](https://docs-cupy.chainer.org/en/stable/index.html) (for GPU).
+Python (>=3.7), numpy (>=1.15.0), either scipy (>=1.3.1)  (for CPU) or [cupy >=7.0](https://docs-cupy.chainer.org/en/stable/index.html) (for GPU).
 
 **Optional**:  
-[mpi4py](https://mpi4py.readthedocs.io/en/stable/) for multicore and distributed jobs.  
+[mpi4py](https://mpi4py.readthedocs.io/en/stable/) for multicore and distributed jobs. It uses shared memory if the mpi framework supports it.  
 h5py (for reading/saving, with preferred parallel version [hdf5-parallel](https://anaconda.org/Clawpack/hdf5-parallel)).  
 [tifffile](https://pypi.org/project/tifffile/) (for saving).  
 
@@ -56,6 +56,8 @@ If things don't fit in memory:
 
 > from loop_sino import recon  
 > tomo, times_loop= recon(sino, theta, algo = 'tv', ...)  
+
+** Contributors: ** S. Marchesini, Sigray Inc.; Anu Trivedi, Virginia Tech.; Pablo Enfedaque, LBNL
 
 
 ## Bibliography
