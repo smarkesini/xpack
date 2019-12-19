@@ -1,6 +1,6 @@
 import numpy as np
 #from reconstruct import  recon_file #, recon
-from loop_sino import  recon_file #, recon
+from xtomo.loop_sino import  recon_file #, recon
 
 
 import argparse
@@ -15,8 +15,8 @@ ap = argparse.ArgumentParser(
     formatter_class=argparse.RawTextHelpFormatter,
     epilog='_'*60+'\n Note option precedence (high to low):  individual options, opts dictionary, fopts  \n'+'-'*60)
 
-import parse
-args=parse.main()
+from xtomo.parse import parse
+args=parse()
 #print(args)
 sim_shape=args['sim_shape']
 sim_width=args['sim_width']
@@ -47,7 +47,7 @@ ringbuffer = args['ring_buffer']
 #print("testing_recon max_iter",max_iter)
 #algo='tvrings'
 
-from communicator import rank, mpi_size, mpi_barrier
+from xtomo.communicator import rank, mpi_size, mpi_barrier
 if rank==0: print(args)
 
 if type(args['file_in']) is not type(None):
@@ -64,7 +64,7 @@ if type(args['file_in']) is not type(None):
 
 elif simulate:
     # from simulate_data import get_data as gdata  
-    from simulate_data import init
+    from xtomo.simulate_data import init
     #print("running simulations",sim_shape)
     
     #obj_size = 256
@@ -452,8 +452,9 @@ if type(true_obj) == type(None):
 else:
 #    print('still alive 2')
 
-    import fubini
-    msk_tomo,msk_sino=fubini.masktomo(num_rays, np, width=.95)
+    #import fubini
+    from xtomo.fubini import masktomo
+    msk_tomo,msk_sino=masktomo(num_rays, np, width=.95)
 #msk_tomo=msk_tomo[0,...]
 
 #    if ringbuffer>1:
@@ -529,3 +530,4 @@ else:
     #    pinned_mempool.free_all_blocks()
     #    print(mempool.used_bytes())
     #
+

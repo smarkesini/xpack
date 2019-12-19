@@ -3,7 +3,7 @@ from timeit import default_timer as timer
 import time
 import warnings
 
-from communicator import rank, mpi_size, get_loop_chunk_slices, get_chunk_slices, mpi_barrier
+from .communicator import rank, mpi_size, get_loop_chunk_slices, get_chunk_slices, mpi_barrier
 bold='\033[1m'
 endb= '\033[0m'
 verboseall = True and (rank == 0)
@@ -163,7 +163,7 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     
     
     start=timer()
-    from wrap_algorithms import wrap
+    from .wrap_algorithms import wrap
     reconstruct=wrap(sino.shape,theta,rot_center,algo,xp=xp, obj_width=obj_width, max_iter=max_iter, tol=tol, reg=reg, tau=tau, ncore=ncore, verbose=verbose)   
        
     #print("[0] rank",rank, "used bytes", mempool.used_bytes())

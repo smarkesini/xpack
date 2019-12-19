@@ -6,7 +6,7 @@ import os
 import sys
 import socket
 #from .communicator import mpi_allGather, size
-from communicator import mpi_allGather, size, printv
+from .communicator import mpi_allGather, size, printv
 import numpy as np
 #from .misc import printd, printv
 
@@ -123,31 +123,4 @@ def get_tile_distribution(my_rank, total_ranks, gpu_enabled, gpu_weight = 4):
 
     return heterogeneous_computing, tile_id, n_local_tiles, n_total_tiles
 
-    
-
-    
-
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  

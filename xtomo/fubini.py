@@ -159,8 +159,8 @@ def dict2sparse(K,xp,tipe):
     return S
 
 def gridding_load(num_rays, theta, center, xp, kernel_type, k_r, iradon_only,dcfilter):
-    import sparse_plan   
-    K=sparse_plan.load('S', num_rays, theta, center, kernel_type, k_r, dcfilter)
+    from .sparse_plan import load as sparse_load
+    K=sparse_load('S', num_rays, theta, center, kernel_type, k_r, dcfilter)
     if type(K)==type(None):
         return 0,0
 
@@ -186,7 +186,8 @@ def gridding_load(num_rays, theta, center, xp, kernel_type, k_r, iradon_only,dcf
 
     #---------- loading sparse -------
 
-import sparse_plan  
+#import .sparse_plan  
+from  .sparse_plan  import save as sparse_save
 
 def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian', k_r = 1, iradon_only=False,dcfilter=None):
     # setting up the sparse array
@@ -307,7 +308,7 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
     
 
     S=dict2sparse(K,xp,'S')
-    sparse_plan.save(S,'S', num_rays, theta, center, kernel_type, k_r, dcfilter)
+    sparse_save(S,'S', num_rays, theta, center, kernel_type, k_r, dcfilter)
         
     if iradon_only:
         return S, None

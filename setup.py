@@ -1,14 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Wed Dec 18 19:47:12 2019
-
-@author: anu
-"""
-
 import os
 import sys
-from setuptools import find_packages
+#from setuptools import find_packages
+from setuptools import setup, find_packages
 
 current_python = sys.version_info[:2]
 required_python = (3, 7)
@@ -28,10 +23,10 @@ setup_info = dict(
         name = 'xpack',
         version = '0.1',
         packages = ['xpack'],
-        python_requires = '>={}.{}'.format(*required_python),
+        python_requires = '>={}.{}'.format(3,7),
         
         description = 'Distributed heterogeneous iterative solver for tomography.',
-        long_description = read(README.md),
+        long_description = read('README.md'),
         
         url = 'https://github.com/smarkesini/xpack',        
         author = 'Stefano Marchesini',
@@ -51,9 +46,24 @@ setup_info = dict(
         
         classifiers = [
                 # put in some classifiers
+            'Development Status :: 2 - Pre-Alpha',
+            'Environment :: Console',
+            'Intended Audience :: Developers',
+            'Intended Audience :: Science/Research', 
+            'License :: OSI Approved :: OSS License',
+            'Operating System :: OS Independent',
+            'Programming Language :: Python',
+            'Programming Language :: Python :: 3',
+            'Programming Language :: Python :: 3.5',
+            'Programming Language :: Python :: 3.6',
+            'Programming Language :: Python :: 3.7',
+            'Programming Language :: Python :: 3 :: Only',
+            'Topic :: Scientific/Engineering',
+            'Topic :: Scientific/Engineering :: Physics'
+            'Topic :: Software Development :: Libraries :: Python Modules',
                 ]
         )    
 
-
+setup(**setup_info)
 
 

@@ -38,7 +38,7 @@ def wrap(sshape,theta,rot_center,algo,xp=np, obj_width=.98, max_iter=10, tol=1e-
 
         
     else:
-        from fubini import radon_setup as radon_setup
+        from .fubini import radon_setup as radon_setup
         if algo=='iradon' or algo=='iradon':
             
             iradon = radon_setup(num_rays, theta, xp=xp, center=rot_center, filter_type='hamming', kernel_type = 'gaussian', k_r =1, width=obj_width,iradon_only=True)

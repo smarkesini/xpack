@@ -169,7 +169,7 @@ fid = None
 
 #/home/agtrivedi/cupy
 
-from communicator import rank, mpi_barrier
+from .communicator import rank, mpi_barrier
 
 def init(num_slices,num_rays,num_angles,obj_width, root_name = root_name):
     file_name = fname(num_slices,num_rays,num_angles,obj_width,root_name = root_name)
