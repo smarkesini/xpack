@@ -34,7 +34,11 @@ reg = args['reg']
 tau = args['tau']
 verboseall = args['verbose']
 chunks = args['chunks']
-chunks_val = chunks[0]
+print('chunks type', type(chunks))
+if type(chunks)==type(None):
+    chunks_val=-1
+else:
+    chunks_val = chunks[0]
 #print(chunks_val[0])
 ncore = args['ncore']
 
@@ -87,8 +91,9 @@ loop_offset=0
 #print('chunks',chunks,'type',type(chunks))
 #print("type chunks",type(chunks))
 if type(chunks)!=type(None):
-    chunks=np.int64(chunks)
-    if len(chunks)==1: 
+    chunks = np.array(chunks)
+    if chunks.size==1: 
+        chunks=np.int64(chunks)
         #chunks=[(num_slices-chunks)//2,chunks]
         #chunks=np.concatenate([(num_slices-chunks)//2,(num_slices-chunks)//2+chunks])
         chunks=np.array([0,chunks[0]])+(num_slices-chunks[0])//2

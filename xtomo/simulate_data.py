@@ -61,7 +61,7 @@ def setup_tomo (num_slices, num_angles, num_rays, k_r=1, kernel_type = 'gaussian
     
     
     pad_1D        = (num_rays-num_rays_obj)//2
-    padding_array = ((0, 0), (pad_1D, pad_1D), (pad_1D, pad_1D))
+    padding_array = ((0, 0), (pad_1D+np.mod(num_rays,2), pad_1D), (pad_1D+np.mod(num_rays,2), pad_1D))
 
     true_obj = xp.pad(true_obj, padding_array, 'constant', constant_values = 0)
     

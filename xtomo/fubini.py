@@ -117,13 +117,15 @@ def deapodization_shifted(num_rays,kernel_type,xp,k_r=2, beta=1, sigma=2):
     padding_array = ((num_rays*sampling//2 - k_r*sampling ),( num_rays*sampling//2 - k_r*sampling-1))
 
     ktilde1=xp.pad(ktilde, padding_array, 'constant', constant_values=0)
+    # print('ktilde1 shape',ktilde1.shape)
     # skip one fftshift so that we avoid one fftshift in the iteration
     ktilde1 = xp.fft.ifftshift(xp.fft.ifft(ktilde1))
     
     ktilde1=xp.reshape(ktilde1,(1,-1))
-
+    
+    
     # since we upsampled in Fourier space, we need to crop in real space
-    ktilde2=(ktilde1[:,num_rays*(sampling)//2-num_rays//2:num_rays*(sampling)//2+num_rays//2]).real
+    ktilde2=(ktilde1[:,num_rays*(sampling)//2-num_rays//2-np.mod(num_rays,2):(num_rays)*(sampling)//2+num_rays//2]).real
 
     
     #apodization_factor = ktilde2 * ktilde2.T
