@@ -73,7 +73,7 @@ def wrap(sshape,theta,rot_center,algo,xp=np, obj_width=.98, max_iter=10, tol=1e-
         elif algo == 'CGLS' or algo == 'cgls':
             radon,iradon = radon_setup(num_rays, theta, xp=xp, center=rot_center, filter_type='hamming', kernel_type = 'gaussian', k_r =1, width=obj_width)
             #from solvers import solveTV
-            from solvers import solveCGLS
+            from .solvers import solveCGLS
 
             def reconstruct(data,verbose):
                 
@@ -98,7 +98,7 @@ def wrap(sshape,theta,rot_center,algo,xp=np, obj_width=.98, max_iter=10, tol=1e-
             #print("τ=",tau, "reg",reg)
             #r = .8   
             #from solvers import Grad
-            from solvers import solveTV
+            from .solvers import solveTV
 
             def reconstruct(data,verbose):
                 tomo_t,rnrm = solveTV(radon, iradon, data, reg, tau,  tol=5e-3, maxiter=max_iter, verbose=verbose)
@@ -120,7 +120,7 @@ def wrap(sshape,theta,rot_center,algo,xp=np, obj_width=.98, max_iter=10, tol=1e-
             print("τ=",tau, "reg",reg)
             #r = .8   
             #from solvers import Grad
-            from solvers import solveTV_ring
+            from .solvers import solveTV_ring
             # set up the tv with missing pixels
             # fradon=lambda x: deadpix*radon(x)
             # fradont=lambda x: radont(x*deadpix)    

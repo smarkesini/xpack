@@ -172,7 +172,7 @@ def gridding_load(num_rays, theta, center, xp, kernel_type, k_r, iradon_only,dcf
         #for jj in K: K[jj]=xp.array(K[jj])
         S=cupyx.scipy.sparse.csr_matrix((xp.array(K['val']),xp.array(K['ind']), xp.array(K['indptr'])), shape=tuple(K['shape']))
     if iradon_only: return S, 0           
-    K=sparse_plan.load('ST', num_rays, theta, center, kernel_type, k_r, dcfilter)
+    K=sparse_load('ST', num_rays, theta, center, kernel_type, k_r, dcfilter)
     if type(K)==type(None): return S, 0
 
     if xp.__name__=='numpy':
@@ -314,7 +314,7 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
         return S, None
 
     ST=dict2sparse(K,xp,'ST')
-    sparse_plan.save(ST,'ST', num_rays, theta, center, kernel_type, k_r, dcfilter)
+    sparse_save(ST,'ST', num_rays, theta, center, kernel_type, k_r, dcfilter)
     
     return S, ST  
     
@@ -358,7 +358,7 @@ def radon_setup(num_rays, theta, xp=np,
 
     #print("gridding setup time=", timer()- start)
     if xp.__name__=='cupy':
-        import fft
+        from . import fft
         #import cupy.fft as fft
     else:
         import numpy.fft as fft

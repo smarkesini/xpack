@@ -73,6 +73,7 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     def printvt(*args,**kwargs): 
         if verbose>1:  printv0(*args,**kwargs)
     
+
     num_slices = sino.shape[0]
     num_angles = sino.shape[1]
     num_rays   = sino.shape[2]
@@ -135,7 +136,7 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     if GPU:
         try:
             
-            from devmanager import set_visible_device
+            from .devmanager import set_visible_device
             
             import cupy as xp
             do,vd,nd=set_visible_device(rank)
@@ -154,7 +155,7 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
             GPU=False
     else:
         xp=np
-
+    printv("\n\nGPU", GPU,'\n')
     theta=xp.array(theta)
     
     # set up radon

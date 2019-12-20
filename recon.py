@@ -3,7 +3,7 @@ import numpy as np
 from xtomo.loop_sino import  recon_file #, recon
 
 
-import argparse
+#import argparse
 
 from timeit import default_timer as timer
 
@@ -15,10 +15,10 @@ def recon():
     #import textwrap
     
     
-    ap = argparse.ArgumentParser(
-        formatter_class=argparse.RawTextHelpFormatter,
-        epilog='_'*60+'\n Note option precedence (high to low):  individual options, opts dictionary, fopts  \n'+'-'*60)
-    
+#    ap = argparse.ArgumentParser(
+#        formatter_class=argparse.RawTextHelpFormatter,
+#        epilog='_'*60+'\n Note option precedence (high to low):  individual options, opts dictionary, fopts  \n'+'-'*60)
+#    
     from xtomo.parse import parse
     args=parse()
     #print(args)
@@ -59,12 +59,12 @@ def recon():
         import h5py
         fid= h5py.File(fname, "r")
         sino  = fid['exchange/data']
-    
+        theta = fid['exchange/theta']
         num_angles =  sino.shape[1]
         num_rays   =  sino.shape[2]
         num_slices =  sino.shape[0]
     
-        fid.close()    
+        #fid.close()    
     
     elif simulate:
         # from simulate_data import get_data as gdata  
@@ -210,6 +210,7 @@ def recon():
     
           
     #print('ringbuffer',ringbuffer)
+    """
     tomo, times_loop, dshape = recon_file(fname,dnames=None, tomo_out=tomo_out, algo = algo,
                                           rot_center = rot_center, 
                                           max_iter = max_iter, tol=tol, 
@@ -217,8 +218,16 @@ def recon():
                                           max_chunk_slice=max_chunk, 
                                           reg = reg, tau = tau, verbose=verboseall,
                                           ncore=ncore, chunks=chunks,mpring=ringbuffer)
+    """
+    import xtomo.loop_sino
+    tomo, times_loop = xtomo.loop_sino.recon(sino, theta, algo = algo, tomo_out=tomo_out, 
+          rot_center = rot_center, max_iter = max_iter, tol=tol, 
+          GPU = GPU, shmem = shmem, max_chunk_slice=max_chunk,  
+          reg = reg, tau = tau, verbose = verboseall, 
+          ncore=ncore, crop=chunks, mpring=ringbuffer)
     
-    
+    dshape = sino.shape
+
     if rank>0: quit()
     
     bold='\033[1m'
