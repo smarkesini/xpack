@@ -131,6 +131,11 @@ def recon():
         fid= h5py.File(fname, "r")
         sino  = fid['exchange/data']
         theta = fid['exchange/theta']
+        if rot_center==None:
+            try:
+                rot_center = np.round( fid['exchange/rot_center'][()] )
+            except:
+                pass
         num_angles =  sino.shape[1]
         num_rays   =  sino.shape[2]
         num_slices =  sino.shape[0]
