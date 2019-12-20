@@ -8,15 +8,15 @@ from xtomo.communicator import rank, mpi_size, mpi_barrier
 
 from timeit import default_timer as timer
 
-def tomofile(file_out, file_in=None, algo='iradon', shape_tomo=(1,1,1), ring_buffer=0, rank=0):
+def tomofile(file_out, file_in=None, algo='iradon', shape_tomo=(1,1,1), ring_buffer=0):
     tomo_out=None
     
     fname=file_in
     if file_out=='-1': # not saving
         if ring_buffer>1: 
-            if rank==0: print('output file was "-1", no ring buffer without output file')
+            if rank==0: print('output file was "-1", no ring buffer without output file', rank)
             ring_buffer=np.mod(ring_buffer,2)
-    
+            return tomo_out, ring_buffer
     
     if (type(file_out) is not type(None)) and file_out!='-1':  
             if rank==0: print("setting up output file")
@@ -84,7 +84,7 @@ def tomofile(file_out, file_in=None, algo='iradon', shape_tomo=(1,1,1), ring_buf
                     tomo_out=fid['/exchange/tomo']
     return tomo_out, ring_buffer
 
-#if __name__ == "__main__":
+
 def recon():
 
     time0=timer()
@@ -108,7 +108,7 @@ def recon():
     tau = args['tau']
     verboseall = args['verbose']
     chunks = args['chunks']
-    print('chunks type', type(chunks))
+    #print('chunks type', type(chunks))
     if type(chunks)==type(None):
         chunks_val=-1
     else:
@@ -122,7 +122,7 @@ def recon():
     #print("testing_recon max_iter",max_iter)
     #algo='tvrings'
     
-    
+    #print('rank',rank)
     if rank==0: print(args)
     
     if type(args['file_in']) is not type(None):
@@ -169,9 +169,10 @@ def recon():
             
         chunks=np.clip(np.array(chunks),0,num_slices)
         num_slices_cropped=np.int(chunks[1]-chunks[0])
-        print('='*50)
-        print(num_slices_cropped, type(num_slices_cropped), num_slices, type(num_slices))
-        print('='*50)
+        if rank ==0:
+            print('='*50)
+            print(num_slices_cropped, type(num_slices_cropped), num_slices, type(num_slices))
+            print('='*50)
         
     else:
         num_slices_cropped=num_slices
@@ -182,8 +183,10 @@ def recon():
     
     times_of=timer()
     tomo_out, ring_buffer = tomofile(file_out, file_in=fname, algo=algo, shape_tomo=(num_slices_cropped,num_rays,num_rays), ring_buffer=ringbuffer)
-
+    ringbuffer=ring_buffer
+    
     times_of=timer()-times_of
+    #print('ring buffer',ringbuffer,ring_buffer)
     if rank ==0: print('output file setup time',times_of)
     
           
@@ -215,7 +218,7 @@ def recon():
     print(bold+"tomo shape",(num_slices_cropped,num_rays,num_rays), "n_angles",num_angles, ', algorithm:', algo,", max_iter:",max_iter,",mpi size:",mpi_size,",GPU:",GPU)
     print("times full tomo", times_loop,flush=True)
     #print("loop+setup time=", times_loop['loop']+times_loop['setup'], "snr=", ssnr(true_obj,tomo),endb)
-    print(bold+"loop+setup time=", times_loop['loop']+times_loop['setup'], 'saving', 'total',endb)
+    print(bold+"loop+setup time=", times_loop['loop']+times_loop['setup'], 'saving', 'total',timer()-time0,endb)
     
     
     times_begin=timer()
