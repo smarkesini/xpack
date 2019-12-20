@@ -88,14 +88,7 @@ def tomofile(file_out, file_in=None, algo='iradon', shape_tomo=(1,1,1), ring_buf
 def recon():
 
     time0=timer()
-    #import json
-    #import textwrap
     
-    
-#    ap = argparse.ArgumentParser(
-#        formatter_class=argparse.RawTextHelpFormatter,
-#        epilog='_'*60+'\n Note option precedence (high to low):  individual options, opts dictionary, fopts  \n'+'-'*60)
-#    
     from xtomo.parse import parse
     args=parse()
     #print(args)
@@ -124,6 +117,7 @@ def recon():
     ncore = args['ncore']
     
     ringbuffer = args['ring_buffer']
+    file_out = args['file_out']
     
     #print("testing_recon max_iter",max_iter)
     #algo='tvrings'
@@ -187,7 +181,7 @@ def recon():
     #tomo_out=None
     
     times_of=timer()
-    tomo_out, ring_buffer = tomofile(args['file_out'], file_in=fname, algo=algo, shape_tomo=(num_slices_cropped,num_rays,num_rays), ring_buffer=ringbuffer)
+    tomo_out, ring_buffer = tomofile(file_out, file_in=fname, algo=algo, shape_tomo=(num_slices_cropped,num_rays,num_rays), ring_buffer=ringbuffer)
 
     times_of=timer()-times_of
     if rank ==0: print('output file setup time',times_of)
@@ -230,36 +224,41 @@ def recon():
     
     #print("done recon")
     #print(type(tomo_out))
-    if ringbuffer >1:
-        import os.path
-        file_out = tomo_out.filename
-    
-        if os.path.splitext(file_out)[-1] in ('.h5','.hdf5'):
+
+    def tomosave(tomo_out, ring_buffer):
+        if ringbuffer >1:
+            import os.path
+            file_out = tomo_out.filename
+        
+            if os.path.splitext(file_out)[-1] in ('.h5','.hdf5'):
+                tstring = str(times_loop)
+                fid.create_dataset('mish/times', data =tstring )            
+                #fid.close()        
+            elif os.path.splitext(file_out)[-1] in ('.tif','.tiff'):
+                #tomo=tomo_out
+                
+                print('flushing',end=' ')
+                if type(tomo_out)==np.memmap:
+                    tomo_out.flush()
+                if type(tomo)==np.memmap:
+                    tomo.flush()
+                print('\r flushed, t=',timer()-times_begin)#,end=' ')
+        elif type(tomo_out)!=type(None):
+                
+                #tomo_out.close()
+        #        pass
+    #    elif  (type(file_out) is not type(None)) and file_out!='-1':
+            print('saving...',end=' ')
             tstring = str(times_loop)
-            fid.create_dataset('mish/times', data =tstring )            
-            #fid.close()        
-        elif os.path.splitext(file_out)[-1] in ('.tif','.tiff'):
-            #tomo=tomo_out
-            
-            print('flushing',end=' ')
-            if type(tomo_out)==np.memmap:
-                tomo_out.flush()
-            if type(tomo)==np.memmap:
-                tomo.flush()
-            print('\r flushed, t=',timer()-times_begin)#,end=' ')
-    elif type(tomo_out)!=type(None):
-            
-            #tomo_out.close()
-    #        pass
-#    elif  (type(file_out) is not type(None)) and file_out!='-1':
-        print('saving...',end=' ')
-        tstring = str(times_loop)
-        # did not save during iterations
-        #if os.path.splitext(file_out)[-1] in ('.tif','.tiff'):
-        tomo_out.flush()
-        del tomo_out
+            # did not save during iterations
+            #if os.path.splitext(file_out)[-1] in ('.tif','.tiff'):
+            tomo_out.flush()
+            del tomo_out
             #from tifffile import imsave
                 #imsave(file_out,tomo, description = cstring+' '+tstring)
+
+    if file_out != '-1':
+        tomosave(tomo_out, ring_buffer)
     
         
     #print("flushed")

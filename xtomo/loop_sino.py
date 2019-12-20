@@ -253,7 +253,7 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
             if type(tomo_out)!=type(None): #np.memmap:
                 tomo=tomo_out
             else:
-                from communicator import allocate_shared
+                from .communicator import allocate_shared
                 try:
                     tomo = allocate_shared((num_slices,num_rays,num_rays),rank,mpi_size)
                 except:
