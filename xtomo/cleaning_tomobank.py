@@ -197,9 +197,8 @@ def clean_raw(h5fname_in=h5fname_in, h5fname_out=None, max_chunks=None):
         fid.create_dataset(dirname, data = value)
     
     dnames={'sino':"exchange/data", 'theta':"exchange/theta", 'rot_center':'exchange/rot_center'}
-
     start_loop_time =time.time()   
-    chunks = [0, num_slices]
+    #chunks = [0, num_slices]
     if max_chunks==None:
         #nchunks=int(1)
         #max_chunks=num_slices
