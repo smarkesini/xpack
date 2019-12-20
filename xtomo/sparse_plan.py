@@ -27,7 +27,9 @@ except:
 def xbytes(x): return bytes(tonp(x))
 
 
-cache='.cache/'
+#cache='.cache/'
+cache=os.path.expanduser('~/.cache/xpack/')
+
 
 #from timeit import default_timer as timer
 

@@ -155,7 +155,7 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
             GPU=False
     else:
         xp=np
-    printv("\n\nGPU", GPU,'\n')
+    #printv("\n\nGPU", GPU,'\n')
     theta=xp.array(theta)
     
     # set up radon
