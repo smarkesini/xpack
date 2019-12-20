@@ -263,14 +263,14 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
         #print('hi there shmem,type(tomo_out)',type(tomo_out),flush=True)
                 
         if (not shmem) and (mpring<2):
-            printv('using gatherv distributed mpi', flush=True)
+            printv('using gatherv distributed mpi- mpring',mpring, flush=True)
             
-            from communicator import gatherv
+            from .communicator import gatherv
             # gatherv - allocate 
             tomo=None
             tomo_local=None
             if rank == 0: 
-                if type(tomo_out)==type(None):
+                if type(tomo_out)!=type(None):
                     tomo = tomo_out
                 else:
                     tomo = np.empty((num_slices,num_rays,num_rays),dtype = 'float32')
