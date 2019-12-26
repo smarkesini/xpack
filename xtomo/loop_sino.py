@@ -355,10 +355,11 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
 
         else:
             #tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter,)
-            tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter)
-            start_gather = timer()
+            
 
             if mpring>1: # 2 or 3                
+                tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter)
+                start_gather = timer()
 
                 if ii>1: 
                     #printv('\n iter',ii,'joining pw[',even,']',pw[even])
