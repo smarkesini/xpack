@@ -57,9 +57,12 @@ def wrap(sshape,theta,rot_center,algo,xp=np, obj_width=.98, max_iter=10, tol=1e-
     
             radon,iradon = radon_setup(num_rays, theta, xp=xp, center=rot_center, filter_type='hamming', kernel_type = 'gaussian', k_r =1, width=obj_width)
     
-            import solve_sirt 
-            solve_sirt.init(xp)
-            sirtBB=solve_sirt.sirtBB
+            #import solve_sirt 
+            from .solve_sirt import init 
+            from .solve_sirt import sirtBB 
+            init(xp)
+            #solve_sirt.init(xp)
+            #sirtBB=solve_sirt.sirtBB
             #t=0.
             def reconstruct(data,verbose):
                 tomo_t,rnrm=sirtBB(radon, iradon, data, xp, max_iter=max_iter, alpha=1.,verbose=verbose)
