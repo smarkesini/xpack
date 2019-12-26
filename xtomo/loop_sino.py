@@ -354,11 +354,11 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
             start_gather = timer()
 
         else:
-            #tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter,)
+            tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter,)
             
 
             if mpring>1: # 2 or 3                
-                tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter)
+                #tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter)
                 start_gather = timer()
 
                 if ii>1: 
