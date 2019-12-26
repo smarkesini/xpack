@@ -182,8 +182,7 @@ def recon():
         #print("running simulations",sim_shape)
         
         #obj_size = 256
-        num_slices = sim_shape[0] #16*32# size//2
-        #num_angles =    obj_size//2
+        num_slices = sim_shape[0] #16*32# size//2        
         num_angles =  sim_shape[1] #180*6+1
         num_rays   = sim_shape[2]# obj_size
         obj_width=sim_width#0.95
@@ -347,7 +346,7 @@ def recon():
     #    plt.draw()
     #
     
-        #quit()
+
     #print('checking for truth')
     time_tot=timer()-time0
     bold='\033[1m'
@@ -363,6 +362,7 @@ def recon():
     if time_file == 1:
         import os
         import datetime
+
         root_name=os.path.expanduser('~/data/')
         fname = 'runtime_data.txt'
         f = open(root_name + fname, 'a+')
