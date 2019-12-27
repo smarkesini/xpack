@@ -26,6 +26,28 @@ def printv0(*args,**kwargs):
         return
     elif 'end' in kwargs:
         print(' '.join(map(str,args)), end = '')
+
+
+def chunktomo(num_slices, chunks):
+    if type(chunks)!=type(None):
+        chunks = np.array(chunks)
+        if chunks.size==1: 
+            chunks=np.int64(chunks)
+            chunks=np.array([0,chunks[0]])+(num_slices-chunks[0])//2
+            
+        chunks=np.clip(np.array(chunks),0,num_slices)
+        num_slices_cropped=np.int(chunks[1]-chunks[0])
+        if rank ==0:
+            print('='*50)
+            print(num_slices_cropped, type(num_slices_cropped), num_slices, type(num_slices))
+            print('='*50)
+        
+    else:
+        num_slices_cropped=num_slices
+        
+    return num_slices_cropped, chunks
+
+
 # ================== reconstruct ============== #
 
 def dnames_get():
@@ -354,7 +376,7 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
             start_gather = timer()
 
         else:
-            tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter,)
+            tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter)
             
 
             if mpring>1: # 2 or 3                
@@ -388,8 +410,10 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
                 
             elif shmem:
                 start_gather = timer() # this is in shared memory
+                #print('shmem')
                 tomo[chunks[0]-loop_offset:chunks[1]-loop_offset,...] = tomo_chunk
             else:
+                start_gather = timer()
                 if rank ==0:
                     tomo_local = tomo[loop_chunks[ii]-loop_offset:loop_chunks[ii+1]-loop_offset,:,:]
                     
