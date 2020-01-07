@@ -38,7 +38,7 @@ def  parse():
     ap.add_argument('-fopts', '--foptions', type=str, help="file with json options  ")
     ap.add_argument("-ncore", "--ncore", type=int, help="ncore for tomopy reconstruction algorithms")
     
-    ap.add_argument("-rb", "--ring_buffer", type=int, default=0, help="ring buffer 0 none,1:input,2=output,3=2+1")
+    ap.add_argument("-rb", "--ring_buffer", type=int, default=0, help="ring buffer 0 none,1:input,2=output,4=MPI, 7=1+2+4")
     
     
     # default options
@@ -50,8 +50,8 @@ def  parse():
     Dopts['sim_width']=.95
     
     
-    sim_shape=[256, 181, 256]
-    sim_width=0.95
+    #sim_shape=[256, 181, 256]
+    #sim_width=0.95
     global args
     
     args = vars(ap.parse_args())

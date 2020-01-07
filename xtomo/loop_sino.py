@@ -119,7 +119,12 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
             mpiring = int(shmem==0 and mpi_size>1)
     else:
         mpiring=0
-
+        
+    mpigather=False
+    if type(tomo_out)==type(None) or type(tomo_out)==np.ndarray:
+        if shmem!=1:
+            mpigather=True
+        
 #    if MPI_RING!= None:
 #        mpiring=MPI_RING & mpiring
 
@@ -184,10 +189,10 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
             
             from .devmanager import set_visible_device
             
-            import cupy as xp
             do,vd,nd=set_visible_device(rank)
-            #device_gbsize=xp.cuda.Device(vd).mem_info[1]/((2**10)**3)
+
             try:
+                import cupy as xp
                 device_gbsize=xp.cuda.Device().mem_info[1]/((2**10)**3)
                 printv("gpu memory:",device_gbsize, 
                        "GB, chunk sino memory:",max_chunk_slice*num_rays*num_angles*4/(2**10)**2,'MB',
@@ -218,7 +223,6 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     times_loop['setup']=time_radonsetup
     printv("time=", time_radonsetup,flush=True)
     
-
     
     #divide up loop chunks evenly across mpi ranks    
     loop_chunks=get_loop_chunk_slices(num_slices, mpi_size, max_chunk_slice )
@@ -307,13 +311,17 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
             else:
                 tomo = np.empty((num_slices,num_rays,num_rays),dtype = 'float32')
                 
+                
         from .communicator import igatherv #, gatherv
         
     # no mpi ring buffer
     else:
         printv('using gatherv distributed mpi- mpring',mpring, flush=True)
             
-        from .communicator import gatherv
+        #from .communicator import gatherv
+        from .communicator import igatherv 
+        mpigather=True
+        pgather=0
         # gatherv - allocate 
         tomo=None
         tomo_local=None
@@ -341,31 +349,14 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
                     printv(bold+"shared memory is not working, set the flag -S to 0")
                     printv("reverting to mpi gatherv that but it may not work\n",'='*60,endb)
                     shmem=False
-        #print('hi there shmem,type(tomo_out)',type(tomo_out),flush=True)
-                
-#        if (not shmem) and (mpring<2):
-#            printv('using gatherv distributed mpi- mpring',mpring, flush=True)
-#            
-#            from .communicator import gatherv
-#            # gatherv - allocate 
-#            tomo=None
-#            tomo_local=None
-#            if rank == 0: 
-#                if type(tomo_out)!=type(None):
-#                    tomo = tomo_out
-#                else:
-#                    tomo = np.empty((num_slices,num_rays,num_rays),dtype = 'float32')
-                    
-        #print('neither?')
-    else: # tomopy with no mpi no ring buffer
-        #if rank == 0: print('tomopy')
-        # tomopy: no MPI
+   
+    else: #  no mpi no ring buffer
         
         tomo=None
         if rank == 0:
             tomo=np.empty((num_slices, num_rays,num_rays),dtype='float32')
             
-    #print('finally')
+
     halo=0
     if algo == 'tv': halo = 2 #not used at the moment
     halo+=0
@@ -388,7 +379,7 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
         
         printv("reading slices:", end = '')    
         
-        
+        """
         # halo for TV - to do ...
         #bchunk=np.clip(chunks[0]-halo,0,num_slices)
         #echunk=np.clip(chunks[1]+halo,0,num_slices)
@@ -400,7 +391,8 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
         #data xrxrm= sino[chunksi,...]
         
         #data = sino[chunks[0]:chunks[1],...]
-
+        """
+        
         # ring buffer read
         even = np.mod(ii+1,2)
         # read directly the first round, or if mpring is odd (1 or 3) 
@@ -439,6 +431,11 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
             start_gather= timer()
             if pgather[even]!=0: pgather[even].Wait()
             mpi_time= timer()-start_gather
+        elif mpigather:
+            start_gather= timer()
+            if pgather!=0: pgather.Wait()
+            mpi_time= timer()-start_gather
+
             
         start_solver = timer()
         if algo == 'tomopy-gridrec':
@@ -449,7 +446,7 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
             else:
                 tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter,ncore)
             
-            start_gather = timer()
+            #start_gather = timer()
 
         else:
             if mpi_size == 1:
@@ -463,11 +460,9 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
         
         start_gather = timer()
             
-        if mpring>1: # 2 or 3                
-            #tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter)
+        if mpring>1: 
             
             if ii>1: 
-                #printv('\n iter',ii,'joining pw[',even,']',pw[even])
                 pw[even].join() #make sure this is done
                 pw[even].terminate()
             
@@ -487,24 +482,21 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
         elif shmem:
             tomo[chunks[0]-loop_offset:chunks[1]-loop_offset,...] = tomo_chunk
         else:
-        #if rank ==0: print("starting mpi gather")
+
             if mpiring:
                 
                 if rank ==0:
                     tomo_local = tomo[loop_chunks[ii]-loop_offset:loop_chunks[ii+1]-loop_offset,:,:]
-                    
-                #gatherv(tomo_chunk[0:chunks[1]-chunks[0]],chunk_slices,data=tomo_local)
-                pgather[even]=igatherv(tomo_ring[even,0:chunks[1]-chunks[0],...],chunk_slices,data=tomo_local)
-                #gatherv(tomo_ring[even,0:chunks[1]-chunks[0],...],chunk_slices,data=tomo_local)
                 
-                #if rank ==0: print('pgather',pgather[even])
-                #pgather[even] = mp.Process(target=gather_tomo,args=(ii,chunks,chunk_slices,tomo))
-                #pgather[even].start()
+                # non blocking gatherv
+                pgather[even]=igatherv(tomo_ring[even,0:chunks[1]-chunks[0],...],chunk_slices,data=tomo_local)
+
             elif mpi_size > 1:
                 if rank ==0:
                     tomo_local = tomo[loop_chunks[ii]-loop_offset:loop_chunks[ii+1]-loop_offset,:,:]
-                    
-                gatherv(tomo_chunk[0:chunks[1]-chunks[0]],chunk_slices,data=tomo_local)
+                pgather = igatherv(tomo_chunk[0:chunks[1]-chunks[0]],chunk_slices,data=tomo_local)   
+                
+                #gatherv(tomo_chunk[0:chunks[1]-chunks[0]],chunk_slices,data=tomo_local)
 
 
         mpi_time += timer()-start_gather
@@ -520,7 +512,8 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     
         for jj in times: times_loop[jj]+=times[jj]
 
-
+    ##### end of loop
+    
 
     start = timer()
     mpi_barrier()
@@ -533,20 +526,11 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
         except:
             None
     
-    
-    #print("times last loop_chunk",times)
+
     end_loop=time.time()
     times_loop['loop']=end_loop-start_loop_time 
     
-    """
-    bold='\033[1m'
-    endb= '\033[0m'
-    print(bold+"tomo shape",(num_slices,num_rays,num_rays), "n_angles",num_angles, ', algorithm:', algo,", max_iter:",max_iter,",mpi size:",mpi_size,",GPU:",GPU)
-    print("times full tomo", times_loop)
-    print("loop+setup time=", times_loop['loop']+times_loop['setup'],endb)
-    #print("times full tomo", times_loop,flush=True)
-    """
-    
+    # make sure all buffers are done
     if mpiring:
         time_gather=time.time()    
 
@@ -554,6 +538,11 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
             pgather[even].Wait()
         if pgather[1-even]!=0:
             pgather[even].Wait()
+        time_last_gather = time.time()-time_gather
+        times_loop['gather']+=time_last_gather
+    elif mpigather:
+        time_gather=time.time()    
+        if pgather!=0: pgather.Wait()
         time_last_gather = time.time()-time_gather
         times_loop['gather']+=time_last_gather
 
@@ -574,7 +563,6 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     time_write=time.time()-time_write
     times_loop['write']=time_write
     
-    #print('done')    
 
     return tomo, times_loop
 
