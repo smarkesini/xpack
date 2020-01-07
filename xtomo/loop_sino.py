@@ -86,7 +86,7 @@ def recon_file(fname, tomo_out=None, dnames=None, algo = 'iradon' ,rot_center = 
 
 #########################################
 
-def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_iter = None, tol=5e-3, GPU = True, shmem = False, max_chunk_slice=16,  reg = None, tau = None, verbose = verboseall,ncore=None, crop=None, mpring=False):
+def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_iter = 10, tol=5e-3, GPU = True, shmem = False, max_chunk_slice=16,  reg = None, tau = None, verbose = verboseall,ncore=None, crop=None, mpring=False):
 
     def printv(*args,**kwargs): 
         if verbose>0:  printv0(*args,**kwargs)
@@ -104,8 +104,31 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     if type(rot_center)==type(None):
         rot_center = num_rays//2
 
+    
+    #MPI_RING = None    
+    
+    #print('input mpring',mpring)
+    #mpiring=int(shmem==0 and mpi_size>1) # don't use ring with shared memory or if mpi_size=1
+    
+    if mpring != False:
+        print('setting up mpiring')
+
+        if mpring>3:
+            #MPI_RING=1
+            mpring-=4
+            mpiring = int(shmem==0 and mpi_size>1)
+    else:
+        mpiring=0
+
+#    if MPI_RING!= None:
+#        mpiring=MPI_RING & mpiring
+
+    #print('mpi ring',mpiring)
+
+    
     times={'loop':0, 'setup':0, 'h5read':0, 'solver':0, 'c2g':0, 'g2c':0, 'barrier':0, 'gather':0 }
     times_loop=times.copy()
+    
     
     #cropped output
     loop_offset=0
@@ -121,13 +144,14 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     if algo=='tomopy-gridrec':
         GPU=False
         mpring=0
+        mpiring=0
         if mpi_size>1 and rank==0: 
                 warnings.warn('tomopy should not use MPI')
         #algo='tomopy-gridrec'
 
     
-    if max_iter == None: max_iter = 10
-    #print("recon max_iter",max_iter)
+    #if max_iter == None: max_iter = 10
+ 
 
     #float_size=32/8; alg_tsize=4; alg_ssize=3
     #slice_gbsize=num_rays*(num_rays*alg_tsize+num_angles*alg_ssize)*(float_size)/((2**10)**3)
@@ -168,7 +192,6 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
                 printv("gpu memory:",device_gbsize, 
                        "GB, chunk sino memory:",max_chunk_slice*num_rays*num_angles*4/(2**10)**2,'MB',
                        ", chunk tomo memory:",max_chunk_slice*(num_rays**2)*4/(2**10)**2,'MB')
-                #xp.cuda.profiler.initialize()
                 xp.cuda.profiler.start()
             except:
                 pass
@@ -189,7 +212,6 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     from .wrap_algorithms import wrap
     reconstruct=wrap(sino.shape,theta,rot_center,algo,xp=xp, obj_width=obj_width, max_iter=max_iter, tol=tol, reg=reg, tau=tau, ncore=ncore, verbose=verbose)   
        
-    #print("[0] rank",rank, "used bytes", mempool.used_bytes())
     
     end = timer()
     time_radonsetup=(end - start)
@@ -213,7 +235,12 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     ######################################### 
     # MP ring buffer setup
     #mpring=True
-    if loop_chunks.size-1<2: mpring=0
+   
+    
+
+    if loop_chunks.size-1<2 or mpi_size==1: mpring=mpiring=0
+    if algo[0:min(len(algo),6)]=='tomopy': mpiring = 0
+
     
     if mpring>0:
         printv("multiprocessing ring buffer",mpring,flush=True)
@@ -235,34 +262,66 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
 
             return np_arr 
         
+         # reading ring buffer (1 or 3)
+        if np.mod(mpring,2)==1:
+            pr=[0,0] #process even or odd
+            data_ring  = shared_array(shape=(2,max_chunk_slice, num_angles, num_rays),dtype=np.float32)
+            
+            # def read_data(sino, loop_chunks, ii):
+            def read_data(ii):
+                """no synchronization."""
+                even = np.mod(ii+1,2)
+                nslices = loop_chunks[ii+1]-loop_chunks[ii]
+                chunk_slices = get_chunk_slices(nslices)
+                chunks=chunk_slices[rank,:]+loop_chunks[ii]
+                data_ring[even,0:chunks[1]-chunks[0],...]= sino[chunks[0]:chunks[1],...]
     
-    if np.mod(mpring,2)==1: # reading ring buffer (1 or 3)
-        pr=[0,0] #process even or odd
-        data_ring  = shared_array(shape=(2,max_chunk_slice, num_angles, num_rays),dtype=np.float32)
+        # writing ring buffer (2 or 3)
+        if mpring>1: 
+            printv('ring buffer writing to file')
+            pw=[0,0] #process even or odd        
+            pflush=None # flushing
+            tomo_ring  = shared_array(shape=(2,max_chunk_slice, num_rays, num_rays),dtype=np.float32)
+    
+            def write_tomo(tomo_out,chunks,ii):
+                even = np.mod(ii+1,2)
+                tomo_out[chunks[0]-loop_offset:chunks[1]-loop_offset,...]=tomo_ring[even,0:chunks[1]-chunks[0],...]
+    
+            def flush():
+                #print('\nflushing',ii)
+                tomo_out.flush()
+                #print('flushed',ii,'\n')
+    # mpi ring buffer
+    if mpiring:
+        printv('ring buffer gatherv')
+        #pw=[0,0] #process even or odd   pr=[0,0]     
+        pgather=[0,0];#None # process control
         
-        # def read_data(sino, loop_chunks, ii):
-        def read_data(ii):
-            """no synchronization."""
-            even = np.mod(ii+1,2)
-            nslices = loop_chunks[ii+1]-loop_chunks[ii]
-            chunk_slices = get_chunk_slices(nslices)
-            chunks=chunk_slices[rank,:]+loop_chunks[ii]
-            data_ring[even,0:chunks[1]-chunks[0],...]= sino[chunks[0]:chunks[1],...]
-
-    if mpring>1: # writing ring buffer (2 or 3)
-        printv('ring buffer writing to file')
-        pw=[0,0] #process even or odd        
-        pflush=None # flushing
-        tomo_ring  = shared_array(shape=(2,max_chunk_slice, num_rays, num_rays),dtype=np.float32)
-
-        def write_tomo(tomo_out,chunks):
-
-            tomo_out[chunks[0]-loop_offset:chunks[1]-loop_offset,...]=tomo_ring[even,0:chunks[1]-chunks[0],...]
-
-        def flush():
-            #print('\nflushing',ii)
-            tomo_out.flush()
-            #print('flushed',ii,'\n')
+        tomo_ring  = np.empty((2,max_chunk_slice, num_rays, num_rays),dtype='float32')
+        
+        tomo=None
+        tomo_local=None
+        if rank == 0: 
+            if type(tomo_out)!=type(None):
+                tomo = tomo_out
+            else:
+                tomo = np.empty((num_slices,num_rays,num_rays),dtype = 'float32')
+                
+        from .communicator import igatherv #, gatherv
+        
+    # no mpi ring buffer
+    else:
+        printv('using gatherv distributed mpi- mpring',mpring, flush=True)
+            
+        from .communicator import gatherv
+        # gatherv - allocate 
+        tomo=None
+        tomo_local=None
+        if rank == 0: 
+            if type(tomo_out)!=type(None):
+                tomo = tomo_out
+            else:
+                tomo = np.empty((num_slices,num_rays,num_rays),dtype = 'float32')
    
     # MP ring buffer setup
     ######################################### 
@@ -284,22 +343,28 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
                     shmem=False
         #print('hi there shmem,type(tomo_out)',type(tomo_out),flush=True)
                 
-        if (not shmem) and (mpring<2):
-            printv('using gatherv distributed mpi- mpring',mpring, flush=True)
-            
-            from .communicator import gatherv
-            # gatherv - allocate 
-            tomo=None
-            tomo_local=None
-            if rank == 0: 
-                if type(tomo_out)!=type(None):
-                    tomo = tomo_out
-                else:
-                    tomo = np.empty((num_slices,num_rays,num_rays),dtype = 'float32')
+#        if (not shmem) and (mpring<2):
+#            printv('using gatherv distributed mpi- mpring',mpring, flush=True)
+#            
+#            from .communicator import gatherv
+#            # gatherv - allocate 
+#            tomo=None
+#            tomo_local=None
+#            if rank == 0: 
+#                if type(tomo_out)!=type(None):
+#                    tomo = tomo_out
+#                else:
+#                    tomo = np.empty((num_slices,num_rays,num_rays),dtype = 'float32')
+                    
         #print('neither?')
     else: # tomopy with no mpi no ring buffer
-        print('tomopy')
-        tomo=np.empty((num_slices, num_rays,num_rays),dtype='float32')
+        #if rank == 0: print('tomopy')
+        # tomopy: no MPI
+        
+        tomo=None
+        if rank == 0:
+            tomo=np.empty((num_slices, num_rays,num_rays),dtype='float32')
+            
     #print('finally')
     halo=0
     if algo == 'tv': halo = 2 #not used at the moment
@@ -367,65 +432,88 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
 
         
         printv("reconstructing slices, ", end = '') 
-        start_solver = timer()
+        
  
         mpi_time=0.
+        if mpiring:
+            start_gather= timer()
+            if pgather[even]!=0: pgather[even].Wait()
+            mpi_time= timer()-start_gather
+            
+        start_solver = timer()
         if algo == 'tomopy-gridrec':
             #tomo, rnrm =  reconstruct(data,verbose_iter)
-            tomo[chunks[0]-loop_offset:chunks[1]-loop_offset,...], rnrm, g2ctime =  reconstruct(data,verbose_iter,ncore)
+            print("tomopy rank size",mpi_size)
+            if mpi_size == 1:            
+                tomo[chunks[0]-loop_offset:chunks[1]-loop_offset,...], rnrm, g2ctime =  reconstruct(data,verbose_iter,ncore)
+            else:
+                tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter,ncore)
+            
             start_gather = timer()
 
         else:
-            tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter)
-            
-
-            if mpring>1: # 2 or 3                
-                #tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter)
-                start_gather = timer()
-
-                if ii>1: 
-                    #printv('\n iter',ii,'joining pw[',even,']',pw[even])
-                    pw[even].join() #make sure this is done
-                    pw[even].terminate()
-
-                
-                    
-                tomo_ring[even,0:chunks[1]-chunks[0],...]=tomo_chunk
-                # kill the previous job
-                # if ii>1: pw[even].terminate()
-
-                
-                pw[even] = mp.Process(target=write_tomo, args=(tomo_out,chunks))
-                pw[even].start()
-
-                # flush data to disk
-                if rank ==0 : 
-                    if pflush==None:
-                        pflush=mp.Process(target=flush)
-                        pflush.start()
-                    elif not pflush.is_alive():
-                        pflush=mp.Process(target=flush)
-                        pflush.start()
-
-                
-            elif shmem:
-                start_gather = timer() # this is in shared memory
-                #print('shmem')
-                tomo[chunks[0]-loop_offset:chunks[1]-loop_offset,...] = tomo_chunk
+            if mpi_size == 1:
+                tomo[chunks[0]-loop_offset:chunks[1]-loop_offset,...], rnrm, g2ctime =  reconstruct(data,verbose_iter)
+            elif mpring>1 or mpiring:
+                tomo_ring[even,0:chunks[1]-chunks[0],...], rnrm,g2ctime = reconstruct(data,verbose_iter)
             else:
-                start_gather = timer()
+                tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter)
+
+        times['solver'] = timer()-start_solver
+        
+        start_gather = timer()
+            
+        if mpring>1: # 2 or 3                
+            #tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter)
+            
+            if ii>1: 
+                #printv('\n iter',ii,'joining pw[',even,']',pw[even])
+                pw[even].join() #make sure this is done
+                pw[even].terminate()
+            
+            pw[even] = mp.Process(target=write_tomo, args=(tomo_out,chunks,ii))
+            pw[even].start()
+
+            # flush data to disk
+            if rank ==0 : 
+                if pflush==None:
+                    pflush=mp.Process(target=flush)
+                    pflush.start()
+                elif not pflush.is_alive():
+                    pflush=mp.Process(target=flush)
+                    pflush.start()
+
+            
+        elif shmem:
+            tomo[chunks[0]-loop_offset:chunks[1]-loop_offset,...] = tomo_chunk
+        else:
+        #if rank ==0: print("starting mpi gather")
+            if mpiring:
+                
+                if rank ==0:
+                    tomo_local = tomo[loop_chunks[ii]-loop_offset:loop_chunks[ii+1]-loop_offset,:,:]
+                    
+                #gatherv(tomo_chunk[0:chunks[1]-chunks[0]],chunk_slices,data=tomo_local)
+                pgather[even]=igatherv(tomo_ring[even,0:chunks[1]-chunks[0],...],chunk_slices,data=tomo_local)
+                #gatherv(tomo_ring[even,0:chunks[1]-chunks[0],...],chunk_slices,data=tomo_local)
+                
+                #if rank ==0: print('pgather',pgather[even])
+                #pgather[even] = mp.Process(target=gather_tomo,args=(ii,chunks,chunk_slices,tomo))
+                #pgather[even].start()
+            elif mpi_size > 1:
                 if rank ==0:
                     tomo_local = tomo[loop_chunks[ii]-loop_offset:loop_chunks[ii+1]-loop_offset,:,:]
                     
                 gatherv(tomo_chunk[0:chunks[1]-chunks[0]],chunk_slices,data=tomo_local)
-                
-        mpi_time= timer()-start_gather
+
+
+        mpi_time += timer()-start_gather
         times['gather'] = mpi_time
 
         #printv("mpi time ={:3g}".format(times['gather']),flush=True)
 
     
-        times['solver'] = timer()-start_solver-mpi_time
+        
         times['g2c']    = g2ctime
 
         printv("\r read time={:3g}, solver ={:3g}, gather={:3g}, g2c ={:3g}".format(times['h5read'],times['solver'], times['gather'], times['g2c']),flush=True)
@@ -458,6 +546,18 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     print("loop+setup time=", times_loop['loop']+times_loop['setup'],endb)
     #print("times full tomo", times_loop,flush=True)
     """
+    
+    if mpiring:
+        time_gather=time.time()    
+
+        if pgather[even]!=0:
+            pgather[even].Wait()
+        if pgather[1-even]!=0:
+            pgather[even].Wait()
+        time_last_gather = time.time()-time_gather
+        times_loop['gather']+=time_last_gather
+
+    
     time_write=time.time()
     # make sure all writing is done
     if mpring>1:
@@ -466,7 +566,6 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
         pw[even].join()
         pw[even].terminate()
         tomo=tomo_out
-
         
     if rank>0: quit()
     if mpring>1:

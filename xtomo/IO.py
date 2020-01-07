@@ -12,8 +12,8 @@ def tomofile(file_out, file_in=None, algo='iradon', shape_tomo=(1,1,1), ring_buf
     fname=file_in
     if file_out=='-1': # not saving
         if ring_buffer>1: 
-            if rank==0: print('output file was "-1", no ring buffer without output file', rank)
-            ring_buffer=np.mod(ring_buffer,2)
+            #if rank==0: print('output file was "-1", no ring buffer without output file', rank)
+            #ring_buffer=np.mod(ring_buffer,2)
             return tomo_out, ring_buffer
     
     if (type(file_out) is not type(None)) and file_out!='-1':  

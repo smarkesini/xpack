@@ -91,6 +91,7 @@ if __name__ == "__main__":
     
     if rank == 0: print('theta ', theta[0:4]*180/np.pi,'...',theta[-3:]*180/np.pi)
 
+    #print('ring buffer',ring_buffer)
     import xtomo.loop_sino
     tomo, times_loop = xtomo.loop_sino.recon(sino, theta, algo = algo, tomo_out=tomo_out, 
           rot_center = rot_center, max_iter = max_iter, tol=tol, 
@@ -153,7 +154,7 @@ if __name__ == "__main__":
     except:
         print("no tomogram to compare")
 
-                
+
        
 
     

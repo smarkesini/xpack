@@ -145,6 +145,35 @@ def gatherv(data_local,chunk_slices, data = None):
     
     return data
 
+def igatherv(data_local,chunk_slices, data = None): 
+    if size==1: 
+        if type(data) == type(None):
+            data=data_local+0
+        else:
+            data[...] = data_local[...]
+        return data
+
+    cnt=np.diff(chunk_slices)
+    slice_shape=data_local.shape[1:]
+    sdim=np.prod(slice_shape)
+    
+    if rank==0 and type(data) == type(None) :
+        tshape=(np.append(chunk_slices[-1,-1]-chunk_slices[0,0],slice_shape))
+        data = np.empty(tuple(tshape),dtype=data_local.dtype)
+
+
+    #comm.Gatherv(sendbuf=[data_local, MPI.FLOAT],recvbuf=[data,(cnt*sdim,None),MPI.FLOAT],root=0)
+    
+    # for large messages
+    mpichunktype = MPI.FLOAT.Create_contiguous(4).Commit()
+    #mpics=mpichunktype.Get_size()
+    sdim=sdim* MPI.FLOAT.Get_size()//mpichunktype.Get_size()
+    req=comm.Igatherv(sendbuf=[data_local, mpichunktype],recvbuf=[data,(cnt*sdim,None),mpichunktype])
+    mpichunktype.Free()
+    
+    return req
+
+
 def allocate_shared(shape_obj,rank,mpi_size):
 
     if mpi_size == 1:
