@@ -197,10 +197,10 @@ def allocate_shared(shape_obj,rank,mpi_size):
     obj = np.ndarray(buffer=buf, dtype='f', shape=shape_obj) 
     return obj
 
-def attach_shared(obj, rank, mpi_size):
-    if mpi_size == 1:
-        return obj
-    itemsize = MPI.FLOAT.Get_size() 
+#def attach_shared(obj, rank, mpi_size):
+#    if mpi_size == 1:
+#        return obj
+#    itemsize = MPI.FLOAT.Get_size() 
 
     ## win = MPI.Win.Allocate_shared(nbytes, itemsize, comm=comm) 
     # win = MPI.Win.Create_dynamic( comm=comm) 

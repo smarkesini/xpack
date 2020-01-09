@@ -53,7 +53,7 @@ def chunktomo(num_slices, chunks):
 def dnames_get():
     dnames={'sino':"exchange/data", 'theta':"exchange/theta", 'tomo':"exchange/tomo", 'rot_center':"exchange/rot_center"}
     return dnames #dname_sino,dname_theta,dname_tomo
-
+"""
 def recon_file(fname, tomo_out=None, dnames=None, algo = 'iradon' ,rot_center = None, 
                max_iter = None, tol=5e-3, GPU = True, 
                shmem = False, max_chunk_slice=16,  
@@ -82,7 +82,7 @@ def recon_file(fname, tomo_out=None, dnames=None, algo = 'iradon' ,rot_center = 
     
     
     return tomo, times_loop, sino.shape
-    
+"""    
 
 #########################################
 
@@ -103,37 +103,9 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
 
     if type(rot_center)==type(None):
         rot_center = num_rays//2
-
-    
-    #MPI_RING = None    
-    
-    #print('input mpring',mpring)
-    #mpiring=int(shmem==0 and mpi_size>1) # don't use ring with shared memory or if mpi_size=1
-    
-    if mpring != False:
-        print('setting up mpiring')
-
-        if mpring>3:
-            #MPI_RING=1
-            mpring-=4
-            mpiring = int(shmem==0 and mpi_size>1)
-    else:
-        mpiring=0
-        
-    mpigather=False
-    if type(tomo_out)==type(None) or type(tomo_out)==np.ndarray:
-        if shmem!=1:
-            mpigather=True
-        
-#    if MPI_RING!= None:
-#        mpiring=MPI_RING & mpiring
-
-    #print('mpi ring',mpiring)
-
     
     times={'loop':0, 'setup':0, 'h5read':0, 'solver':0, 'c2g':0, 'g2c':0, 'barrier':0, 'gather':0 }
     times_loop=times.copy()
-    
     
     #cropped output
     loop_offset=0
@@ -144,30 +116,7 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
         num_slices=crop[1]-crop[0]
         printv('offset',loop_offset,'chunks',crop)
     
-    
-    
-    if algo=='tomopy-gridrec':
-        GPU=False
-        mpring=0
-        mpiring=0
-        if mpi_size>1 and rank==0: 
-                warnings.warn('tomopy should not use MPI')
-        #algo='tomopy-gridrec'
 
-    
-    #if max_iter == None: max_iter = 10
- 
-
-    #float_size=32/8; alg_tsize=4; alg_ssize=3
-    #slice_gbsize=num_rays*(num_rays*alg_tsize+num_angles*alg_ssize)*(float_size)/((2**10)**3)
-    #
-    ## leave .5 gb and another 9*3 (kernel*3, 3 is data(complex+col+row) for sparse
-    #max_chunk_slice=np.int(np.floor((device_gbsize-.5)/slice_gbsize)-9*3*num_angles/num_rays)
-    #print("max chunk size", max_chunk_slice, 'device_gbsize',device_gbsize,"slice size",slice_gbsize,
-    #      "(device-2)/slice size",(device_gbsize-1)/slice_gbsize)
-    
-    
-    
     printv("GPU:{} , algorithm:{}".format(GPU,algo), end=' ')
     if algo in ('cgls','sirt'):
         printv(", maxit:{}".format(max_iter))
@@ -208,6 +157,47 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     #printv("\n\nGPU", GPU,'\n')
     theta=xp.array(theta)
     
+
+    ##################################################
+    if mpring != False:
+        #print('setting up mpiring')
+        mpiring=0
+        if mpring>3:
+            #MPI_RING=1
+            mpring-=4
+            mpiring = int(shmem==0 and mpi_size>1)
+    else:
+        mpiring=0
+        
+    mpigather=False
+    if type(tomo_out)==type(None) or type(tomo_out)==np.ndarray:
+        if shmem!=1:
+            mpigather=True
+      
+    
+    if algo=='tomopy-gridrec':
+        GPU=False
+        mpring=0
+        mpiring=0
+        if mpi_size>1 and rank==0: 
+                warnings.warn('tomopy should not use MPI')
+        #algo='tomopy-gridrec'
+
+    
+    #if max_iter == None: max_iter = 10
+ 
+
+    #float_size=32/8; alg_tsize=4; alg_ssize=3
+    #slice_gbsize=num_rays*(num_rays*alg_tsize+num_angles*alg_ssize)*(float_size)/((2**10)**3)
+    #
+    ## leave .5 gb and another 9*3 (kernel*3, 3 is data(complex+col+row) for sparse
+    #max_chunk_slice=np.int(np.floor((device_gbsize-.5)/slice_gbsize)-9*3*num_angles/num_rays)
+    #print("max chunk size", max_chunk_slice, 'device_gbsize',device_gbsize,"slice size",slice_gbsize,
+    #      "(device-2)/slice size",(device_gbsize-1)/slice_gbsize)
+    
+    
+    
+
     # set up radon
     printv("setting up the solver. ", end = '')
     
@@ -216,8 +206,7 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     start=timer()
     from .wrap_algorithms import wrap
     reconstruct=wrap(sino.shape,theta,rot_center,algo,xp=xp, obj_width=obj_width, max_iter=max_iter, tol=tol, reg=reg, tau=tau, ncore=ncore, verbose=verbose)   
-       
-    
+           
     end = timer()
     time_radonsetup=(end - start)
     times_loop['setup']=time_radonsetup
@@ -233,14 +222,11 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     printv("rank",rank,"loop_chunks:", loop_chunks+loop_offset)
     
     
-    start_loop_time =time.time()
     
     
     ######################################### 
+    # IO setup
     # MP ring buffer setup
-    #mpring=True
-   
-    
 
     if loop_chunks.size-1<2 or mpi_size==1: mpring=mpiring=0
     if algo[0:min(len(algo),6)]=='tomopy': mpiring = 0
@@ -356,13 +342,15 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
         if rank == 0:
             tomo=np.empty((num_slices, num_rays,num_rays),dtype='float32')
             
-
+    ##############################################
     halo=0
     if algo == 'tv': halo = 2 #not used at the moment
     halo+=0
     #print('number of loops',)
     ######### loop through chunks
     #loop_chunks+=loop_offset
+    start_loop_time =time.time()
+
     printv('starting loop')
     for ii in range(loop_chunks.size-1):
 
@@ -398,6 +386,7 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
         # read directly the first round, or if mpring is odd (1 or 3) 
         if (not np.mod(mpring,2)) or ii==0:
             data = sino[chunks[0]:chunks[1],...]
+            #print("data type",type(data), 'sino type',type(sino))
         # read ring buffer
         else: 
             pr[even].join()
@@ -418,14 +407,15 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
 
         # copy to gpu or cpu
         start = timer()
-        data=xp.array(data)
+        if GPU:
+            data=xp.array(data)
         end = timer()
         times['c2g']=end - start
 
         
         printv("reconstructing slices, ", end = '') 
         
- 
+        # make sure we gathered the results
         mpi_time=0.
         if mpiring:
             start_gather= timer()
@@ -452,6 +442,7 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
             if mpi_size == 1:
                 tomo[chunks[0]-loop_offset:chunks[1]-loop_offset,...], rnrm, g2ctime =  reconstruct(data,verbose_iter)
             elif mpring>1 or mpiring:
+                print('mpring or mpiring')
                 tomo_ring[even,0:chunks[1]-chunks[0],...], rnrm,g2ctime = reconstruct(data,verbose_iter)
             else:
                 tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter)
@@ -479,7 +470,7 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
                     pflush.start()
 
             
-        elif shmem:
+        elif shmem and mpi_size>1:
             tomo[chunks[0]-loop_offset:chunks[1]-loop_offset,...] = tomo_chunk
         else:
 
