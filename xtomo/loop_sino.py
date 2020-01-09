@@ -282,40 +282,45 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
                 tomo_out.flush()
                 #print('flushed',ii,'\n')
     # mpi ring buffer
-    if mpiring:
-        printv('ring buffer gatherv')
-        #pw=[0,0] #process even or odd   pr=[0,0]     
-        pgather=[0,0];#None # process control
-        
-        tomo_ring  = np.empty((2,max_chunk_slice, num_rays, num_rays),dtype='float32')
-        
-        tomo=None
-        tomo_local=None
-        if rank == 0: 
-            if type(tomo_out)!=type(None):
-                tomo = tomo_out
-            else:
-                tomo = np.empty((num_slices,num_rays,num_rays),dtype = 'float32')
-                
-                
-        from .communicator import igatherv #, gatherv
-        
-    # no mpi ring buffer
-    else:
-        printv('using gatherv distributed mpi- mpring',mpring, flush=True)
+    if mpigather:
+        if mpiring:
+            printv('ring buffer gatherv')
+            #pw=[0,0] #process even or odd   pr=[0,0]     
+            pgather=[0,0];#None # process control
             
-        #from .communicator import gatherv
-        from .communicator import igatherv 
-        mpigather=True
-        pgather=0
-        # gatherv - allocate 
-        tomo=None
-        tomo_local=None
-        if rank == 0: 
-            if type(tomo_out)!=type(None):
-                tomo = tomo_out
-            else:
-                tomo = np.empty((num_slices,num_rays,num_rays),dtype = 'float32')
+            tomo_ring  = np.empty((2,max_chunk_slice, num_rays, num_rays),dtype='float32')
+            
+            tomo=None
+            tomo_local=None
+            if rank == 0: 
+                if type(tomo_out)!=type(None):
+                    tomo = tomo_out
+                else:
+                    tomo = np.empty((num_slices,num_rays,num_rays),dtype = 'float32')
+                    
+                    
+            from .communicator import igatherv #, gatherv
+           
+        # no mpi ring buffer
+        else:
+            
+            printv('using gatherv distributed mpi- mpring',mpring, flush=True)
+                
+            #from .communicator import gatherv
+            from .communicator import igatherv 
+            mpigather=True
+            pgather=0
+            # gatherv - allocate 
+            tomo=None
+            tomo_local=None
+            if rank == 0: 
+                if type(tomo_out)!=type(None):
+                    tomo = tomo_out
+                else:
+                    tomo = np.empty((num_slices,num_rays,num_rays),dtype = 'float32')
+                
+
+
    
     # MP ring buffer setup
     ######################################### 
@@ -442,7 +447,7 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
             if mpi_size == 1:
                 tomo[chunks[0]-loop_offset:chunks[1]-loop_offset,...], rnrm, g2ctime =  reconstruct(data,verbose_iter)
             elif mpring>1 or mpiring:
-                print('mpring or mpiring')
+                #print('mpring or mpiring')
                 tomo_ring[even,0:chunks[1]-chunks[0],...], rnrm,g2ctime = reconstruct(data,verbose_iter)
             else:
                 tomo_chunk, rnrm, g2ctime =  reconstruct(data,verbose_iter)
@@ -472,7 +477,7 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
             
         elif shmem and mpi_size>1:
             tomo[chunks[0]-loop_offset:chunks[1]-loop_offset,...] = tomo_chunk
-        else:
+        elif mpigather:
 
             if mpiring:
                 
