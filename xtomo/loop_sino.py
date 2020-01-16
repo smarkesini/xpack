@@ -561,6 +561,6 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     time_write=time.time()-time_write
     times_loop['write']=time_write
     
-
+    tomo = tomo_out
     return tomo, times_loop
 
