@@ -173,6 +173,8 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     if type(tomo_out)==type(None) or type(tomo_out)==np.ndarray:
         if shmem!=1:
             mpigather=True
+    else:
+        tomo = tomo_out
       
     
     if algo=='tomopy-gridrec':
