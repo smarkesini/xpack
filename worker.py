@@ -16,7 +16,7 @@ except:
 
 
 def rrr(Dopts):
-    fname=Dopts['fname']
+    fname=Dopts['file_in']
     import h5py
     fid= h5py.File(fname, "r")
     sino  = fid['exchange/data']
@@ -26,10 +26,7 @@ def rrr(Dopts):
     num_rays   = sino.shape[2]
     
     shape_tomo=(num_slices, num_rays, num_rays)
-    
-#    from .communicator import rank, mpi_size
-    
-    #from xtomo.loop_sino import recon as recon
+
     
     GPU=Dopts['GPU']
     shmem=Dopts['shmem']
@@ -80,7 +77,7 @@ comm_intra = comm.Merge(MPI.COMM_WORLD)
 
 irank = comm_intra.Get_rank()
 
-print('rank',rank, 'intra -- rank', comm_intra.Get_rank())
+#print('rank',rank, 'intra -- rank', comm_intra.Get_rank())
 #comm.barrier()
 #comm_intra.barrier()
 #print("barrier, rank",rank )
@@ -97,9 +94,9 @@ if irank == 1:
 #comm.bcast(Dopts,root=0)
 Dopts=comm_intra.bcast(Dopts,root=0)
 #comm_intra.bcast(Dopts,root=MPI.ROOT)
-comm_intra.barrier()
+#comm_intra.barrier()
 #print('passed barrier,  rank',rank,'recieved opts',Dopts)
-print('passed barrier,  rank',rank,'recieved opts')
+#print('passed barrier,  rank',rank,'recieved opts')
 
 
 tomo, times_loop = rrr(Dopts)
@@ -115,13 +112,15 @@ comm_intra.barrier()
 
 #comm_intra.Disconnect()
 #comm_intra.Free()
-#comm_intra.Disconnect()
 #comm_intra.Free()
 
 #comm.Free()
 comm_intra.Free()
-comm.Free()
-#comm.Disconnect()
+#comm_intra.Disconnect()
+
+del comm_intra
+#comm.Free()
+comm.Disconnect()
 
 
 #print('rank',rank,' quitting')

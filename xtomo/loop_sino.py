@@ -552,7 +552,7 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
         pw[even].terminate()
         tomo=tomo_out
 
-    print('rank',rank, '*'*20)        
+    #print('rank',rank, '*'*20)        
     
     if rank>0: return None, None
     if mpring>1:
