@@ -1,22 +1,31 @@
 
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Wed Jan  8 16:49:17 2020
 
-@author: smarchesini
-"""
+import mpi4py
+mpi4py.rc.threads = False # no multithreading...
+from mpi4py import MPI
 
-#import loop_sino.recon
+try:
+    comm = MPI.Comm.Get_parent()
+    
+    rank = comm.Get_rank()
+except:
+    raise ValueError('Could not connect to parent - ')
 
 
-def rr(Dopts):
+
+def rrr(Dopts):
     fname=Dopts['fname']
     import h5py
     fid= h5py.File(fname, "r")
     sino  = fid['exchange/data']
     theta = fid['exchange/theta']
-
+    num_slices = sino.shape[0]
+    #num_angles = sino.shape[1]
+    num_rays   = sino.shape[2]
+    
+    shape_tomo=(num_slices, num_rays, num_rays)
     
 #    from .communicator import rank, mpi_size
     
@@ -33,9 +42,17 @@ def rr(Dopts):
     max_iter=Dopts['max_iter']
     tol=Dopts['tol']
     ncore=Dopts['tol']
+    algo=Dopts['algo']
+    file_out=Dopts['file_out']
+    
+    from xtomo.IO import maptomofile
+    tomo_out, rb = maptomofile(file_out, shape_tomo = shape_tomo, cstring=str(Dopts))
+    
+    #comm.barrier()
+    #print('-'*50,'\nhello',rank,'tomo_out',tomo_out,flush=True)
+    #algo='iradon'
     rot_center=None
-    algo='iradon'
-    tomo_out=None
+    
     chunks=None
     
     from xtomo.loop_sino import recon 
@@ -45,30 +62,28 @@ def rr(Dopts):
               GPU = GPU, shmem = shmem, max_chunk_slice=max_chunk,  
               reg = reg, tau = tau, verbose = verboseall, 
               ncore=ncore, crop=chunks, mpring=ringbuffer)
+
+    if rank==0:
+        from xtomo.IO import tomosave
+        tomosave(tomo_out, 0,times_loop)
+        print('flushed')
+
+    #if file_out != '-1':
+            
     return tomo, times_loop
     
  
     
 
-import mpi4py
-mpi4py.rc.threads = False # no multithreading...
-from mpi4py import MPI
-
-try:
-    comm = MPI.Comm.Get_parent()
-    
-    rank = comm.Get_rank()
-except:
-    raise ValueError('Could not connect to parent - ')
 
 comm_intra = comm.Merge(MPI.COMM_WORLD)    
 
 irank = comm_intra.Get_rank()
 
-print('rank',rank, 'intra rank', comm_intra.Get_rank())
+print('rank',rank, 'intra -- rank', comm_intra.Get_rank())
 #comm.barrier()
-comm_intra.barrier()
-print("barrier, rank",rank )
+#comm_intra.barrier()
+#print("barrier, rank",rank )
 
 Dopts=None
 if irank == 1:
@@ -83,18 +98,35 @@ if irank == 1:
 Dopts=comm_intra.bcast(Dopts,root=0)
 #comm_intra.bcast(Dopts,root=MPI.ROOT)
 comm_intra.barrier()
+#print('passed barrier,  rank',rank,'recieved opts',Dopts)
+print('passed barrier,  rank',rank,'recieved opts')
 
-tomo, times_loop = rr(Dopts)
+
+tomo, times_loop = rrr(Dopts)
 
 
-print('rank',rank,'done')
+
+#print('rank',rank,' reconstructed')
 comm_intra.barrier()
-print('rank',rank,'opts',Dopts)
+#print('rank',rank,' disconnecting')
 
 #print(Dopts)
 #status = MPI.Status()
 
 #comm_intra.Disconnect()
-comm.Disconnect()
+#comm_intra.Free()
+#comm_intra.Disconnect()
+#comm_intra.Free()
+
+#comm.Free()
+comm_intra.Free()
+comm.Free()
+#comm.Disconnect()
+
+
+#print('rank',rank,' quitting')
+#comm.Disconnect()
+quit()
+#comm.Free()
 
 

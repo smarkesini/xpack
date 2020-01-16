@@ -6,38 +6,46 @@ bold='\033[1m'
 endb= '\033[0m'
 
 
-def tomofile(file_out, file_in=None, algo='iradon', shape_tomo=(1,1,1), ring_buffer=0):
-    tomo_out=None
-    
+# generate output file name from file_in and algo, tif by default, h5 if file_out=*.h5
+def getfilename(file_in, algo='', file_out='*'):
+    import os
+
     fname=file_in
+    
+    if file_out == '0' or file_out=='*': 
+        file_out = os.path.splitext(fname)[0]
+        file_out=file_out+'_'+algo+'_recon.tif'
+        if rank ==0: print('file out was */0, changed to:',file_out)
+        #args['file_out']=file_out
+    elif file_out == '0.h5' or file_out=='*.h5':
+        file_out = os.path.splitext(fname)[0]
+        file_out=file_out+'_'+algo+'_recon.h5'
+        if rank ==0: print('file out was *.h5, changed to:',file_out)
+    
+    return file_out
+
+# map to file_out
+def maptomofile(file_out, shape_tomo=(1,1,1), ring_buffer=0, cstring=None):
+    tomo_out=None
+    #print(bold+"setting up output file"+endb)
+    
+    #fname=file_in
     if file_out=='-1': # not saving
         if ring_buffer>1: 
-            #if rank==0: print('output file was "-1", no ring buffer without output file', rank)
-            #ring_buffer=np.mod(ring_buffer,2)
             return tomo_out, ring_buffer
     
     if (type(file_out) is not type(None)) and file_out!='-1':  
-            if rank==0: print("setting up output file")
+            if rank==0: print(bold+"setting up output file"+endb)
     
-            import os, sys
-            
-            cstring = ' '.join(sys.argv)
-            #file_out = args['file_out']
+            import os
 
-            if file_out == '0' or file_out=='*': 
-                file_out = os.path.splitext(fname)[0]
-                file_out=file_out+'_'+algo+'_recon.tif'
-                if rank ==0: print('file out was 0, changed to:',file_out)
-                #args['file_out']=file_out
-            elif file_out == '0.h5' or file_out=='*.h5':
-                file_out = os.path.splitext(fname)[0]
-                file_out=file_out+'_'+algo+'_recon.h5'
-                if rank ==0: print('file out was *.h5, changed to:',file_out)
-                #args['file_out']=file_out
-            #else: print('file out',file_out)
+            if type(cstring)==type(None):
+                import sys            
+                cstring = ' '.join(sys.argv)
             
-            
+ 
             ## file out mapping
+            
             if os.path.splitext(file_out)[-1] in ('.tif','.tiff'):
                 from tifffile import memmap
     
@@ -82,6 +90,27 @@ def tomofile(file_out, file_in=None, algo='iradon', shape_tomo=(1,1,1), ring_buf
                     tomo_out=fid['/exchange/tomo']
     return tomo_out, ring_buffer
 
+
+
+# map to file_out
+def tomofile(file_out, file_in=None, algo='iradon', shape_tomo=(1,1,1), ring_buffer=0):
+    
+    #fname=file_in
+    if file_out=='-1': # not saving
+        if ring_buffer>1: 
+            tomo_out=None
+            return tomo_out, ring_buffer
+    
+    if (type(file_out) is not type(None)) and file_out!='-1':  
+            if rank==0: print("setting up output file")
+    
+            #file_out = args['file_out']
+            file_out = getfilename(file_in, algo=algo, file_out=file_out)
+            import sys            
+            cstring = ' '.join(sys.argv)
+            tomo_out, ring_buffer = maptomofile(file_out, shape_tomo, ring_buffer, cstring)
+    return tomo_out, ring_buffer
+
 def tomosave(tomo_out, ring_buffer,times_loop):
     ringbuffer=ring_buffer
     if ringbuffer >1:
@@ -107,7 +136,7 @@ def tomosave(tomo_out, ring_buffer,times_loop):
             #tomo_out.close()
     #        pass
 #    elif  (type(file_out) is not type(None)) and file_out!='-1':
-        print('saving...',end=' ')
+        print('flushing...',end=' ')
         tstring = str(times_loop)
         # did not save during iterations
         #if os.path.splitext(file_out)[-1] in ('.tif','.tiff'):
