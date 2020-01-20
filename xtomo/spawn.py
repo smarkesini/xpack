@@ -25,7 +25,8 @@ def reconstruct_mpi(fname, n_workers, Dopts):
     
     #arg1='/home/smarchesini/git/xpack/xtomo/rr.py'
     import xtomo
-    arg1=xtomo.__path__.__dict__["_path"][0]+'/../worker.py'
+    #arg1=xtomo.__path__.__dict__["_path"][0]+'/../worker.py'
+    arg1=xtomo.__path__.__dict__["_path"][0]+'/worker.py'
     
     
     # Spawn workers
