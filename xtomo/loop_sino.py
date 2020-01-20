@@ -173,6 +173,8 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     if type(tomo_out)==type(None) or type(tomo_out)==np.ndarray:
         if shmem!=1:
             mpigather=True
+    else:
+        tomo = tomo_out
       
     
     if algo=='tomopy-gridrec':
@@ -561,6 +563,6 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     time_write=time.time()-time_write
     times_loop['write']=time_write
     
-
+    tomo = tomo_out
     return tomo, times_loop
 
