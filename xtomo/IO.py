@@ -94,7 +94,7 @@ def maptomofile(file_out, shape_tomo=(1,1,1), ring_buffer=0, cstring=None):
 
 # map to file_out
 def tomofile(file_out, file_in=None, algo='iradon', shape_tomo=(1,1,1), ring_buffer=0):
-    
+    tomo_out=None
     #fname=file_in
     if file_out=='-1': # not saving
         if ring_buffer>1: 

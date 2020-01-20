@@ -159,12 +159,15 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     
 
     ##################################################
+    # options: mpring=0,1 read, mpring 0,2 output, mpring 0,4 MPI gather
+    
     if mpring != False:
         #print('setting up mpiring')
         mpiring=0
         if mpring>3:
             #MPI_RING=1
             mpring-=4
+            # no mpring if shmem=0 or mpi_size=0
             mpiring = int(shmem==0 and mpi_size>1)
     else:
         mpiring=0
@@ -563,6 +566,8 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     time_write=time.time()-time_write
     times_loop['write']=time_write
     
-    tomo = tomo_out
+    if type(tomo_out)!=type(None):#  or type(tomo_out)==np.ndarray:
+        tomo = tomo_out
+    
     return tomo, times_loop
 
