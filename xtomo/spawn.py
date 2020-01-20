@@ -28,7 +28,8 @@ def reconstruct_mpi(fname, n_workers, Dopts):
     #arg1=xtomo.__path__.__dict__["_path"][0]+'/../worker.py'
     arg1=xtomo.__path__.__dict__["_path"][0]+'/worker.py'
     
-    
+    #print('exec:',executable, 'arg1', arg1, flush=True)
+    #print('----------------------------------------------',flush=True)
     # Spawn workers
     comm = MPI.COMM_WORLD.Spawn(
         executable,

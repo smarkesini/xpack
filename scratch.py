@@ -1,6 +1,8 @@
 from xtomo.spawn import reconstruct_mpi
-    
-fname='/home/smarchesini/data/tomosim/shepp_logan_128_181_256_95.h5'
+
+import os
+fname=os.path.expanduser('~/data/tomosim/shepp_logan_128_181_256_95.h5')
+
 n_workers= 2
 
 Dopts={ 'algo':'iradon',  'shmem':True, 'GPU': 1 , 'ncore':None,
