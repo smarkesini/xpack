@@ -20,7 +20,7 @@ To use tomopy-gridrec and tomopy-astra: tomopy and tomopy-[astra](https://www.as
 ## Usage
 
 From the command line: 
-> python recon.py 
+>$ python recon.py 
 
 without any input it will generate a simulation (using tomopy) and start reconstructing.
 
@@ -56,6 +56,12 @@ If things don't fit in memory:
 
 > from loop_sino import recon  
 > tomo, times_loop= recon(sino, theta, algo = 'tv', ...)  
+
+To run multiple MPI processes witin python see example in scratch.py:
+> from xtomo.spawn import reconstruct_mpi  
+> n_workers=2  
+> Dopts={ 'algo':'iradon',  'GPU': 1 }  
+> reconstruct_mpi(file_name, n_workers, Dopts)
 
 **Contributors:** S. Marchesini, Sigray Inc.; Anu Trivedi, Virginia Tech.; Pablo Enfedaque, LBNL
 
