@@ -151,8 +151,6 @@ def print_times(fname,num_slices, num_rays, num_angles, args, times_loop):
     algo=args['algo']
     chunks = args['chunks']
     
-    
-    
     root_name=os.path.expanduser('~/data/')
     fname = 'runtime_data.txt'
     f = open(root_name + fname, 'a+')

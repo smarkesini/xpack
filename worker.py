@@ -13,7 +13,7 @@ try:
 except:
     raise ValueError('Could not connect to parent - ')
 
-
+DDopts={'algo':'iradon', 'GPU': 1, 'shmem':1, 'max_chunk_slice': 16, 'verbose':1, 'max_iter':10, 'tol': 1e-3, 'file_out':'*', 'reg':.5, 'tau':.05, 'ringbuffer':0, 'ncore':None }
 
 def rrr(Dopts):
     fname=Dopts['file_in']
@@ -26,7 +26,10 @@ def rrr(Dopts):
     num_rays   = sino.shape[2]
     
     shape_tomo=(num_slices, num_rays, num_rays)
-
+    
+    for keys in DDopts: 
+        if keys not in Dopts: Dopts[keys]=DDopts[keys]
+        #print('key:',keys)
     
     GPU=Dopts['GPU']
     shmem=Dopts['shmem']
@@ -34,11 +37,11 @@ def rrr(Dopts):
     reg=Dopts['reg']
     tau=Dopts['tau']
     verboseall=Dopts['verbose']
-    max_chunk=Dopts['max_chunk_slice'] 
+    #max_chunk=Dopts['max_chunk_slice'] 
     ringbuffer=Dopts['ringbuffer']
     max_iter=Dopts['max_iter']
     tol=Dopts['tol']
-    ncore=Dopts['tol']
+    ncore=Dopts['ncore']
     algo=Dopts['algo']
     file_out=Dopts['file_out']
     
