@@ -7,6 +7,7 @@ import numpy as np
 eps=np.finfo(np.float32).eps
 pi=np.pi
 
+
 #from timeit import default_timer as timer
 #sparse_cache='~/.cache/xpack/sparse.npz'
 
@@ -189,7 +190,7 @@ def gridding_load(num_rays, theta, center, xp, kernel_type, k_r, iradon_only,dcf
 #import .sparse_plan  
 from  .sparse_plan  import save as sparse_save
 
-def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian', k_r = 1, iradon_only=False,dcfilter=None):
+def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian', k_r = 1, iradon_only=False,dcfilter=None, sparse_plan_load=True):
     # setting up the sparse array
     # columns are used to pick the input data
     # rows are where the data is added on the output  image
@@ -209,12 +210,11 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
         rampfactor=xp.exp(1j*xp.pi*2*center/num_rays)
 
     
-    
-    S, ST = gridding_load(num_rays, theta, center, xp, kernel_type , k_r, iradon_only,dcfilter)
-    #if not (S==0 or (not iradon_only and ST==0)):
-    if (type(S)!=type(0) and (iradon_only or type(ST)!=type(0))):
-        #print('loaded plan')
-        return S,ST
+    if sparse_plan_load:
+        S, ST = gridding_load(num_rays, theta, center, xp, kernel_type , k_r, iradon_only,dcfilter)
+        if (type(S)!=type(0) and (iradon_only or type(ST)!=type(0))):
+            #print('loaded plan')
+            return S,ST
     #else: print('making plan')
 
     shape = [(num_rays)**2,num_angles*num_rays]
@@ -306,15 +306,16 @@ def gridding_setup(num_rays, theta, center=None, xp=np, kernel_type = 'gaussian'
     for jj in K: K[jj]=K[jj][ii]
     K['shape']=shape
     
-
-    S=dict2sparse(K,xp,'S')
-    sparse_save(S,'S', num_rays, theta, center, kernel_type, k_r, dcfilter)
+    if sparse_plan_load:
+        S=dict2sparse(K,xp,'S')
+        sparse_save(S,'S', num_rays, theta, center, kernel_type, k_r, dcfilter)
         
     if iradon_only:
         return S, None
 
-    ST=dict2sparse(K,xp,'ST')
-    sparse_save(ST,'ST', num_rays, theta, center, kernel_type, k_r, dcfilter)
+    if sparse_plan_load:
+        ST=dict2sparse(K,xp,'ST')
+        sparse_save(ST,'ST', num_rays, theta, center, kernel_type, k_r, dcfilter)
     
     return S, ST  
     
@@ -339,7 +340,7 @@ def masktomo(num_rays,xp,width=.95):
 
 def radon_setup(num_rays, theta, xp=np, 
                 center=None, filter_type = 'hamming', 
-                kernel_type = 'gaussian', k_r = 1, width=.95, iradon_only=False):
+                kernel_type = 'gaussian', k_r = 1, width=.95, iradon_only=False, sprse_plan_load=True):
 
 
     num_angles=theta.shape[0]
@@ -353,7 +354,7 @@ def radon_setup(num_rays, theta, xp=np,
     #print("setting up gridding")
     #start = timer()
 
-    S, ST = gridding_setup(num_rays, theta, center, xp, kernel_type , k_r, iradon_only,density_comp_f)
+    S, ST = gridding_setup(num_rays, theta, center, xp, kernel_type , k_r, iradon_only,density_comp_f, sprse_plan_load=sprse_plan_load)
     #end = timer()
 
     #print("gridding setup time=", timer()- start)
