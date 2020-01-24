@@ -340,7 +340,7 @@ def masktomo(num_rays,xp,width=.95):
 
 def radon_setup(num_rays, theta, xp=np, 
                 center=None, filter_type = 'hamming', 
-                kernel_type = 'gaussian', k_r = 1, width=.95, iradon_only=False, sprse_plan_load=True):
+                kernel_type = 'gaussian', k_r = 1, width=.95, iradon_only=False, sparse_plan_load=True):
 
 
     num_angles=theta.shape[0]
@@ -354,7 +354,7 @@ def radon_setup(num_rays, theta, xp=np,
     #print("setting up gridding")
     #start = timer()
 
-    S, ST = gridding_setup(num_rays, theta, center, xp, kernel_type , k_r, iradon_only,density_comp_f, sprse_plan_load=sprse_plan_load)
+    S, ST = gridding_setup(num_rays, theta, center, xp, kernel_type , k_r, iradon_only,density_comp_f, sparse_plan_load=sparse_plan_load)
     #end = timer()
 
     #print("gridding setup time=", timer()- start)
