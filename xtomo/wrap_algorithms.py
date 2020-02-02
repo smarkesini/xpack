@@ -30,7 +30,8 @@ def wrap(sshape,theta,rot_center,algo,xp=np, obj_width=.98, max_iter=10, tol=1e-
         def reconstruct(data,verbose):
 #            tomo_t = tomopy.recon(np.swapaxes(data,0,1), theta, center=rot_center, sinogram_order=True, options=options, algorithm=tomopy.astra)
 #            return np.swapaxes(tomo_t,0,1), rnrm, 0.
-            tomo_t = tomopy.recon(data, theta, center=rot_center, sinogram_order=True, options=options, algorithm=tomopy.astra)
+            #print("test: astra using ncore")
+            tomo_t = tomopy.recon(data, theta, center=rot_center, sinogram_order=True, options=options, algorithm=tomopy.astra,ncore=ncore)
             return tomo_t, rnrm, 0.
 
         
