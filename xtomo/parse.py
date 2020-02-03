@@ -20,7 +20,7 @@ def  parse():
     ap.add_argument("-f", "--file_in",  type = str, help="h5 file in")
     ap.add_argument("-o", "--file_out", default='0',  type = str, help="file out, default 0, 0: autogenerate name, -1: skip saving")
     ap.add_argument("-rot_center", "--rot_center",  type = float, help="rotation center, int ")
-    ap.add_argument("-a", "--algo",  type = str, help="algorithm: 'iradon' (default), 'sirt', 'cgls', 'tv', 'tvrings' 'tomopy-gridrec'")
+    ap.add_argument("-a", "--algo",  type = str, help="algorithm: 'iradon' (default), 'sirt', 'cgls', 'tv', 'tvrings' 'tomopy-gridrec', 'astra'")
     ap.add_argument("-G", "--GPU",  type = int, help="turn on GPU, bool")
     ap.add_argument("-S", "--shmem",  type = int, help="turn on shared memory MPI, bool")
     ap.add_argument("-maxiter", "--maxiter", type = int, help="maxiter, default 10")

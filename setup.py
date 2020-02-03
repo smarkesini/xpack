@@ -20,9 +20,9 @@ print("Found packages")
 print(find_packages())
 
 setup_info = dict(
-        name = 'xpack',
+        name = 'xtomo',
         version = '0.1',
-        packages = ['xpack'],
+        packages = ['xtomo'],
         python_requires = '>={}.{}'.format(3,7),
         
         description = 'Distributed heterogeneous iterative solver for tomography.',

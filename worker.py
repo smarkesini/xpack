@@ -13,10 +13,10 @@ try:
 except:
     raise ValueError('Could not connect to parent - ')
 
-
+DDopts={'algo':'iradon', 'GPU': 1, 'shmem':1, 'max_chunk_slice': 16, 'verbose':1, 'max_iter':10, 'tol': 1e-3, 'file_out':'*', 'reg':.5, 'tau':.05, 'ringbuffer':0, 'ncore':None }
 
 def rrr(Dopts):
-    fname=Dopts['fname']
+    fname=Dopts['file_in']
     import h5py
     fid= h5py.File(fname, "r")
     sino  = fid['exchange/data']
@@ -27,9 +27,9 @@ def rrr(Dopts):
     
     shape_tomo=(num_slices, num_rays, num_rays)
     
-#    from .communicator import rank, mpi_size
-    
-    #from xtomo.loop_sino import recon as recon
+    for keys in DDopts: 
+        if keys not in Dopts: Dopts[keys]=DDopts[keys]
+        #print('key:',keys)
     
     GPU=Dopts['GPU']
     shmem=Dopts['shmem']
@@ -37,11 +37,11 @@ def rrr(Dopts):
     reg=Dopts['reg']
     tau=Dopts['tau']
     verboseall=Dopts['verbose']
-    max_chunk=Dopts['max_chunk_slice'] 
+    #max_chunk=Dopts['max_chunk_slice'] 
     ringbuffer=Dopts['ringbuffer']
     max_iter=Dopts['max_iter']
     tol=Dopts['tol']
-    ncore=Dopts['tol']
+    ncore=Dopts['ncore']
     algo=Dopts['algo']
     file_out=Dopts['file_out']
     
@@ -80,7 +80,7 @@ comm_intra = comm.Merge(MPI.COMM_WORLD)
 
 irank = comm_intra.Get_rank()
 
-print('rank',rank, 'intra -- rank', comm_intra.Get_rank())
+#print('rank',rank, 'intra -- rank', comm_intra.Get_rank())
 #comm.barrier()
 #comm_intra.barrier()
 #print("barrier, rank",rank )
@@ -97,9 +97,9 @@ if irank == 1:
 #comm.bcast(Dopts,root=0)
 Dopts=comm_intra.bcast(Dopts,root=0)
 #comm_intra.bcast(Dopts,root=MPI.ROOT)
-comm_intra.barrier()
+#comm_intra.barrier()
 #print('passed barrier,  rank',rank,'recieved opts',Dopts)
-print('passed barrier,  rank',rank,'recieved opts')
+#print('passed barrier,  rank',rank,'recieved opts')
 
 
 tomo, times_loop = rrr(Dopts)
@@ -115,13 +115,15 @@ comm_intra.barrier()
 
 #comm_intra.Disconnect()
 #comm_intra.Free()
-#comm_intra.Disconnect()
 #comm_intra.Free()
 
 #comm.Free()
 comm_intra.Free()
-comm.Free()
-#comm.Disconnect()
+#comm_intra.Disconnect()
+
+del comm_intra
+#comm.Free()
+comm.Disconnect()
 
 
 #print('rank',rank,' quitting')

@@ -2,17 +2,14 @@ import numpy as np
 from timeit import default_timer as timer
 #import time
 
-#from communicator import rank, mpi_size, get_loop_chunk_slices, get_chunk_slices, mpi_barrier
-# defaults
-#max_iter = 10
 def wrap(sshape,theta,rot_center,algo,xp=np, obj_width=.98, max_iter=10, tol=1e-3, reg=1., tau=0.05, ncore=64, verbose=1):   
-    #print("[0] rank",rank, "used bytes", mempool.used_bytes())
+
     num_rays=sshape[2]
     if xp.__name__=='cupy': 
         GPU=True
     else:     GPU=False
 
-    #print("\n\n",algo,'\n\n\n')
+
     if algo=='tomopy-gridrec':
         import tomopy
         rnrm=None
@@ -33,7 +30,8 @@ def wrap(sshape,theta,rot_center,algo,xp=np, obj_width=.98, max_iter=10, tol=1e-
         def reconstruct(data,verbose):
 #            tomo_t = tomopy.recon(np.swapaxes(data,0,1), theta, center=rot_center, sinogram_order=True, options=options, algorithm=tomopy.astra)
 #            return np.swapaxes(tomo_t,0,1), rnrm, 0.
-            tomo_t = tomopy.recon(data, theta, center=rot_center, sinogram_order=True, options=options, algorithm=tomopy.astra)
+            #print("test: astra using ncore")
+            tomo_t = tomopy.recon(data, theta, center=rot_center, sinogram_order=True, options=options, algorithm=tomopy.astra,ncore=ncore)
             return tomo_t, rnrm, 0.
 
         

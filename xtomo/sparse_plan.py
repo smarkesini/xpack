@@ -82,7 +82,11 @@ def load(tipe, num_rays, theta, center, kernel_type, k_r, dcfilter):
     fname=get_hash_name(tipe, num_rays, theta, center, kernel_type, k_r, dcfilter)
     #print('loading "',fname,'"')
     if os.path.isfile(fname):
-        K=np.load(fname)
+        try:
+            K=np.load(fname)
+        except:
+            print('sparse plan failed to load')
+            return None
         
         keys = ('val', 'ind', 'indptr', 'shape')
         if bool(keys - K.keys()): 

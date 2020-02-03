@@ -94,7 +94,7 @@ def maptomofile(file_out, shape_tomo=(1,1,1), ring_buffer=0, cstring=None):
 
 # map to file_out
 def tomofile(file_out, file_in=None, algo='iradon', shape_tomo=(1,1,1), ring_buffer=0):
-    
+    tomo_out=None
     #fname=file_in
     if file_out=='-1': # not saving
         tomo_out=None
@@ -156,8 +156,6 @@ def print_times(fname,num_slices, num_rays, num_angles, args, times_loop):
     max_chunk = args['max_chunk_slice']
     algo=args['algo']
     chunks = args['chunks']
-    
-    
     
     root_name=os.path.expanduser('~/data/')
     fname = 'runtime_data.txt'

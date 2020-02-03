@@ -57,7 +57,7 @@ If things don't fit in memory:
 > from loop_sino import recon  
 > tomo, times_loop= recon(sino, theta, algo = 'tv', ...)  
 
-** Contributors: ** S. Marchesini, Sigray Inc.; Anu Trivedi, Virginia Tech.; Pablo Enfedaque, LBNL
+** Contributors:** S. Marchesini, Sigray Inc.; Anu Trivedi, Virginia Tech.; Pablo Enfedaque, LBNL
 
 
 ## Bibliography
