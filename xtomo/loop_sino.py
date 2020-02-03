@@ -48,7 +48,7 @@ def chunktomo(num_slices, chunks):
     return num_slices_cropped, chunks
 
 
-# ================== reconstruct ============== #
+
 
 def dnames_get():
     dnames={'sino':"exchange/data", 'theta':"exchange/theta", 'tomo':"exchange/tomo", 'rot_center':"exchange/rot_center"}
@@ -85,6 +85,8 @@ def recon_file(fname, tomo_out=None, dnames=None, algo = 'iradon' ,rot_center = 
 """    
 
 #########################################
+# ================== reconstruct ============== #
+
 
 def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_iter = 10, tol=5e-3, GPU = True, shmem = False, max_chunk_slice=16,  reg = None, tau = None, verbose = verboseall,ncore=None, crop=None, mpring=False):
 
@@ -159,7 +161,7 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     
 
     ##################################################
-    if mpring != False:
+    if mpring != False or mpring!=0:
         #print('setting up mpiring')
         mpiring=0
         if mpring>3:
@@ -171,8 +173,11 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
         
     mpigather=False
     if type(tomo_out)==type(None) or type(tomo_out)==np.ndarray:
+        #print('hello')
+        
         if shmem!=1:
-            mpigather=True
+            #print('hello 2')
+            mpigather=1
     else:
         tomo = tomo_out
       
@@ -468,7 +473,7 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
             pw[even].start()
 
             # flush data to disk
-            if rank ==0 : 
+            if rank ==0 :
                 if pflush==None:
                     pflush=mp.Process(target=flush)
                     pflush.start()
@@ -548,13 +553,14 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     time_write=time.time()
     # make sure all writing is done
     if mpring>1:
+        printv('finish flushing results to disk',flush=True)        
         pw[1-even].join()
         pw[1-even].terminate()
         pw[even].join()
         pw[even].terminate()
         tomo=tomo_out
 
-    print('rank',rank, '*'*20)        
+    #print('rank',rank, '*'*20)        
     
     if rank>0: return None, None
     if mpring>1:
@@ -562,7 +568,11 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
 
     time_write=time.time()-time_write
     times_loop['write']=time_write
-    
-    tomo = tomo_out
+
+    if not mpigather:
+        #print('------------------',mpigather,type(tomo))
+        tomo = tomo_out
+    # else:
+    #     print('**********######********',mpigather,type(tomo), np.size(tomo))
     return tomo, times_loop
 

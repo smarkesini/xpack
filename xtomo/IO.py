@@ -97,10 +97,16 @@ def tomofile(file_out, file_in=None, algo='iradon', shape_tomo=(1,1,1), ring_buf
     
     #fname=file_in
     if file_out=='-1': # not saving
-        if ring_buffer>1: 
-            tomo_out=None
-            return tomo_out, ring_buffer
-    
+        tomo_out=None
+        if ring_buffer==2: ring_buffer=0
+        elif ring_buffer==3: ring_buffer=1
+        elif ring_buffer==6: ring_buffer=4
+        elif ring_buffer==7: ring_buffer=5
+        #if ring_buffer>1: 
+        #    return tomo_out, ring_buffer
+        return tomo_out, ring_buffer
+
+            
     if (type(file_out) is not type(None)) and file_out!='-1':  
             if rank==0: print("setting up output file")
     
