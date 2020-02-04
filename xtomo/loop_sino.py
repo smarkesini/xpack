@@ -579,7 +579,9 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     if not mpigather:
         if type(tomo_out)!=type(None):#  or type(tomo_out)==np.ndarray:
         #print('------------------',mpigather,type(tomo))
-            tomo = tomo_out
+            if algo[0:min(len(algo),6)]!='tomopy':
+                tomo = tomo_out
+
     # else:
     #     print('**********######********',mpigather,type(tomo), np.size(tomo))
 
