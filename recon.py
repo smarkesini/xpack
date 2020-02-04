@@ -117,10 +117,10 @@ if __name__ == "__main__":
         
         
         times_begin=timer()
-        #if algo[0:min(len(algo),6)]=='tomopy':
+        if algo[0:min(len(algo),6)]=='tomopy' and type(tomo_out)!=type(None):
             #print('saving tomopy output')
-            #tomo_out[...]=tomo[...]
-            #tomo_out.flush()
+            tomo_out[...]=tomo[...]
+            tomo_out.flush()
         
         
         if file_out != '-1':

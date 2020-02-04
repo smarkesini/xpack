@@ -188,8 +188,8 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     else:
         tomo = tomo_out
       
-    
-    if algo=='tomopy-gridrec':
+    if algo[0:min(len(algo),6)]=='tomopy':
+    #if algo=='tomopy-gridrec':
         GPU=False
         mpring=0
         mpiring=0
@@ -447,7 +447,7 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
 
             
         start_solver = timer()
-        if algo == 'tomopy-gridrec':
+        if algo[0:min(len(algo),6)]=='tomopy': #algo == 'tomopy-gridrec':
             #tomo, rnrm =  reconstruct(data,verbose_iter)
             print("tomopy rank size",mpi_size)
             if mpi_size == 1:            
