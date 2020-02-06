@@ -14,8 +14,10 @@ def wrap(sshape,theta,rot_center,algo,xp=np, obj_width=.98, max_iter=10, tol=1e-
         import tomopy
         rnrm=None
         def reconstruct(data,verbose,ncore):
+            start1 = timer()
             tomo_t = tomopy.recon(data, theta, center=rot_center, sinogram_order=True, algorithm="gridrec",ncore=ncore)
-            return tomo_t, rnrm, 0.
+            t=timer()-start1
+            return tomo_t, rnrm, t
     elif algo=='tomopy-sirt':
         import tomopy
         rnrm=None
@@ -140,5 +142,7 @@ def wrap(sshape,theta,rot_center,algo,xp=np, obj_width=.98, max_iter=10, tol=1e-
                     t=timer()-start1
                     return tomo,rnrm,t
                 else: return tomo_t,rnrm,0.
+        else:
+            print('algorithm can be iradon, sirt, cgls, tv, tvrings, tomopy-gridrec, tomopy-sirt, astra, astra-cuda')
     
     return reconstruct

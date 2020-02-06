@@ -133,7 +133,9 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     
     printv("max chunk size ", max_chunk_slice,flush=True)
     
-    
+    if algo[0:min(len(algo),6)]=='tomopy':
+        GPU=False
+
     
     if GPU:
         try:
