@@ -1,6 +1,6 @@
 ## Description:
 
-Distributed heterogeneous iterative solver for tomography. 
+Distributed heterogeneous iterative solver for tomography [0]. 
 Solvers are: iradon (non-iterative), preconditioned sirt (with BB-step [1], Ram-Lak-Hamming preconditioner), CGLS (using CG-squared [2]), TV (split bregman[3]), tvrings[4], tomopy-gridrec [5a] [5b], tomopy-astra [6a] using cgls [6b].
 
 ## Installation:
@@ -67,6 +67,8 @@ To run multiple MPI processes witin python see example in scratch.py:
 
 
 ## Bibliography
+
+[0] Stefano Marchesini, Anuradha Trivedi, Pablo Enfedaque, Talita Perciano, Dilworth Parkinson, Sparse Matrix-Based HPC Tomography,  https://arxiv.org/abs/2003.12677
 
 [1] J. Barzilai and J. Borwein. Two-point step size gradient method. IMA J. Numerical Analysis 8, 141–148, 1988
 
