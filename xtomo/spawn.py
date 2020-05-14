@@ -16,7 +16,7 @@ def reconstruct_mpi(fname, n_workers, Dopts):
     import xtomo
 
 
-    arg1=xtomo.__path__.__dict__["_path"][0]+'/worker.py'
+    arg1=xtomo.__path__.__dict__["_path"][0]+'/mpi_worker.py'
     
     comm = MPI.COMM_WORLD.Spawn(
         executable,
