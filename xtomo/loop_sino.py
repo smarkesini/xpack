@@ -84,8 +84,137 @@ def recon_file(fname, tomo_out=None, dnames=None, algo = 'iradon' ,rot_center = 
     return tomo, times_loop, sino.shape
 """    
 
+'''
 #########################################
 # ================== reconstruct ============== #
+def double_buffers(mpring,verbose):
+    def printv(*args,**kwargs): 
+        if verbose>0:  printv0(*args,**kwargs)
+
+    ######################################### 
+    # IO setup
+    # MP ring buffer setup
+
+    
+    if mpring>0:
+        printv("multiprocessing ring buffer",mpring,flush=True)
+        import multiprocessing as mp
+        import ctypes
+        from multiprocessing import sharedctypes
+        
+        def shared_array(shape=(1,), dtype=np.float32):  
+            np_type_to_ctype = {np.float32: ctypes.c_float,
+                                np.float64: ctypes.c_double,
+                                np.bool: ctypes.c_bool,
+                                np.uint8: ctypes.c_ubyte,
+                                np.uint64: ctypes.c_ulonglong}
+
+            numel = np.int(np.prod(shape))
+            arr_ctypes = sharedctypes.RawArray(np_type_to_ctype[dtype], numel)
+            np_arr = np.frombuffer(arr_ctypes, dtype=dtype, count=numel)
+            np_arr.shape = shape
+
+            return np_arr 
+        
+         # reading ring buffer (1 or 3)
+        if np.mod(mpring,2)==1:
+            pr=[0,0] #process even or odd
+            data_ring  = shared_array(shape=(2,max_chunk_slice, num_angles, num_rays),dtype=np.float32)
+            
+            # def read_data(sino, loop_chunks, ii):
+            def read_data(ii):
+                """no synchronization."""
+                even = np.mod(ii+1,2)
+                nslices = loop_chunks[ii+1]-loop_chunks[ii]
+                chunk_slices = get_chunk_slices(nslices)
+                chunks=chunk_slices[rank,:]+loop_chunks[ii]
+                data_ring[even,0:chunks[1]-chunks[0],...]= sino[chunks[0]:chunks[1],...]
+    
+        # writing ring buffer (2 or 3)
+        if mpring>1: 
+            printv('ring buffer writing to file')
+            pw=[0,0] #process even or odd        
+            pflush=None # flushing
+            tomo_ring  = shared_array(shape=(2,max_chunk_slice, num_rays, num_rays),dtype=np.float32)
+    
+            def write_tomo(tomo_out,chunks,ii):
+                even = np.mod(ii+1,2)
+                tomo_out[chunks[0]-loop_offset:chunks[1]-loop_offset,...]=tomo_ring[even,0:chunks[1]-chunks[0],...]
+    
+            def flush():
+                #print('\nflushing',ii)
+                tomo_out.flush()
+                #print('flushed',ii,'\n')
+    # mpi ring buffer
+    if mpigather:
+        if mpiring:
+            printv('ring buffer gatherv')
+            #pw=[0,0] #process even or odd   pr=[0,0]     
+            pgather=[0,0];#None # process control
+            
+            tomo_ring  = np.empty((2,max_chunk_slice, num_rays, num_rays),dtype='float32')
+            
+            tomo=None
+            tomo_local=None
+            if rank == 0: 
+                if type(tomo_out)!=type(None):
+                    tomo = tomo_out
+                else:
+                    tomo = np.empty((num_slices,num_rays,num_rays),dtype = 'float32')
+                    
+                    
+            from .communicator import igatherv #, gatherv
+           
+        # no mpi ring buffer
+        else:
+            
+            printv('using gatherv distributed mpi- mpring',mpring, flush=True)
+                
+            #from .communicator import gatherv
+            from .communicator import igatherv 
+            mpigather=True
+            pgather=0
+            # gatherv - allocate 
+            tomo=None
+            tomo_local=None
+            if rank == 0: 
+                if type(tomo_out)!=type(None):
+                    tomo = tomo_out
+                else:
+                    tomo = np.empty((num_slices,num_rays,num_rays),dtype = 'float32')
+                
+
+
+   
+    # MP ring buffer setup
+    ######################################### 
+    
+    ##########################################
+    # gather the results: write to memmap, shared memory, gatherv
+
+    if algo[0:min(len(algo),6)]!='tomopy': # not for tomopy-...
+        if shmem and (mpring<2):
+            if type(tomo_out)!=type(None): #np.memmap:
+                tomo=tomo_out
+            else:
+                from .communicator import allocate_shared
+                try:
+                    #tomo = allocate_shared((num_slices,num_rays,num_rays),rank,mpi_size)
+                    tomo = allocate_shared((num_slices,num_rays,num_rays))
+                    
+                except:
+                    printv(bold+"shared memory is not working, set the flag -S to 0")
+                    printv("reverting to mpi gatherv that but it may not work\n",'='*60,endb)
+                    shmem=False
+   
+    else: #  no mpi no ring buffer
+        
+        tomo=None
+        if rank == 0:
+            tomo=np.empty((num_slices, num_rays,num_rays),dtype='float32')
+
+
+'''
 
 
 def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_iter = 10, tol=5e-3, GPU = True, shmem = False, max_chunk_slice=16,  reg = None, tau = None, verbose = verboseall,ncore=None, crop=None, mpring=False):
@@ -182,10 +311,8 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
         
     mpigather=False
     if type(tomo_out)==type(None) or type(tomo_out)==np.ndarray:
-        #print('hello')
         
         if shmem!=1:
-            #print('hello 2')
             mpigather=1
     else:
         tomo = tomo_out
@@ -351,7 +478,9 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
             else:
                 from .communicator import allocate_shared
                 try:
-                    tomo = allocate_shared((num_slices,num_rays,num_rays),rank,mpi_size)
+                    #tomo = allocate_shared((num_slices,num_rays,num_rays),rank,mpi_size)
+                    tomo = allocate_shared((num_slices,num_rays,num_rays))
+                    
                 except:
                     printv(bold+"shared memory is not working, set the flag -S to 0")
                     printv("reverting to mpi gatherv that but it may not work\n",'='*60,endb)

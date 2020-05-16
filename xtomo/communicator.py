@@ -173,20 +173,31 @@ def igatherv(data_local,chunk_slices, data = None):
     
     return req
 
+    
 
-def allocate_shared(shape_obj,rank,mpi_size):
 
+def allocate_shared(shape_obj, comm=comm):
+
+    #global size, rank
+    #mpi_size = size
+    mpi_size = comm.Get_size()
+    mpi_rank = comm.Get_rank()
+    
+    print('allocating shared mem',mpi_size,mpi_rank)
+    
     if mpi_size == 1:
        return np.empty(shape_obj,dtype='float32') 
     
     slice_size =np.prod(shape_obj)
     
     itemsize = MPI.FLOAT.Get_size() 
-    if rank == 0: 
+    if mpi_rank == 0: 
         nbytes = slice_size* itemsize 
     else: 
         nbytes = 0
     win = MPI.Win.Allocate_shared(nbytes, itemsize, comm=comm) 
+    print('allocated shared mem',mpi_size,mpi_rank)
+
     # int MPI_Win_allocate_shared(MPI_Aint size, int disp_unit, MPI_Info info, MPI_Comm comm,
     #                        void *baseptr, MPI_Win * win)
     
@@ -211,8 +222,8 @@ def allocate_shared(shape_obj,rank,mpi_size):
 # attached using the function 
 # MPI_Win_attach:  MPI.Win.Attach(self, memory)
  
-def allocate_shared_tomo(num_slices,num_rays,rank,mpi_size):
-    tomo = allocate_shared((num_slices, num_rays,num_rays),rank,mpi_size)
+def allocate_shared_tomo(num_slices,num_rays):
+    tomo = allocate_shared((num_slices, num_rays,num_rays))
     return tomo
 
 
@@ -244,7 +255,7 @@ def mpi_allGather(send_buff, heterogeneous_comm = True, mode = "cuda"):
 
     global size, rank, mpi_enabled
 
-    if heterogeneous_comm is True and mode=="cuda":
+    if heterogeneous_comm and mode=="cuda":
         #recv_buff = cp.asnumpy(recv_buff)
         send_buff = cp.asnumpy(send_buff)
 
@@ -253,7 +264,7 @@ def mpi_allGather(send_buff, heterogeneous_comm = True, mode = "cuda"):
     else:
         recv_buff = [send_buff]
 
-    if heterogeneous_comm is True and mode is "cuda":
+    if heterogeneous_comm and mode=="cuda":
         recv_buff = cp.asarray(recv_buff)
         send_buff = cp.asarray(send_buff)
 

@@ -13,7 +13,7 @@ def wrap(sshape,theta,rot_center,algo,xp=np, obj_width=.98, max_iter=10, tol=1e-
     if algo=='tomopy-gridrec':
         import tomopy
         rnrm=None
-        def reconstruct(data,verbose,ncore):
+        def reconstruct(data,verbose):
             start1 = timer()
             tomo_t = tomopy.recon(data, theta, center=rot_center, sinogram_order=True, algorithm="gridrec",ncore=ncore)
             t=timer()-start1
@@ -21,7 +21,7 @@ def wrap(sshape,theta,rot_center,algo,xp=np, obj_width=.98, max_iter=10, tol=1e-
     elif algo=='tomopy-sirt':
         import tomopy
         rnrm=None
-        def reconstruct(data,verbose,ncore):
+        def reconstruct(data,verbose):
             tomo_t = tomopy.recon(data, theta, center=rot_center, sinogram_order=True, algorithm="sirt", num_iter=max_iter, ncore=ncore)
             return tomo_t, rnrm, 0.
     elif algo[0:5] =='astra':
