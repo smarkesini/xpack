@@ -5,6 +5,8 @@ Created on Thu May 14 16:01:39 2020
 
 @author: smarchesini
 """
+# spawn jobs and share memory
+
 
 import h5py
 
