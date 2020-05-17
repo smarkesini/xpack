@@ -712,7 +712,11 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
         #print('------------------',mpigather,type(tomo))
             if algo[0:min(len(algo),6)]!='tomopy':
                 tomo = tomo_out
+            if shmem==0:
+                tomo = tomo_out
 
+            
+        
     # else:
     #     print('**********######********',mpigather,type(tomo), np.size(tomo))
 
