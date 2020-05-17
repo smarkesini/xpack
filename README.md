@@ -5,6 +5,10 @@ Solvers are: iradon (non-iterative), preconditioned sirt (with BB-step [1], Ram-
 
 ## Installation:
 Clone the repo and enjoy!
+```
+cd xpack
+pip install -e .
+```
 
 ## Requirements:
 Python (>=3.7), numpy (>=1.15.0), either scipy (>=1.3.1)  (for CPU) or [cupy >=7.0](https://docs-cupy.chainer.org/en/stable/index.html) (for GPU).
