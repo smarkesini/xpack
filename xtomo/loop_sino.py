@@ -313,10 +313,13 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     if type(tomo_out)==type(None) or type(tomo_out)==np.ndarray:
         
         if shmem!=1:
-            mpigather=1
+            mpigather=True
     else:
         tomo = tomo_out
-      
+        printv('tomo type'+str(type(tomo)))
+        if shmem!=1:
+            mpigather=True
+            
     if algo[0:min(len(algo),6)]=='tomopy':
     #if algo=='tomopy-gridrec':
         GPU=False
@@ -329,7 +332,7 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     
     #if max_iter == None: max_iter = 10
  
-
+    # GPU memory check
     #float_size=32/8; alg_tsize=4; alg_ssize=3
     #slice_gbsize=num_rays*(num_rays*alg_tsize+num_angles*alg_ssize)*(float_size)/((2**10)**3)
     #
@@ -425,6 +428,7 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
                 tomo_out.flush()
                 #print('flushed',ii,'\n')
     # mpi ring buffer
+    printv('mpigather=??'+str(mpigather))
     if mpigather:
         if mpiring:
             printv('ring buffer gatherv')
