@@ -114,6 +114,8 @@ def tomofile(file_out, file_in=None, algo='iradon', shape_tomo=(1,1,1), ring_buf
             file_out = getfilename(file_in, algo=algo, file_out=file_out)
             import sys            
             cstring = ' '.join(sys.argv)
+            #if rank==0: print('file_out', file_out)
+            #if rank==0: print('cstring', cstring)
             tomo_out, ring_buffer = maptomofile(file_out, shape_tomo, ring_buffer, cstring)
     return tomo_out, ring_buffer
 

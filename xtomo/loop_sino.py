@@ -88,47 +88,49 @@ def recon_file(fname, tomo_out=None, dnames=None, algo = 'iradon' ,rot_center = 
 #########################################
 # ================== reconstruct ============== #
 def double_buffers(mpring,verbose):
-    def printv(*args,**kwargs): 
-        if verbose>0:  printv0(*args,**kwargs)
-
-    ######################################### 
-    # IO setup
-    # MP ring buffer setup
-
+    import multiprocessing as mp
+    import ctypes
+    from multiprocessing import sharedctypes
     
-    if mpring>0:
-        printv("multiprocessing ring buffer",mpring,flush=True)
-        import multiprocessing as mp
-        import ctypes
-        from multiprocessing import sharedctypes
-        
-        def shared_array(shape=(1,), dtype=np.float32):  
-            np_type_to_ctype = {np.float32: ctypes.c_float,
-                                np.float64: ctypes.c_double,
-                                np.bool: ctypes.c_bool,
-                                np.uint8: ctypes.c_ubyte,
-                                np.uint64: ctypes.c_ulonglong}
+    def shared_array(shape=(1,), dtype=np.float32):  
+        np_type_to_ctype = {np.float32: ctypes.c_float,
+                            np.float64: ctypes.c_double,
+                            np.bool: ctypes.c_bool,
+                            np.uint8: ctypes.c_ubyte,
+                            np.uint64: ctypes.c_ulonglong}
 
-            numel = np.int(np.prod(shape))
-            arr_ctypes = sharedctypes.RawArray(np_type_to_ctype[dtype], numel)
-            np_arr = np.frombuffer(arr_ctypes, dtype=dtype, count=numel)
-            np_arr.shape = shape
+        numel = np.int(np.prod(shape))
+        arr_ctypes = sharedctypes.RawArray(np_type_to_ctype[dtype], numel)
+        np_arr = np.frombuffer(arr_ctypes, dtype=dtype, count=numel)
+        np_arr.shape = shape
 
-            return np_arr 
+        return np_arr 
+
+        #data_ring  = shared_array(shape=(2,max_chunk_slice, num_angles, num_rays),dtype=np.float32)
+        # pr=[0,0] #process even or odd
         
+        def read_data(sino_input, loop_chunks, ii, data_ring):
+        #def read_data( ii):
+            """no synchronization."""
+            even = np.mod(ii+1,2)
+            nslices = loop_chunks[ii+1]-loop_chunks[ii]
+            chunk_slices = get_chunk_slices(nslices)
+            chunks=chunk_slices[rank,:]+loop_chunks[ii]
+            data_ring[even,0:chunks[1]-chunks[0],...]= sino_input[chunks[0]:chunks[1],...]
+            
+        tomo_ring  = shared_array(shape=(2,max_chunk_slice, num_rays, num_rays),dtype=np.float32)
+    
+        def write_tomo(tomo_ring, tomo_out,chunks,ii):
+            even = np.mod(ii+1,2)
+            tomo_out[chunks[0]-loop_offset:chunks[1]-loop_offset,...]=tomo_ring[even,0:chunks[1]-chunks[0],...]
+
+        def flush():
+            #print('\nflushing',ii)
+            tomo_out.flush()
+         
          # reading ring buffer (1 or 3)
         if np.mod(mpring,2)==1:
-            pr=[0,0] #process even or odd
-            data_ring  = shared_array(shape=(2,max_chunk_slice, num_angles, num_rays),dtype=np.float32)
-            
-            # def read_data(sino, loop_chunks, ii):
-            def read_data(ii):
-                """no synchronization."""
-                even = np.mod(ii+1,2)
-                nslices = loop_chunks[ii+1]-loop_chunks[ii]
-                chunk_slices = get_chunk_slices(nslices)
-                chunks=chunk_slices[rank,:]+loop_chunks[ii]
-                data_ring[even,0:chunks[1]-chunks[0],...]= sino[chunks[0]:chunks[1],...]
+ 
     
         # writing ring buffer (2 or 3)
         if mpring>1: 
@@ -265,28 +267,10 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     if algo[0:min(len(algo),6)]=='tomopy':
         GPU=False
 
-    
-    if GPU:
-        try:
-            
-            from .devmanager import set_visible_device
-            
-            do,vd,nd=set_visible_device(rank)
+    from .devmanager import backend
+    xp, GPU = backend (GPU, rank)
 
-            try:
-                import cupy as xp
-                device_gbsize=xp.cuda.Device().mem_info[1]/((2**10)**3)
-                printv("gpu memory:",device_gbsize, 
-                       "GB, chunk sino memory:",max_chunk_slice*num_rays*num_angles*4/(2**10)**2,'MB',
-                       ", chunk tomo memory:",max_chunk_slice*(num_rays**2)*4/(2**10)**2,'MB')
-                xp.cuda.profiler.start()
-            except:
-                pass
-        except:
-            xp=np
-            GPU=False
-    else:
-        xp=np
+    
     #printv("\n\nGPU", GPU,'\n')
     theta=xp.array(theta)
     

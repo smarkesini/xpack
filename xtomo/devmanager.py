@@ -123,4 +123,28 @@ def get_tile_distribution(my_rank, total_ranks, gpu_enabled, gpu_weight = 4):
 
     return heterogeneous_computing, tile_id, n_local_tiles, n_total_tiles
 
+def backend(GPU,rank):
+     if GPU:
+         try:
+             
+             from .devmanager import set_visible_device
+             
+             do,vd,nd=set_visible_device(rank)
+ 
+             try:
+                 import cupy as xp
+                 #device_gbsize=xp.cuda.Device().mem_info[1]/((2**10)**3)
+                 #printv("gpu memory:",device_gbsize, 
+                 #       "GB, chunk sino memory:",max_chunk_slice*num_rays*num_angles*4/(2**10)**2,'MB',
+                 #       ", chunk tomo memory:",max_chunk_slice*(num_rays**2)*4/(2**10)**2,'MB')
+                 #xp.cuda.profiler.start()
+             except:
+                 pass
+         except:
+             xp=np
+             GPU=False
+     else:
+         xp=np
+     return xp, GPU
+ 
   

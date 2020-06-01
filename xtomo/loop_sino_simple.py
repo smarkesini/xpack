@@ -53,36 +53,6 @@ def chunktomo(num_slices, chunks):
 def dnames_get():
     dnames={'sino':"exchange/data", 'theta':"exchange/theta", 'tomo':"exchange/tomo", 'rot_center':"exchange/rot_center"}
     return dnames #dname_sino,dname_theta,dname_tomo
-"""
-def recon_file(fname, tomo_out=None, dnames=None, algo = 'iradon' ,rot_center = None, 
-               max_iter = None, tol=5e-3, GPU = True, 
-               shmem = False, max_chunk_slice=16,  
-               reg = None, tau = None, verbose = verboseall, 
-               ncore=None, chunks=None,mpring=True):
-    #print("recon_file max_iter",max_iter)
-    if verbose>0: 
-        printv0('reconstructing',fname)
-        try:
-            printv0('saving to',tomo_out.filename)
-        except:
-            pass
-    
-#    if verbose>0: printv0('saving to',tomo_out.filename)
-    csize = 0
-    import h5py
-    fid= h5py.File(fname, "r",rdcc_nbytes=csize)
-    if type(dnames) == type(None):
-        dnames=dnames_get()
-    sino  = fid[dnames['sino']]
-    theta = fid[dnames['theta']]
-    #if tol==None: tol=5e-3
-    tomo, times_loop = recon(sino, theta, algo = algo , tomo_out=tomo_out,
-                             rot_center = rot_center, max_iter = max_iter, tol=tol, GPU=GPU, shmem=shmem, max_chunk_slice=max_chunk_slice,  reg = reg, tau = tau, 
-                             verbose = verbose,ncore=ncore, crop=chunks, mpring=mpring)
-    
-    
-    return tomo, times_loop, sino.shape
-"""    
 
 '''
 #########################################
@@ -265,29 +235,9 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     if algo[0:min(len(algo),6)]=='tomopy':
         GPU=False
 
+    from .devmanager import backend
+    xp, GPU = backend (GPU, rank)
     
-    if GPU:
-        try:
-            
-            from .devmanager import set_visible_device
-            
-            do,vd,nd=set_visible_device(rank)
-
-            try:
-                import cupy as xp
-                device_gbsize=xp.cuda.Device().mem_info[1]/((2**10)**3)
-                printv("gpu memory:",device_gbsize, 
-                       "GB, chunk sino memory:",max_chunk_slice*num_rays*num_angles*4/(2**10)**2,'MB',
-                       ", chunk tomo memory:",max_chunk_slice*(num_rays**2)*4/(2**10)**2,'MB')
-                xp.cuda.profiler.start()
-            except:
-                pass
-        except:
-            xp=np
-            GPU=False
-    else:
-        xp=np
-    #printv("\n\nGPU", GPU,'\n')
     theta=xp.array(theta)
     
 
