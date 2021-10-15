@@ -245,7 +245,9 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
 
         
     tomo = tomo_out
-      
+    if type(tomo_out)==type(None):
+        tomo=np.empty((num_slices, num_rays,num_rays),dtype='float32')
+
     # set up radon
     printv("setting up the solver. ", end = '')
     

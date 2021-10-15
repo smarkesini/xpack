@@ -104,7 +104,7 @@ def get_tile_distribution(my_rank, total_ranks, gpu_enabled, gpu_weight = 4):
     
         weight_array = np.array(weight_list)
 
-        if my_rank is 0: 
+        if my_rank == 0: 
             tile_id = 0
         else: 
             tile_id = np.sum(weight_array[:my_rank])

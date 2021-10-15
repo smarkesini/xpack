@@ -4,6 +4,7 @@ import mpi4py
 mpi4py.rc.threads = False # no multithreading...
 from mpi4py import MPI
 
+# reconstruct from file
 def reconstruct_mpi(fname, n_workers, Dopts):
     
     Dopts['file_in']=fname
@@ -25,7 +26,7 @@ def reconstruct_mpi(fname, n_workers, Dopts):
     
     comm_intra = comm.Merge(MPI.COMM_WORLD)    
     
-    
+    # broadcast the options
     comm_intra.bcast(Dopts,root=0)
     
     # make sure we sent the data
@@ -39,6 +40,8 @@ def reconstruct_mpi(fname, n_workers, Dopts):
     comm.Disconnect()
     #comm.Free()
 
+
+# reconstruct from numpy data directly
 
 def reconstruct_mpiv(sino, theta, rot_center, n_workers, Dopts):
     
@@ -118,6 +121,7 @@ except:
 
 import numpy as np
 
+# memory mapping file
 def mmdata(shp, fname, mode='w+'):
     filename = path.join(tempdir, fname)
     
@@ -160,7 +164,7 @@ def reconstruct_mpimm(sino, theta, rot_center, n_workers, Dopts, order='sino'):
     
     #print('broadcasted')
 
-    # sinogram in shared memory
+    # sinogram in shared memory, which is memory mapped
 
     shared_sino = mmdata(sino_shape, 'data', mode='w+')
     #print('sinogram on file')

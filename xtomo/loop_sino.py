@@ -296,12 +296,12 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     mpigather=False
     if type(tomo_out)==type(None) or type(tomo_out)==np.ndarray:
         
-        if shmem!=1:
+        if shmem!=1 & mpi_size>1:
             mpigather=True
     else:
         tomo = tomo_out
         printv('tomo type'+str(type(tomo)))
-        if shmem!=1:
+        if shmem!=1 & mpi_size>1:
             mpigather=True
             
     if algo[0:min(len(algo),6)]=='tomopy':
@@ -365,22 +365,24 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     if mpring>0:
         printv("multiprocessing ring buffer",mpring,flush=True)
         import multiprocessing as mp
-        import ctypes
-        from multiprocessing import sharedctypes
+        from .communicator import shared_array
         
-        def shared_array(shape=(1,), dtype=np.float32):  
-            np_type_to_ctype = {np.float32: ctypes.c_float,
-                                np.float64: ctypes.c_double,
-                                np.bool: ctypes.c_bool,
-                                np.uint8: ctypes.c_ubyte,
-                                np.uint64: ctypes.c_ulonglong}
+        # import ctypes
+        # from multiprocessing import sharedctypes
+        
+        # def shared_array(shape=(1,), dtype=np.float32):  
+        #     np_type_to_ctype = {np.float32: ctypes.c_float,
+        #                         np.float64: ctypes.c_double,
+        #                         np.bool: ctypes.c_bool,
+        #                         np.uint8: ctypes.c_ubyte,
+        #                         np.uint64: ctypes.c_ulonglong}
 
-            numel = np.int(np.prod(shape))
-            arr_ctypes = sharedctypes.RawArray(np_type_to_ctype[dtype], numel)
-            np_arr = np.frombuffer(arr_ctypes, dtype=dtype, count=numel)
-            np_arr.shape = shape
+        #     numel = np.int(np.prod(shape))
+        #     arr_ctypes = sharedctypes.RawArray(np_type_to_ctype[dtype], numel)
+        #     np_arr = np.frombuffer(arr_ctypes, dtype=dtype, count=numel)
+        #     np_arr.shape = shape
 
-            return np_arr 
+        #     return np_arr 
         
          # reading ring buffer (1 or 3)
         if np.mod(mpring,2)==1:
@@ -434,13 +436,16 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
            
         # no mpi ring buffer
         else:
+            if mpi_size>1:
+                printv('using gatherv distributed mpi- mpring',mpring, flush=True)
+                    
+                #from .communicator import gatherv
+                from .communicator import igatherv 
+                mpigather=True
+                pgather=0
+            else:
+                mpigather = False
             
-            printv('using gatherv distributed mpi- mpring',mpring, flush=True)
-                
-            #from .communicator import gatherv
-            from .communicator import igatherv 
-            mpigather=True
-            pgather=0
             # gatherv - allocate 
             tomo=None
             tomo_local=None
@@ -449,6 +454,8 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
                     tomo = tomo_out
                 else:
                     tomo = np.empty((num_slices,num_rays,num_rays),dtype = 'float32')
+    elif mpi_size ==1:
+        tomo = np.empty((num_slices,num_rays,num_rays),dtype = 'float32')
                 
 
 

@@ -15,8 +15,10 @@ try:
 except:
     raise ValueError('Could not connect to parent - ')
 
+# Defaults
 DDopts={'algo':'iradon', 'GPU': 1, 'shmem':1, 'max_chunk_slice': 16, 'verbose':1, 'max_iter':10, 'tol': 1e-3, 'file_out':'*', 'reg':.5, 'tau':.05, 'ringbuffer':0, 'ncore':None }
 
+# wrapper for reconstruction from the data
 def rrr(sino, theta, rot_center, tomo_out, Dopts):
     
     #num_slices = sino.shape[0]
@@ -81,8 +83,8 @@ irank = comm_intra.Get_rank()
 #comm_intra.barrier()
 #print("barrier, rank",rank )
 
+# initialize variables
 Dopts=None
-#import numpy as np
 
 rot_center = None
 sino_shape = None

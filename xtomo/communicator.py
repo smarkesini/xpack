@@ -269,3 +269,20 @@ def mpi_allGather(send_buff, heterogeneous_comm = True, mode = "cuda"):
         send_buff = cp.asarray(send_buff)
 
     return recv_buff
+
+import ctypes
+from multiprocessing import sharedctypes
+
+def shared_array(shape=(1,), dtype=np.float32):  
+    np_type_to_ctype = {np.float32: ctypes.c_float,
+                        np.float64: ctypes.c_double,
+                        np.bool: ctypes.c_bool,
+                        np.uint8: ctypes.c_ubyte,
+                        np.uint64: ctypes.c_ulonglong}
+
+    numel = np.int(np.prod(shape))
+    arr_ctypes = sharedctypes.RawArray(np_type_to_ctype[dtype], numel)
+    np_arr = np.frombuffer(arr_ctypes, dtype=dtype, count=numel)
+    np_arr.shape = shape
+
+    return np_arr 
