@@ -29,7 +29,18 @@ if 'rot_center' in fid['/exchange/']:
     rot_center = fid['/exchange/rot_center']
     
 
-# %%
+# %% no loops
+from xtomo.wrap_algorithms import wrap
+import cupy as cp
+reconstruct=wrap(data.shape,theta,rot_center,'iradon' ,xp=cp)
+gdata=cp.array(data)
+tomo, nrm, timing= reconstruct(gdata,1)
+plt.imshow(tomo[8])
+plt.draw()
+del gdata
+
+# %% with loops (chunking) to fit in memory
+
 from xtomo.loop_sino import recon
 tomo, times_loop= recon(data, theta, rot_center=rot_center, algo = 'tv', reg=.02, tau=0.05)
 
@@ -43,11 +54,11 @@ plt.imshow(tomo[8])
 
 plt.draw()
 
+
 # %%
-# testing spawning jobs
-'''
+#  spawning mpi jobs
 n_workers= 2
-Dopts={ 'algo':'iradon'}
+Dopts={ 'algo':'iradon', 'GPU': False }
 
 # Dopts={ 'algo':'tv',  'shmem':True, 'GPU': 1 , 'ncore':None,
 #        'max_chunk_slice':16, 'ringbuffer':0, 'verbose':True, 
@@ -55,10 +66,17 @@ Dopts={ 'algo':'iradon'}
 
 
 rot_center = None
-from  xtomo.spawn import reconstruct_mpiv as recon
 
-tomo=recon(data,theta,rot_center,n_workers,Dopts)
-'''
+
+def xtomo_reconstruct(data, theta, rot_center, n_workers, Dopts):
+    from  xtomo.spawn import reconstruct_mpiv as recon
+    tomo=recon(data,theta,rot_center,n_workers,Dopts)
+    return tomo
+
+tomo=xtomo_reconstruct(data,theta,rot_center,n_workers,Dopts)
+
+
+    
 
 
 
