@@ -57,8 +57,8 @@ plt.draw()
 
 # %%
 #  spawning mpi jobs
-n_workers= 2
-Dopts={ 'algo':'iradon', 'GPU': False }
+# n_workers= 4
+Dopts={ 'algo':'TV', 'GPU': False, 'n_workers' : 4 }
 
 # Dopts={ 'algo':'tv',  'shmem':True, 'GPU': 1 , 'ncore':None,
 #        'max_chunk_slice':16, 'ringbuffer':0, 'verbose':True, 
@@ -68,12 +68,12 @@ Dopts={ 'algo':'iradon', 'GPU': False }
 rot_center = None
 
 
-def xtomo_reconstruct(data, theta, rot_center, n_workers, Dopts):
+def xtomo_reconstruct(data, theta, rot_center, Dopts):
     from  xtomo.spawn import reconstruct_mpiv as recon
-    tomo=recon(data,theta,rot_center,n_workers,Dopts)
+    tomo=recon(data,theta,rot_center, Dopts)
     return tomo
 
-tomo=xtomo_reconstruct(data,theta,rot_center,n_workers,Dopts)
+tomo=xtomo_reconstruct(data,theta,rot_center, Dopts)
 
 
     

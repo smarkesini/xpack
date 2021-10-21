@@ -8,12 +8,24 @@ plan2D=None
 owrite=True
 Plan = True
 
+def fft_reset(x):
+    global plan1D
+    global plan2D
+    plan1D=None
+    plan2D=None
+    
+    
+
+
 def fft(x):
     global plan1D
     #print("Plan1D",plan1D)
     if plan1D==None and Plan:
         plan1D=fftpack.get_fft_plan(x, axes=(-1))
  
+#    print('plan1d', plan1D)
+#    print('plan1d', plan1D)
+#    print('plan1d', plan1D)
     
     return fftpack.fft(x, overwrite_x=owrite, plan=plan1D)
     #return x

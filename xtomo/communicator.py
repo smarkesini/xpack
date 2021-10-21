@@ -183,7 +183,7 @@ def allocate_shared(shape_obj, comm=comm):
     mpi_size = comm.Get_size()
     mpi_rank = comm.Get_rank()
     
-    print('allocating shared mem',mpi_size,mpi_rank)
+    # print('allocating shared mem',mpi_size,mpi_rank)
     
     if mpi_size == 1:
        return np.empty(shape_obj,dtype='float32') 
@@ -196,7 +196,7 @@ def allocate_shared(shape_obj, comm=comm):
     else: 
         nbytes = 0
     win = MPI.Win.Allocate_shared(nbytes, itemsize, comm=comm) 
-    print('allocated shared mem',mpi_size,mpi_rank)
+    # print('allocated shared mem',mpi_size,mpi_rank)
 
     # int MPI_Win_allocate_shared(MPI_Aint size, int disp_unit, MPI_Info info, MPI_Comm comm,
     #                        void *baseptr, MPI_Win * win)

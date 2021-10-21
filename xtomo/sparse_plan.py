@@ -11,7 +11,8 @@ import hashlib
 try: 
     import cupy as cp
     def iscupy(x):
-        if cp.get_array_module(x).__name__=='cupy':
+        if str(x.__class__)[8:12] =='cupy':
+#        if cp.get_array_module(x).__name__=='cupy':
             return True
         else:
             return False

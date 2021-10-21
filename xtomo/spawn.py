@@ -41,9 +41,11 @@ def reconstruct_mpi(fname, n_workers, Dopts):
     #comm.Free()
 
 
-# reconstruct from numpy data directly
+# reconstruct from numpy arrays to numpy array 
 
-def reconstruct_mpiv(sino, theta, rot_center, n_workers, Dopts):
+def reconstruct_mpiv(sino, theta, rot_center, Dopts):
+    
+    # Dopts['n_workers']=n_workers
     
     #Dopts['file_in']=fname
     #from xtomo.IO import getfilename
@@ -60,11 +62,11 @@ def reconstruct_mpiv(sino, theta, rot_center, n_workers, Dopts):
     comm = MPI.COMM_WORLD.Spawn(
         executable,
         args = [arg1,], #args=[sys.argv[0], start_worker],
-        maxprocs=n_workers)
+        maxprocs=Dopts['n_workers'])
     
     comm_intra = comm.Merge(MPI.COMM_WORLD)    
     
-    print('spawned size',comm_intra.Get_size())
+    print('spawned size',comm_intra.Get_size()-1)
     # broadcast the data   
     sino_shape = sino.shape
     theta_shape = theta.shape
@@ -78,18 +80,16 @@ def reconstruct_mpiv(sino, theta, rot_center, n_workers, Dopts):
     comm_intra.bcast(Dopts,root=0)
 
 
-    # sinogram in shared memory
-    #shared_sino = xtomo.communicator.allocate_shared(sino_shape)
-    #shared_theta = xtomo.communicator.allocate_shared(theta_shape)
+    # IO in shared memory
 
     shared_sino = xtomo.communicator.allocate_shared(sino_shape, comm = comm_intra)
-    print('allocated shared')
     shared_theta = xtomo.communicator.allocate_shared(theta_shape, comm=comm_intra)
+    shared_tomo = xtomo.communicator.allocate_shared(tomo_shape, comm = comm_intra)
+    print('allocated shared')
     
     shared_sino[...]=sino
     shared_theta[...]=theta
     #shared_tomo = xtomo.communicator.allocate_shared(tomo_shape) 
-    shared_tomo = xtomo.communicator.allocate_shared(tomo_shape, comm = comm_intra)
 
     # make sure we sent the data
     comm_intra.barrier()
@@ -97,9 +97,10 @@ def reconstruct_mpiv(sino, theta, rot_center, n_workers, Dopts):
     # doing the reconstruction
     
     comm_intra.barrier()
-    import numpy as np
-    print("shared tomo and data",np.sum(shared_tomo),np.sum(shared_sino),np.sum(sino))
-    
+    # import numpy as np
+    # print("shared tomo and data",np.sum(shared_tomo),np.sum(shared_sino),np.sum(sino))
+
+    # done with the job    
 
     comm_intra.Free()
     del comm_intra    

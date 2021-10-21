@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import numpy as np
 #from reconstruct import  recon_file #, recon
 #from xtomo.loop_sino import  recon_file #, recon
