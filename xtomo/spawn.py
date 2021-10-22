@@ -4,6 +4,22 @@ import mpi4py
 mpi4py.rc.threads = False # no multithreading...
 from mpi4py import MPI
 
+
+def xtomo_reconstruct(data, theta, rot_center='None', Dopts=None, order='sino'):
+    if order != 'sino':
+       data=np.swapaxes(data,0,1)
+    if type(Dopts)==type(None):
+        Dopts={ 'algo':'iradon', 'GPU': True, 'n_workers' : 1 }            
+    if Dopts['n_workers']==1:
+        from xtomo.loop_sino_simple import reconstruct
+        tomo = reconstruct(data, theta, rot_center, Dopts)
+    else:
+        from  xtomo.spawn import reconstruct_mpiv as recon
+        tomo=recon(data,theta,rot_center, Dopts)
+    return tomo
+
+
+
 # reconstruct from file
 def reconstruct_mpi(fname, n_workers, Dopts):
     
