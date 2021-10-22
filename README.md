@@ -9,6 +9,31 @@ Solvers are: iradon (non-iterative), preconditioned sirt (with BB-step [1], Ram-
 **Contributors:** S. Marchesini, SLAC; Anu Trivedi, Virginia Tech.; Pablo Enfedaque, LBNL
 
 
+## Installation:
+Clone the repo and run:
+```
+cd xpack
+pip install -e .
+```
+
+
+## Requirements:
+Python (>=3.7), numpy (>=1.15.0), either scipy (>=1.3.1)  (for CPU) or [cupy >=7.0](https://docs-cupy.chainer.org/en/stable/index.html) (for GPU).
+
+**Recommended**:  
+[mpi4py](https://mpi4py.readthedocs.io/en/stable/) for multicore and distributed jobs. It uses shared memory if the mpi framework supports it.  If using conda, the feedstock version has cuda-aware mpi support: https://github.com/conda-forge/openmpi-feedstock , https://github.com/conda-forge/mpi4py-feedstock
+
+[tomopy](https://tomopy.readthedocs.io/en/latest/) To use tomopy-gridrec and tomopy-astra: tomopy and tomopy-[astra](https://www.astra-toolbox.com/). 
+
+h5py (for reading/saving, with preferred parallel version [hdf5-parallel](https://anaconda.org/Clawpack/hdf5-parallel)).  
+[tifffile](https://pypi.org/project/tifffile/) (for saving).  
+ 
+
+
+**Notes**
+* installation * The order of installation should be Tomopy, cupy, mpi4py, then this package. Tomopy comes with its own libraries that override others.
+
+
 ## Usage (command line)
 
 (**First install** with e.g. pip): 
@@ -66,18 +91,18 @@ optional arguments:
                         simulate shape nslices,nangles,nrays
   -sim_width SIM_WIDTH, --sim_width SIM_WIDTH
                         object width between 0-1
+  -ncore NCORE, --ncore NCORE
+                        ncore for tomopy reconstruction algorithms
+  -rb RING_BUFFER, --ring_buffer RING_BUFFER
+                        ring buffer 0 none,1:input,2=output,4=MPI, (3=2+1 (both), 7=1+2+4,...)
   -opts OPTIONS, --options OPTIONS
                         e.g. '{"algo":"iradon", "maxiter":10, "tol":1e-2, "reg":1, "tau":.05} ' 
   -fopts FOPTIONS, --foptions FOPTIONS
                         file with json options  
-  -ncore NCORE, --ncore NCORE
-                        ncore for tomopy reconstruction algorithms
-  -rb RING_BUFFER, --ring_buffer RING_BUFFER
-                        ring buffer 0 none,1:input,2=output,4=MPI, 7=1+2+4
 
 +-------------------------------------------------------------+
 | option precedence (highest on the left):                    |
-| individual options, 'opts' dictionary, 'fopts' file options |
+| options with their own flags,  'opts', 'fopts' file options |
 +-------------------------------------------------------------+
 ```
 ## Usage (Python)
@@ -120,31 +145,8 @@ There are other interfaces to the solvers that don't use mpi, don't chunk the da
 > from loop_sino import recon  
 > tomo, times_loop= recon(sino, theta, algo = 'iradon', ...)  
 
+See example '[examples/tomobank_rec.py](https://github.com/smarkesini/xpack/blob/master/xtomo/examples/tomobank_rec.py)', that will process tomo_00001 from [tomobank](https://tomobank.readthedocs.io/en/latest/). 
 
-
-## Installation:
-Clone the repo and runL
-```
-cd xpack
-pip install -e .
-```
-
-
-## Requirements:
-Python (>=3.7), numpy (>=1.15.0), either scipy (>=1.3.1)  (for CPU) or [cupy >=7.0](https://docs-cupy.chainer.org/en/stable/index.html) (for GPU).
-
-**Recommended**:  
-[mpi4py](https://mpi4py.readthedocs.io/en/stable/) for multicore and distributed jobs. It uses shared memory if the mpi framework supports it.  If using conda, the feedstock version has cuda-aware mpi support: https://github.com/conda-forge/openmpi-feedstock , https://github.com/conda-forge/mpi4py-feedstock
-
-[tomopy](https://tomopy.readthedocs.io/en/latest/) To use tomopy-gridrec and tomopy-astra: tomopy and tomopy-[astra](https://www.astra-toolbox.com/). 
-
-h5py (for reading/saving, with preferred parallel version [hdf5-parallel](https://anaconda.org/Clawpack/hdf5-parallel)).  
-[tifffile](https://pypi.org/project/tifffile/) (for saving).  
- 
-
-
-**Notes**
-* installation * The order of installation should be Tomopy, cupy, mpi4py, then this package. Tomopy comes with its own libraries that override others.
 
 
 ## Bibliography
