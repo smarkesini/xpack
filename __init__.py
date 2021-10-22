@@ -12,3 +12,7 @@ from .communicator import *
 from .fubini import *
 from .prep import clean_raw
 # from .prep import clean_raw
+
+#from .. import sparse_plan.clean_cache as clean_cache
+from sparse_plan import clean_cache as clean_cache
+# xtomo.clean_cache = = .sparse_plan.clean_cache

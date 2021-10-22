@@ -33,6 +33,7 @@ h5py (for reading/saving, with preferred parallel version [hdf5-parallel](https:
 
 **Notes**
 * installation * The order of installation should be Tomopy, cupy, mpi4py, then this package. Tomopy comes with its own libraries that override others.
+* the library saves the Sparse matrices or SpMV each time you change geometry (number of pixels, angles, rotation center, ...). To clear them, use xtomo.sparse_plan.clean_cache()
 
 
 ## Usage (command line)

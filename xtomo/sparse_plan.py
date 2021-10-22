@@ -34,7 +34,11 @@ cache=os.path.expanduser('~/.cache/xpack/')
 
 #from timeit import default_timer as timer
 
-
+def clean_cache():
+    if os.path.isdir(cache):
+        import shutil
+        shutil.rmtree(cache)
+    
 if not os.path.isdir(cache):
     os.mkdir(cache)
 
