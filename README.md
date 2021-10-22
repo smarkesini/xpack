@@ -21,7 +21,7 @@ pip install -e .
 Python (>=3.7), numpy (>=1.15.0), either scipy (>=1.3.1)  (for CPU) or [cupy >=7.0](https://docs-cupy.chainer.org/en/stable/index.html) (for GPU).
 
 **Recommended**:  
-[mpi4py](https://mpi4py.readthedocs.io/en/stable/) for multicore and distributed jobs. It uses shared memory if the mpi framework supports it.  If using conda, the feedstock version has cuda-aware mpi support: https://github.com/conda-forge/openmpi-feedstock , https://github.com/conda-forge/mpi4py-feedstock
+[mpi4py](https://mpi4py.readthedocs.io/en/stable/) for multicore and distributed jobs. It uses shared memory if the mpi framework supports it and cuda aware mpi see [7]. If using conda, the feedstock version has cuda-aware mpi support: https://github.com/conda-forge/openmpi-feedstock , https://github.com/conda-forge/mpi4py-feedstock. 
 
 [tomopy](https://tomopy.readthedocs.io/en/latest/) To use tomopy-gridrec and tomopy-astra: tomopy and tomopy-[astra](https://www.astra-toolbox.com/). 
 
@@ -145,7 +145,7 @@ There are other interfaces to the solvers that don't use mpi, don't chunk the da
 > from loop_sino import recon  
 > tomo, times_loop= recon(sino, theta, algo = 'iradon', ...)  
 
-See example '[examples/tomobank_rec.py](https://github.com/smarkesini/xpack/blob/master/xtomo/examples/tomobank_rec.py)', that will process tomo_00001 from [tomobank](https://tomobank.readthedocs.io/en/latest/). 
+See example '[examples/tomobank_rec.py](https://github.com/smarkesini/xpack/blob/master/xtomo/examples/tomobank_rec.py)', that will process tomo_00001 from [tomobank](https://tomobank.readthedocs.io/en/latest/) [8]. 
 
 
 
@@ -159,7 +159,7 @@ See example '[examples/tomobank_rec.py](https://github.com/smarkesini/xpack/blob
 
 [3] Barrett, Richard, Michael W. Berry, Tony F. Chan, James Demmel, June Donato, Jack Dongarra, Victor Eijkhout, Roldan Pozo, Charles Romine, and Henk Van der Vorst. Templates for the solution of linear systems: building blocks for iterative methods. Vol. 43. Siam, 1994.
 
-[4] Maia, F. R. N. C., MacDowell, A., Marchesini, S., Padmore, H. A., Parkinson, D. Y., Pien, J., ... & Yang, C. (2010, September). Compressive phase contrast tomography. In Image Reconstruction from Incomplete Data VI (Vol. 7800, p. 78000F). International Society for Optics and Photonics. (arxiv:1009.1380)[https://arxiv.org/abs/1009.1380]
+[4] Maia, F. R. N. C., MacDowell, A., Marchesini, S., Padmore, H. A., Parkinson, D. Y., Pien, J., ... & Yang, C. (2010, September). Compressive phase contrast tomography. In Image Reconstruction from Incomplete Data VI (Vol. 7800, p. 78000F). International Society for Optics and Photonics. [arxiv:1009.1380](https://arxiv.org/abs/1009.1380)
 
 [5b] Dowd BA, Campbell GH, Marr RB, Nagarkar VV, Tipnis SV, Axe L, and Siddons DP. Developments in synchrotron x-ray computed microtomography at the national synchrotron light source. In Proc. SPIE, volume 3772, 224–236. 1999.
 
@@ -168,3 +168,7 @@ See example '[examples/tomobank_rec.py](https://github.com/smarkesini/xpack/blob
 [6a] Pelt D, Gürsoy D, Palenstijn WJ, Sijbers J, De Carlo F, and Batenburg KJ. Integration of tomopy and the astra toolbox for advanced processing and reconstruction of tomographic synchrotron data. Journal of Synchrotron Radiation, 23(3):842–849, 2016.
 
 [6b] W. van Aarle, W. J. Palenstijn, J. Cant, E. Janssens, F. Bleichrodt, A. Dabravolski, J. De Beenhouwer, K. J. Batenburg, and J. Sijbers, “Fast and Flexible X-ray Tomography Using the ASTRA Toolbox”, Optics Express, 24(22), 25129-25147, (2016)
+
+[7] Dalcin, Lisandro, and Yao-Lung L. Fang. "mpi4py: Status Update After 12 Years of Development." Computing in Science & Engineering 23.4 (2021): 47-54.
+
+[8] Francesco De Carlo, Doğa Gürsoy, Daniel J Ching, K Joost Batenburg, Wolfgang Ludwig, Lucia Mancini, Federica Marone, Rajmund Mokso, Daniël M Pelt, Jan Sijbers, and Mark Rivers. Tomobank: a tomographic data repository for computational x-ray science. Measurement Science and Technology, 29(3):034004, 2018. [URL](http://stacks.iop.org/0957-0233/29/i=3/a=034004).
