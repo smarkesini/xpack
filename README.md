@@ -3,8 +3,9 @@
 Distributed heterogeneous iterative solver for tomography [0]. 
 Solvers are: iradon (non-iterative), preconditioned sirt (with BB-step [1], Ram-Lak-Hamming preconditioner), CGLS (using CG-squared [2]), TV (split bregman[3]), tvrings[4], tomopy-gridrec [5a] [5b], tomopy-astra [6a] using cgls [6b].
 
-**Known Issues** The code returns wrong results when the number of pixels is odd. TV does not use halos therefore the results near the border are slightly corrupted.
-**Possible improvements (contribution welcome)**: Halos for TV regularization, Positivity constraints in SIRT-BB, TV and CG,  GPU streaming,  half precision arithmetic. Fan beam geometry. 
+**Possible enhancement (contribution welcome)**: half precision arithmetic, GPU streaming. Halos for TV regularization, other solvers, positivity constraints in SIRT-BB, TV and CG,   Fan beam geometry,
+
+**Known Issues** Don't use an odd number of pixels in the first dimension (orthogonal to the rotation axis); there is a bug whereby odd numbers give the wrong results. TV does not use halos therefore the results near the border of chunsk may be slightly corrupted.
 
 **Contributors:** S. Marchesini, SLAC; Anu Trivedi, Virginia Tech.; Pablo Enfedaque, LBNL
 
