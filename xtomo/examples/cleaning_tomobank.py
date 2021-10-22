@@ -128,11 +128,6 @@ def printbar(percent,string='    '):
         sys.stdout.write('\r%s Progress: [%-60s] %3i%% ' %(string,'=' * (percent // 2), percent))
         sys.stdout.flush()
        
-#import time
-#from read_sigray_dirty import clean_sino
-
-#h5fname ='/tomodata/sigray/Fly_data/Fly_preprocessed.h5'
-#5fname_in ='/tomodata/sigray/Fly_data/Abs_Fly_tomo180_1p125um_4steps_34kV_4x4_2x_50s_042_whitedark.h5.h5'
 
 
 

@@ -12,7 +12,20 @@ from matplotlib import pyplot as plt
 # Dopts={ 'algo':'tv',  'shmem':True, 'GPU': 1 , 'ncore':None,
 #        'max_chunk_slice':16, 'ringbuffer':0, 'verbose':True, 
 #        'max_iter':10, 'tol':5e-3, 'reg':.5, 'tau':.05}
+dname = '/tomodata/tomobank/tomo_00001/'
+fname_in = 'tomo_00001.h5'
+fname_out = 'tomo_00001_clean.h5'
 
+import os
+if os.path.isfile(dname+fname_out)==False:
+    from xtomo.prep import clean_raw
+    clean_raw(dname+fname_in, dname+fname_out, max_chunks = 16)
+# else:  
+# dname = '/tomodata/tomobank/tomo_00001/'
+fname = fname_out
+
+
+# %%
 
 def xtomo_reconstruct(data, theta, rot_center='None', Dopts=None, order='sino'):
     if order != 'sino':
@@ -27,8 +40,6 @@ def xtomo_reconstruct(data, theta, rot_center='None', Dopts=None, order='sino'):
         tomo=recon(data,theta,rot_center, Dopts)
     return tomo
 
-dname = '/tomodata/tomobank/tomo_00001/'
-fname = 'tomo_00001_clean.h5'
 
 
 h5np=lambda fname,key: np.float32(h5py.File(fname, mode='r')[key][...])
