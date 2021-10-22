@@ -67,12 +67,14 @@ To run multiple MPI processes witin python see example in scratch.py:
 > Dopts={ 'algo':'iradon',  'GPU': 1 }  
 > reconstruct_mpi(file_name, n_workers, Dopts)
 
-**Contributors:** S. Marchesini, Sigray Inc.; Anu Trivedi, Virginia Tech.; Pablo Enfedaque, LBNL
+**Known Issues** The code returns wrong results when the number of pixels is odd. TV does not use halos therefore the results near the border are slightly corrupted.
+
+**Contributors:** S. Marchesini, SLAC; Anu Trivedi, Virginia Tech.; Pablo Enfedaque, LBNL
 
 
 ## Bibliography
 
-[0] Stefano Marchesini, Anuradha Trivedi, Pablo Enfedaque, Talita Perciano, Dilworth Parkinson, Sparse Matrix-Based HPC Tomography,  https://arxiv.org/abs/2003.12677
+[0] Stefano Marchesini, Anuradha Trivedi, Pablo Enfedaque, Talita Perciano, Dilworth Parkinson. Sparse Matrix-Based HPC Tomography, "Lecture Notes in Computer Science, vol 12137",  pages={248--261},   year={2020}, https://doi.org/10.1007/978-3-030-50371-0_18, https://arxiv.org/abs/2003.12677
 
 [1] J. Barzilai and J. Borwein. Two-point step size gradient method. IMA J. Numerical Analysis 8, 141–148, 1988
 
