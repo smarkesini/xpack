@@ -335,8 +335,8 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
         
         """
         # halo for TV - to do ...
-        #bchunk=np.clip(chunks[0]-halo,0,num_slices)
-        #echunk=np.clip(chunks[1]+halo,0,num_slices)
+        #bchunk=np.clip(chunks[0]-halo,0,nslices)
+        #echunk=np.clip(chunks[1]+halo,0,nslices)
 
         #bhalo=chunks[0]-np.clip(chunks[0]-halo,0,num_slices-1)
         #ehalo=np.clip(chunks[1]+halo,0,num_slices-1)-chunks[1]

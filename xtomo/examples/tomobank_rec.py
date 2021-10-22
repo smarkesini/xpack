@@ -9,6 +9,24 @@ import h5py
 import numpy as np
 from matplotlib import pyplot as plt
 
+# Dopts={ 'algo':'tv',  'shmem':True, 'GPU': 1 , 'ncore':None,
+#        'max_chunk_slice':16, 'ringbuffer':0, 'verbose':True, 
+#        'max_iter':10, 'tol':5e-3, 'reg':.5, 'tau':.05}
+
+
+def xtomo_reconstruct(data, theta, rot_center='None', Dopts=None, order='sino'):
+    if order != 'sino':
+       data=np.swapaxes(data,0,1)
+    if type(Dopts)==type(None):
+        Dopts={ 'algo':'iradon', 'GPU': True, 'n_workers' : 1 }            
+    if Dopts['n_workers']==1:
+        from xtomo.loop_sino_simple import reconstruct
+        tomo = reconstruct(data, theta, rot_center, Dopts)
+    else:
+        from  xtomo.spawn import reconstruct_mpiv as recon
+        tomo=recon(data,theta,rot_center, Dopts)
+    return tomo
+
 dname = '/tomodata/tomobank/tomo_00001/'
 fname = 'tomo_00001_clean.h5'
 
@@ -29,6 +47,32 @@ if 'rot_center' in fid['/exchange/']:
     rot_center = fid['/exchange/rot_center']
     
 
+
+# %%
+#  spawning mpi jobs
+# n_workers= 4
+
+
+# tomo1=xtomo_reconstruct(data,theta,rot_center, Dopts)
+
+# %%
+#  spawning mpi jobs
+Dopts={ 'algo':'iradon', 'GPU': False, 'n_workers' : 8 }
+tomo1=xtomo_reconstruct(data,theta,rot_center, Dopts)
+plt.figure()
+plt.imshow(tomo1[8])
+
+# %%
+
+Dopts={ 'algo':'TV', 'GPU': True, 'n_workers' : 1 , 'reg': .02, 'max_chunk_slice': 16}
+
+tomo=xtomo_reconstruct(data,theta,rot_center, Dopts)
+
+plt.figure()
+plt.imshow(tomo[8])
+
+
+'''
 # %% no loops
 from xtomo.wrap_algorithms import wrap
 import cupy as cp
@@ -53,28 +97,7 @@ plt.figure()
 plt.imshow(tomo[8])
 
 plt.draw()
-
-
-# %%
-#  spawning mpi jobs
-# n_workers= 4
-Dopts={ 'algo':'TV', 'GPU': False, 'n_workers' : 4 }
-
-# Dopts={ 'algo':'tv',  'shmem':True, 'GPU': 1 , 'ncore':None,
-#        'max_chunk_slice':16, 'ringbuffer':0, 'verbose':True, 
-#        'max_iter':10, 'tol':5e-3, 'reg':.5, 'tau':.05}
-
-
-rot_center = None
-
-
-def xtomo_reconstruct(data, theta, rot_center, Dopts):
-    from  xtomo.spawn import reconstruct_mpiv as recon
-    tomo=recon(data,theta,rot_center, Dopts)
-    return tomo
-
-tomo=xtomo_reconstruct(data,theta,rot_center, Dopts)
-
+'''
 
     
 

@@ -113,17 +113,16 @@ tomo_shape = (num_slices, num_rays, num_rays)
 #time.sleep(5)
 
 shared_sino = xtomo.communicator.allocate_shared(sino_shape, comm = comm_intra)
-#shared_sino = xtomo.communicator.allocate_shared(sino_shape, comm = comm_intra)
 shared_theta = xtomo.communicator.allocate_shared(theta_shape, comm=comm_intra)
 shared_tomo = xtomo.communicator.allocate_shared(tomo_shape, comm = comm_intra)
 
-print('mpi_worker',rank)
+#print('mpi_worker',rank)
 
 # make sure all is transfered
 comm_intra.barrier()
 
-import numpy as np
-print('passed barrier,  rank',rank,'recieved opts',Dopts, 'sino',np.sum(shared_sino),'theta',np.shape(shared_theta),np.sum(shared_theta))
+# import numpy as np
+# print('passed barrier,  rank',rank,'recieved opts',Dopts, 'sino',np.sum(shared_sino),'theta',np.shape(shared_theta),np.sum(shared_theta))
 
 # reconstruct
 tomo_out, times_loop = rrr(shared_sino, shared_theta,  rot_center, shared_tomo, Dopts)

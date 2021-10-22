@@ -89,8 +89,7 @@ def reconstruct_mpiv(sino, theta, rot_center, Dopts):
     
     shared_sino[...]=sino
     shared_theta[...]=theta
-    #shared_tomo = xtomo.communicator.allocate_shared(tomo_shape) 
-
+ 
     # make sure we sent the data
     comm_intra.barrier()
 
@@ -105,6 +104,8 @@ def reconstruct_mpiv(sino, theta, rot_center, Dopts):
     comm_intra.Free()
     del comm_intra    
     comm.Disconnect()
+    del shared_sino, shared_theta, xtomo
+    
     return shared_tomo
     #comm.Free()
     
