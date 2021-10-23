@@ -155,35 +155,36 @@ There are other interfaces to the solvers that don't use mpi, don't chunk the da
 See example '[examples/tomobank_rec.py](https://github.com/smarkesini/xpack/blob/master/xtomo/examples/tomobank_rec.py)', that will process tomo_00001 from [tomobank](https://tomobank.readthedocs.io/en/latest/) [^8]. 
 
 
-## Content
+## Contents
 
-recon.py: reconstruct from file input to file output
+1. recon.py: reconstruct from file input to file output, parsing options
 
-fubini.py: operators for non-iterative reconstruction using non-uniform FFT. 
+10. examples: examples using mpi 
 
-solvers.py: iterative solvers.
+2. fubini.py: high performance CPU and GPU forward and backward operators  using non-uniform FFT.
 
-solve_sirt.py: SIRT with BB-step.
+3. solvers.py: iterative solvers.
 
-wrap.py: wraps solvers
+4. solve_sirt.py: SIRT with BB-step.
 
-loop_sino.py: process chunks of data.
+5. wrap.py: wraps solvers such as non-iterative 'iradon'
 
-IO.py: handles files, memory mapping.
+6. loop_sino.py: process chunks of data.
 
+7. IO.py: handles files, memory mapping.
 
-communicator.py: mpi stuff
+8. communicator.py: mpi communication
 
-devmanager: selects GPUs.
+9. devmanager: selects GPUs.
 
+10. spawn.py: spawns mpi jobs.
 
-spawn.py: spawns mpi jobs.
+11. sparse_plan.py: saves/load Sparse Matrix to cache.
 
-sparse_plan.py: saves/load Sparse Matrix to cache.
+12. fft.py: handles ffts (plans, GPU,...).
 
-fft.py: handles ffts (plans, GPU,...).
-
-
+13. mpi_workers: handle spawned workers (working from files or numpy arrays)
+ 
 
 
 ## Bibliography
