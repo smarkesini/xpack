@@ -1,6 +1,6 @@
 ## Description:
 
-Distributed heterogeneous iterative solver for tomography [0]. 
+Distributed heterogeneous iterative solver for tomography [[0](hpc-tomo1)]. 
 Solvers are: iradon (non-iterative), preconditioned sirt (with BB-step [1], Ram-Lak-Hamming preconditioner), CGLS (using CG-squared [2]), TV (split bregman[3]), tvrings[4], tomopy-gridrec [5a] [5b], tomopy-astra [6a] using cgls [6b].
 
 **Possible enhancement (contribution welcome)**: half precision arithmetic, GPU streaming. Halos for TV regularization, other solvers, positivity constraints in SIRT-BB, TV and CG,   Fan beam geometry,
@@ -153,7 +153,7 @@ See example '[examples/tomobank_rec.py](https://github.com/smarkesini/xpack/blob
 
 ## Bibliography
 
-[0] Stefano Marchesini, Anuradha Trivedi, Pablo Enfedaque, Talita Perciano, Dilworth Parkinson. Sparse Matrix-Based HPC Tomography, "Lecture Notes in Computer Science, vol 12137",  pages={248--261},   year={2020}, https://doi.org/10.1007/978-3-030-50371-0_18, https://arxiv.org/abs/2003.12677
+[[0](hpc-tomo1)] Stefano Marchesini, Anuradha Trivedi, Pablo Enfedaque, Talita Perciano, Dilworth Parkinson. Sparse Matrix-Based HPC Tomography, "Lecture Notes in Computer Science, vol 12137",  pages={248--261},   year={2020}, https://doi.org/10.1007/978-3-030-50371-0_18, https://arxiv.org/abs/2003.12677
 
 [1] J. Barzilai and J. Borwein. Two-point step size gradient method. IMA J. Numerical Analysis 8, 141–148, 1988
 
