@@ -1,7 +1,7 @@
 ## Description:
 
-Distributed heterogeneous (GPUs or CPUs) iterative solver[^1] for tomography <sup>[1](#myfootnote1)</sup>.
-Solvers are: iradon (non-iterative, also known as gridrec), preconditioned sirt (with BB-step [^2], Ram-Lak-Hamming preconditioner), CGLS (using CG-squared [^3]), TV (split bregman[^4]), tvrings[^5], tomopy-gridrec [^5a],[^5b], tomopy-astra [6a] using cgls [^6b].
+Distributed heterogeneous (GPUs or CPUs) iterative solver[^1] for tomography.
+Solvers are: iradon (non-iterative, also known as gridrec), preconditioned sirt (with BB-step [^2], Ram-Lak-Hamming preconditioner), CGLS (using CG-squared [^3]), TV (split bregman[^4]), tvrings[^5], tomopy-gridrec [^5a],[^5b], tomopy-astra [^6a] using cgls [^6b].
 
 **Possible enhancement (contribution welcome)**: half precision arithmetic, GPU streaming. Halos for TV regularization, other solvers, positivity constraints in SIRT-BB, TV and CG,   Fan beam geometry,
 
@@ -38,7 +38,8 @@ h5py (for reading/saving, with preferred parallel version [hdf5-parallel](https:
 
 ## Usage (command line)
 
-(**First install** with e.g. pip): 
+(**First install** with e.g. pip see above).   
+
 From the command line (terminal), data (from file) and reconstruction (to file):
 
 >$ python recon.py [-f input_file.h5] [-o output_file.h5] [--GPU 1] [-a 'tv']
@@ -46,16 +47,20 @@ From the command line (terminal), data (from file) and reconstruction (to file):
 you can use recon.py file in the main folder '[xpack/recon.py](https://github.com/smarkesini/xpack/blob/master/recon.py)', or just copy it to your path.
 
  The input file is assumed in sinogram order, with data in '\exchange\data' and angles in '\exchange\theta'. 
->$ python recon.py -h 
 
-Provides a list of optional parameters, such as  Rotation center, algoritm selection (non-iterative 'iradon', 'sirt', 'cgls', 'tomopy', 'tv'),  regularization parameters, GPU or CPU, chunking (to process piece by piece and save memory), etc. 
-
-If the input file is not given it will generate its own simulation (using tomopy) and save it to file. The simulation size is adjustable.   The output file name is auto-generated if not set from the command line. The file name can be '*.h5' or '*.tif'. 
 For MPI use for example:
 
 >$ mpirun -n 2 recon.py -f file_in.h5 -o '*' --GPU 1 -a 'tv'
 
-The input file is assumed in sinogram order, with data in '\exchange\data' and angles in '\exchange\theta' rotation center and other parameters are optionals and described by using the -h flag. The full list of options is:
+The full list of options type:
+
+>$ python recon.py -h 
+
+Which provides a list of optional parameters (see below). 
+
+If the input file is not given it will generate its own simulation (using tomopy) and save it to file. The simulation size is adjustable.   The output file name is auto-generated if not set from the command line. The file name can be '*.h5' or '*.tif'. 
+
+
 
 ```
 usage: recon.py [-h] [-f FILE_IN] [-o FILE_OUT] [-rot_center ROT_CENTER] [-a ALGO] [-G GPU] [-S SHMEM] [-maxiter MAXITER] [-tol TOL] [-max_chunk MAX_CHUNK_SLICE]
@@ -147,7 +152,7 @@ There are other interfaces to the solvers that don't use mpi, don't chunk the da
 > from loop_sino import recon  
 > tomo, times_loop= recon(sino, theta, algo = 'iradon', ...)  
 
-See example '[examples/tomobank_rec.py](https://github.com/smarkesini/xpack/blob/master/xtomo/examples/tomobank_rec.py)', that will process tomo_00001 from [tomobank](https://tomobank.readthedocs.io/en/latest/) [8]. 
+See example '[examples/tomobank_rec.py](https://github.com/smarkesini/xpack/blob/master/xtomo/examples/tomobank_rec.py)', that will process tomo_00001 from [tomobank](https://tomobank.readthedocs.io/en/latest/) [^8]. 
 
 
 
@@ -169,7 +174,7 @@ See example '[examples/tomobank_rec.py](https://github.com/smarkesini/xpack/blob
 
 [^5a]: Gürsoy D, De Carlo F, Xiao X, and Jacobsen C. Tomopy: a framework for the analysis of synchrotron tomographic data. Journal of Synchrotron Radiation, 21(5):1188–1193, 2014.
 
-[^6]: Pelt D, Gürsoy D, Palenstijn WJ, Sijbers J, De Carlo F, and Batenburg KJ. Integration of tomopy and the astra toolbox for advanced processing and reconstruction of tomographic synchrotron data. Journal of Synchrotron Radiation, 23(3):842–849, 2016.
+[^6a]: Pelt D, Gürsoy D, Palenstijn WJ, Sijbers J, De Carlo F, and Batenburg KJ. Integration of tomopy and the astra toolbox for advanced processing and reconstruction of tomographic synchrotron data. Journal of Synchrotron Radiation, 23(3):842–849, 2016.
 
 
 [^6b]: W. van Aarle, W. J. Palenstijn, J. Cant, E. Janssens, F. Bleichrodt, A. Dabravolski, J. De Beenhouwer, K. J. Batenburg, and J. Sijbers, “Fast and Flexible X-ray Tomography Using the ASTRA Toolbox”, Optics Express, 24(22), 25129-25147, (2016)
