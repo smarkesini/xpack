@@ -1,11 +1,13 @@
 ## Description:
 
-Distributed heterogeneous (GPUs or CPUs) iterative solver[^1] for tomography.
-Solvers are: iradon (non-iterative, also known as gridrec), preconditioned sirt (with BB-step [^2], Ram-Lak-Hamming preconditioner), CGLS (using CG-squared [^3]), TV (split bregman[^4]), tvrings[^5], tomopy-gridrec [^5a],[^5b], tomopy-astra [^6a] using cgls [^6b].
+XPACK is a high-performance library of basic operators for X-ray data processing.
+ The xtomo component provides a distributed heterogeneous (GPUs or CPUs) iterative (or direct) solvers[^1] for tomography based on non-uniform FFT.
+Solvers are: iradon (non-iterative, also known as gridrec), SIRT (preconditioned by e.g. Ram-Lak-Hamming and with BB-step [^2]), CGLS (using CG-squared [^3]), TV (split Bregman[^4]), tvrings[^5] to remove rings within the iteration, tomopy-gridrec [^5a],[^5b], tomopy-astra [^6a],[^6b]...
 
-**Possible enhancement (contribution welcome)**: half precision arithmetic, GPU streaming. Halos for TV regularization, other solvers, positivity constraints in SIRT-BB, TV and CG,   Fan beam geometry,
 
-**Known Issues** Don't use an odd number of pixels in the first dimension (orthogonal to the rotation axis); there is a bug whereby odd numbers give the wrong results. TV does not use halos therefore the results near the border of chunsk may be slightly corrupted.
+**Known Issues** Don't use an odd number of pixels in the last dimension (orthogonal to the rotation axis). There is a bug whereby odd numbers give the wrong results. TV does not use halos, therefore the slice near the border of chunk are a bit corrupted. Assuming the regularization parameter is kept small, it is not a major problem.
+
+**Possible enhancement (contribution welcome)**: half precision arithmetic, GPU streaming. Halos for TV regularization, other solvers, positivity constraints in SIRT-BB, TV and CG,   Fan beam geometry, and more.
 
 **Contributors:** S. Marchesini, SLAC; Anu Trivedi, Virginia Tech.; Pablo Enfedaque, LBNL
 
@@ -22,18 +24,17 @@ pip install -e .
 Python (>=3.7), numpy (>=1.15.0), either scipy (>=1.3.1)  (for CPU) or [cupy >=7.0](https://docs-cupy.chainer.org/en/stable/index.html) (for GPU).
 
 **Recommended**:  
-[mpi4py](https://mpi4py.readthedocs.io/en/stable/) for multicore and distributed jobs. It uses shared memory if the mpi framework supports it and cuda aware mpi see [^7]. If using conda, the feedstock version has cuda-aware mpi support: https://github.com/conda-forge/openmpi-feedstock , https://github.com/conda-forge/mpi4py-feedstock. 
-
-[tomopy](https://tomopy.readthedocs.io/en/latest/) To use tomopy-gridrec and tomopy-astra: tomopy and tomopy-[astra](https://www.astra-toolbox.com/). 
+[mpi4py](https://mpi4py.readthedocs.io/en/stable/) for multicore and distributed jobs. It uses shared memory if the mpi framework supports it and cuda aware mpi see [^7] (thanks to [@LeoFang](https://github.com/leofang)!). If using conda, the feedstock version has cuda-aware mpi support: https://github.com/conda-forge/openmpi-feedstock , https://github.com/conda-forge/mpi4py-feedstock. 
 
 h5py (for reading/saving, with preferred parallel version [hdf5-parallel](https://anaconda.org/Clawpack/hdf5-parallel)).  
 [tifffile](https://pypi.org/project/tifffile/) (for saving).  
  
+[tomopy](https://tomopy.readthedocs.io/en/latest/) To use tomopy-gridrec and tomopy-astra: tomopy and tomopy-[astra](https://www.astra-toolbox.com/). 
 
 
 **Notes**
-* installation * The order of installation should be Tomopy, cupy, mpi4py, then this package. Tomopy comes with its own libraries that override others.
-* the library saves the Sparse matrices or SpMV each time you change geometry (number of pixels, angles, rotation center, ...). To clear them, use xtomo.sparse_plan.clean_cache()
+*Installation:* The order of installation should be Tomopy, cupy, mpi4py, then this package. Tomopy comes with its own libraries that override others.
+*Cache:* the library saves the Sparse matrices or SpMV each time you change geometry (number of pixels, angles, rotation center, ...). To clear them, use xtomo.sparse_plan.clean_cache()
 
 
 ## Usage (command line)
@@ -123,6 +124,7 @@ From Python, the most general interface (using mpi, etc) can be used as (e.g.):
 >  tomo1=xtomo_reconstruct(data,theta,rot_center, Dopts)
 
 
+See example '[examples/tomobank_rec.py](https://github.com/smarkesini/xpack/blob/master/xtomo/examples/tomobank_rec.py)', that will process tomo_00001 from [tomobank](https://tomobank.readthedocs.io/en/latest/) [^8] using stripe-removal from [^9] for pre-processing. 
  The data should be in sinogram order, e.g.:
 
 > num_rays=data.shape[0]  
@@ -152,14 +154,13 @@ There are other interfaces to the solvers that don't use mpi, don't chunk the da
 > from loop_sino import recon  
 > tomo, times_loop= recon(sino, theta, algo = 'iradon', ...)  
 
-See example '[examples/tomobank_rec.py](https://github.com/smarkesini/xpack/blob/master/xtomo/examples/tomobank_rec.py)', that will process tomo_00001 from [tomobank](https://tomobank.readthedocs.io/en/latest/) [^8]. 
 
 
 ## Contents
 
 1. recon.py: reconstruct from file input to file output, parsing options
 
-10. examples: examples using mpi 
+10. examples: examples using mpi, e.g. with [tomobank](https://tomobank.readthedocs.io/en/latest/) [^8] data. It calls [^9] for pre-processor.
 
 2. fubini.py: high performance CPU and GPU forward and backward operators  using non-uniform FFT.
 
@@ -212,3 +213,5 @@ See example '[examples/tomobank_rec.py](https://github.com/smarkesini/xpack/blob
 [^7]: Dalcin, Lisandro, and Yao-Lung L. Fang. "mpi4py: Status Update After 12 Years of Development." Computing in Science & Engineering 23.4 (2021): 47-54.
 
 [^8]: Francesco De Carlo, Doğa Gürsoy, Daniel J Ching, K Joost Batenburg, Wolfgang Ludwig, Lucia Mancini, Federica Marone, Rajmund Mokso, Daniël M Pelt, Jan Sijbers, and Mark Rivers. Tomobank: a tomographic data repository for computational x-ray science. Measurement Science and Technology, 29(3):034004, 2018. [URL](http://stacks.iop.org/0957-0233/29/i=3/a=034004).
+
+[^9]: N. T. Vo,  R. C. Atwood, M. Drakopoulos,  Opt. Express, 26, 28396–28412 (2018). 
