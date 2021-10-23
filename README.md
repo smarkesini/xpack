@@ -155,6 +155,35 @@ There are other interfaces to the solvers that don't use mpi, don't chunk the da
 See example '[examples/tomobank_rec.py](https://github.com/smarkesini/xpack/blob/master/xtomo/examples/tomobank_rec.py)', that will process tomo_00001 from [tomobank](https://tomobank.readthedocs.io/en/latest/) [^8]. 
 
 
+## Content
+
+recon.py: reconstruct from file input to file output
+
+fubini.py: operators for non-iterative reconstruction using non-uniform FFT. 
+
+solvers.py: iterative solvers.
+
+solve_sirt.py: SIRT with BB-step.
+
+wrap.py: wraps solvers
+
+loop_sino.py: process chunks of data.
+
+IO.py: handles files, memory mapping.
+
+
+communicator.py: mpi stuff
+
+devmanager: selects GPUs.
+
+
+spawn.py: spawns mpi jobs.
+
+sparse_plan.py: saves/load Sparse Matrix to cache.
+
+fft.py: handles ffts (plans, GPU,...).
+
+
 
 
 ## Bibliography
