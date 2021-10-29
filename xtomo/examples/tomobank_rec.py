@@ -9,33 +9,63 @@ import h5py
 import numpy as np
 from matplotlib import pyplot as plt
 
-dname = '/tomodata/tomobank/tomo_00001/'
-fname_in = 'tomo_00001.h5'
-fname_out = 'tomo_00001_clean.h5'
+dname = '/tomodata/tomobank/tomo_00002/'
+fname_in = 'tomo_00002.h5'
+#dname = '/tomodata/tomobank/tomo_00004/'
+#dname = '/tomodata/tomobank/tomo_00072/'
+#fname_in = 'tomo_00072.h5'
 
-# clean up the data
+fname_out = 'tomo_00002_clean.h5'
+
+
+# %%
+# h5 to np
+h5np=lambda fname,key: np.float32(h5py.File(fname, mode='r')[key][...])
+
+theta =h5np(dname+fname_in,'/exchange/theta')
+
+
+try:
+    os.remove(dname+fname_out)
+except:
+    pass
+
+# clean up the data and swap axes to sinogram order
 import os
 if os.path.isfile(dname+fname_out)==False:
     from xtomo.prep import clean_raw
-    clean_raw(dname+fname_in, dname+fname_out, max_chunks = 16)
+    clean_raw(dname+fname_in, dname+fname_out, max_chunks = 4, chunks=8, stripe_algo='bm3d_streak')
+#    clean_raw(dname+fname_in, dname+fname_out, max_chunks = 4, chunks=4, stripe_algo='None')
+    # clean_raw(dname+fname_in, dname+fname_out, max_chunks = 32, stripe_algo='vo_et_al')
 
+# 
+
+
+# %%
 fname = fname_out
 
-# load the data
-h5np=lambda fname,key: np.float32(h5py.File(fname, mode='r')[key][...])
-
-theta =h5np(dname+fname,'/exchange/theta')
+# fid = h5py.File(dname+fname, mode='r')
 
 # get a small chunk to test
-data = np.float32(h5py.File(dname+fname, mode='r')['/exchange/data'][896-32:896+32,...])
-# data =h5np(dname+fname,'/exchange/data')
+#data = np.float32(h5py.File(dname+fname, mode='r')['/exchange/data'][896-32:896+32,...])
+#data = np.float32(h5py.File(dname+fname, mode='r')['/exchange/data'][...])
+#theta = np.float32(h5py.File(dname+fname, mode='r')['/exchange/theta'][...])
+
+data = h5np(dname+fname,'/exchange/data')
+theta = h5np(dname+fname,'/exchange/theta')
 # data = np.swapaxes(data,0,1)
 
 
-fid = h5py.File(dname+fname, mode='r')
-rot_center = None
-if 'rot_center' in fid['/exchange/']:
-    rot_center = fid['/exchange/rot_center']
+# theta=theta*np.pi/180.
+
+
+try:
+    rot_center = np.float32(h5py.File(dname+fname, mode='r')['/exchange/rot_center'][...])
+except:
+    rot_center = None
+    
+# tomo_00002 has a rotation center offset:
+rot_center = data.shape[2]//2+6.5
     
 
 
@@ -44,9 +74,10 @@ if 'rot_center' in fid['/exchange/']:
 from xtomo.spawn import xtomo_reconstruct
 Dopts={ 'algo':'iradon', 'GPU': True, 'n_workers' : 2 }
 
-tomo1=xtomo_reconstruct(data,theta,rot_center, Dopts)
+
+tomo2=xtomo_reconstruct(data,theta,rot_center, Dopts)
 plt.figure()
-plt.imshow(tomo1[8])
+plt.imshow(tomo2[1])
 
 # %%
 
@@ -55,7 +86,7 @@ Dopts={ 'algo':'TV', 'GPU': True, 'n_workers' : 1 , 'reg': .02, 'max_chunk_slice
 tomo=xtomo_reconstruct(data,theta,rot_center, Dopts)
 
 plt.figure()
-plt.imshow(tomo[8])
+plt.imshow(tomo[1])
 
 
 '''

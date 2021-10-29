@@ -27,6 +27,8 @@ if mpi_enabled:
     rank = MPI.COMM_WORLD.Get_rank()
 else:
     print("mpi not enabled")
+    size = 1
+    rank=0
 
 #print("imported mpi", flush=True)
 
@@ -176,38 +178,6 @@ def igatherv(data_local,chunk_slices, data = None):
     
 
 
-def allocate_shared(shape_obj, comm=comm):
-
-    #global size, rank
-    #mpi_size = size
-    mpi_size = comm.Get_size()
-    mpi_rank = comm.Get_rank()
-    
-    # print('allocating shared mem',mpi_size,mpi_rank)
-    
-    if mpi_size == 1:
-       return np.empty(shape_obj,dtype='float32') 
-    
-    slice_size =np.prod(shape_obj)
-    
-    itemsize = MPI.FLOAT.Get_size() 
-    if mpi_rank == 0: 
-        nbytes = slice_size* itemsize 
-    else: 
-        nbytes = 0
-    win = MPI.Win.Allocate_shared(nbytes, itemsize, comm=comm) 
-    # print('allocated shared mem',mpi_size,mpi_rank)
-
-    # int MPI_Win_allocate_shared(MPI_Aint size, int disp_unit, MPI_Info info, MPI_Comm comm,
-    #                        void *baseptr, MPI_Win * win)
-    
-    # create a numpy array whose data points to the shared mem
-    buf, itemsize = win.Shared_query(0) 
-    #print("buf",type(buf),'itemsize',itemsize)
-    assert itemsize == MPI.FLOAT.Get_size() 
-    obj = np.ndarray(buffer=buf, dtype='f', shape=shape_obj) 
-    return obj
-
 #def attach_shared(obj, rank, mpi_size):
 #    if mpi_size == 1:
 #        return obj
@@ -222,9 +192,6 @@ def allocate_shared(shape_obj, comm=comm):
 # attached using the function 
 # MPI_Win_attach:  MPI.Win.Attach(self, memory)
  
-def allocate_shared_tomo(num_slices,num_rays):
-    tomo = allocate_shared((num_slices, num_rays,num_rays))
-    return tomo
 
 
     """
@@ -270,9 +237,49 @@ def mpi_allGather(send_buff, heterogeneous_comm = True, mode = "cuda"):
 
     return recv_buff
 
+# shared array for MPI
+def allocate_shared(shape_obj, comm=comm):
+
+    #global size, rank
+    mpi_size = comm.Get_size()
+    mpi_rank = comm.Get_rank()
+    itemsize = MPI.FLOAT.Get_size() 
+
+    # print('allocating shared mem',mpi_size,mpi_rank)
+    
+    if mpi_size == 1:
+       return np.empty(shape_obj,dtype='float32') 
+    
+    array_size =np.prod(shape_obj)
+    
+    
+    if mpi_rank == 0: 
+        nbytes = array_size* itemsize 
+    else: 
+        nbytes = 0
+    win = MPI.Win.Allocate_shared(nbytes, itemsize, comm=comm) 
+    # print('allocated shared mem',mpi_size,mpi_rank)
+
+    # int MPI_Win_allocate_shared(MPI_Aint size, int disp_unit, MPI_Info info, MPI_Comm comm,
+    #                        void *baseptr, MPI_Win * win)
+    
+    # create a numpy array whose data points to the shared mem
+    buf, itemsize = win.Shared_query(0) 
+    #print("buf",type(buf),'itemsize',itemsize)
+    # assert itemsize == MPI.FLOAT.Get_size() 
+    obj = np.ndarray(buffer=buf, dtype='f', shape=shape_obj) 
+    return obj
+
+
+def allocate_shared_tomo(num_slices,num_rays):
+    tomo = allocate_shared((num_slices, num_rays,num_rays))
+    return tomo
+
+
 import ctypes
 from multiprocessing import sharedctypes
 
+# shared array for multi processing
 def shared_array(shape=(1,), dtype=np.float32):  
     np_type_to_ctype = {np.float32: ctypes.c_float,
                         np.float64: ctypes.c_double,
@@ -286,3 +293,5 @@ def shared_array(shape=(1,), dtype=np.float32):
     np_arr.shape = shape
 
     return np_arr 
+
+

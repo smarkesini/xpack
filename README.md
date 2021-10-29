@@ -1,7 +1,6 @@
 ## Description:
 
-XPACK is a high-performance library of basic operators for X-ray data processing.
- The xtomo component provides a distributed heterogeneous (GPUs or CPUs) iterative (or direct) solvers[^1] for tomography based on non-uniform FFT.
+XPACK is a high-performance library of basic operators for X-ray data processing. Xtomo  provides a distributed heterogeneous (GPUs or CPUs) iterative (or direct) solvers[^1] for tomography based on non-uniform FFT.
 Solvers are: iradon (non-iterative, also known as gridrec), SIRT (preconditioned by e.g. Ram-Lak-Hamming and with BB-step [^2]), CGLS (using CG-squared [^3]), TV (split Bregman[^4]), tvrings[^5] to remove rings within the iteration, tomopy-gridrec [^5a],[^5b], tomopy-astra [^6a],[^6b]...
 
 
@@ -31,6 +30,10 @@ h5py (for reading/saving, with preferred parallel version [hdf5-parallel](https:
  
 [tomopy](https://tomopy.readthedocs.io/en/latest/) To use tomopy-gridrec and tomopy-astra: tomopy and tomopy-[astra](https://www.astra-toolbox.com/). 
 
+**Optional**:  
+[bm3d_streak](https://pypi.org/project/bm3d-streak-removal/) to pre-process data using [^10].
+
+
 
 **Notes**
 *Installation:* The order of installation should be Tomopy, cupy, mpi4py, then this package. Tomopy comes with its own libraries that override others.
@@ -41,41 +44,42 @@ h5py (for reading/saving, with preferred parallel version [hdf5-parallel](https:
 
 (**First install** with e.g. pip see above).   
 
-From the command line (terminal), data (from file) and reconstruction (to file):
+From the command line (terminal), data (from file) and reconstruction (to file) using (e.g. GPU and tv algorithm):
 
 >$ python recon.py [-f input_file.h5] [-o output_file.h5] [--GPU 1] [-a 'tv']
 
 you can use recon.py file in the main folder '[xpack/recon.py](https://github.com/smarkesini/xpack/blob/master/recon.py)', or just copy it to your path.
 
- The input file is assumed in sinogram order, with data in '\exchange\data' and angles in '\exchange\theta'. 
+The input file is assumed in sinogram order, with data in '\exchange\data' and angles in '\exchange\theta'. 
 
-For MPI use for example:
+For MPI use for example using 2 GPU, TV algorithm, saving to an auto-generated file name:
 
 >$ mpirun -n 2 recon.py -f file_in.h5 -o '*' --GPU 1 -a 'tv'
+
+If the input file is not given it will generate its own simulation (using tomopy) and save it to file. The simulation size is adjustable.   The output file name is auto-generated if not set from the command line. The file name can be '*.h5' or '*.tif'. 
 
 The full list of options type:
 
 >$ python recon.py -h 
 
-Which provides a list of optional parameters (see below). 
-
-If the input file is not given it will generate its own simulation (using tomopy) and save it to file. The simulation size is adjustable.   The output file name is auto-generated if not set from the command line. The file name can be '*.h5' or '*.tif'. 
-
-
 
 ```
-usage: recon.py [-h] [-f FILE_IN] [-o FILE_OUT] [-rot_center ROT_CENTER] [-a ALGO] [-G GPU] [-S SHMEM] [-maxiter MAXITER] [-tol TOL] [-max_chunk MAX_CHUNK_SLICE]
-                [-chunks CHUNKS [CHUNKS ...]] [-time_file TIME_FILE] [-reg REG] [-tau TAU] [-v VERBOSE] [-sim SIMULATE] [-sim_shape SIM_SHAPE [SIM_SHAPE ...]]
-                [-sim_width SIM_WIDTH] [-opts OPTIONS] [-fopts FOPTIONS] [-ncore NCORE] [-rb RING_BUFFER]
+usage: recon.py [-h] [-f FILE_IN] [-o FILE_OUT] [-rot_center ROT_CENTER]
+                [-a ALGO] [-G GPU] [-S SHMEM] [-maxiter MAXITER] [-tol TOL]
+                [-max_chunk MAX_CHUNK_SLICE] [-chunks CHUNKS [CHUNKS ...]]
+                [-time_file TIME_FILE] [-reg REG] [-tau TAU] [-v VERBOSE]
+                [-sim SIMULATE] [-sim_shape SIM_SHAPE [SIM_SHAPE ...]]
+                [-sim_width SIM_WIDTH] [-opts OPTIONS] [-fopts FOPTIONS]
+                [-ncore NCORE] [-rb RING_BUFFER]
 
 optional arguments:
   -h, --help            show this help message and exit
   -f FILE_IN, --file_in FILE_IN
                         h5 file in
   -o FILE_OUT, --file_out FILE_OUT
-                        file out, default 0, 0: autogenerate name, -1: skip saving
+                        file out, default 0, 0: autogenerate name, 0.tif or 0.h5; -1: skip saving
   -rot_center ROT_CENTER, --rot_center ROT_CENTER
-                        rotation center, int 
+                        rotation center, float 
   -a ALGO, --algo ALGO  algorithm: 'iradon' (default), 'sirt', 'cgls', 'tv', 'tvrings' 'tomopy-gridrec', 'tomopy-sirt', 'astra'
   -G GPU, --GPU GPU     turn on GPU, bool
   -S SHMEM, --shmem SHMEM
@@ -86,7 +90,7 @@ optional arguments:
   -max_chunk MAX_CHUNK_SLICE, --max_chunk_slice MAX_CHUNK_SLICE
                         max chunks per mpi rank
   -chunks CHUNKS [CHUNKS ...], --chunks CHUNKS [CHUNKS ...]
-                        chunks to reconstruct
+                        chunks to reconstruct: [slices around center | first and last slice]
   -time_file TIME_FILE, --time_file TIME_FILE
                         1: save timings to a txt file
   -reg REG, --reg REG   regularization parameter
@@ -99,23 +103,24 @@ optional arguments:
                         simulate shape nslices,nangles,nrays
   -sim_width SIM_WIDTH, --sim_width SIM_WIDTH
                         object width between 0-1
-  -ncore NCORE, --ncore NCORE
-                        ncore for tomopy reconstruction algorithms
-  -rb RING_BUFFER, --ring_buffer RING_BUFFER
-                        ring buffer 0 none,1:input,2=output,4=MPI, (3=2+1 (both), 7=1+2+4,...)
   -opts OPTIONS, --options OPTIONS
                         e.g. '{"algo":"iradon", "maxiter":10, "tol":1e-2, "reg":1, "tau":.05} ' 
   -fopts FOPTIONS, --foptions FOPTIONS
                         file with json options  
+  -ncore NCORE, --ncore NCORE
+                        ncore for tomopy reconstruction algorithms
+  -rb RING_BUFFER, --ring_buffer RING_BUFFER
+                        ring buffer 0 none,1:input,2=output,4=MPI,3=1+2 (both), 7=1+2+4
 
 +-------------------------------------------------------------+
 | option precedence (highest on the left):                    |
-| options with their own flags,  'opts', 'fopts' file options |
+| individual options, 'opts' dictionary, 'fopts' file options |
 +-------------------------------------------------------------+
+
 ```
 ## Usage (Python)
 
-From Python, the most general interface (using mpi, etc) can be used as (e.g.): 
+From Python, the most general interface (using mpi, etc) can be used as (e.g. 2 mpi workers, using GPUs, iradon algorithm): 
 
 >  from xtomo.spawn import xtomo_reconstruct 
 
@@ -124,7 +129,7 @@ From Python, the most general interface (using mpi, etc) can be used as (e.g.):
 >  tomo1=xtomo_reconstruct(data,theta,rot_center, Dopts)
 
 
-See example '[examples/tomobank_rec.py](https://github.com/smarkesini/xpack/blob/master/xtomo/examples/tomobank_rec.py)', that will process tomo_00001 from [tomobank](https://tomobank.readthedocs.io/en/latest/) [^8] using stripe-removal from [^9] for pre-processing. 
+See example '[examples/tomobank_rec.py](https://github.com/smarkesini/xpack/blob/master/xtomo/examples/tomobank_rec.py)', that will process tomo_00001 from [tomobank](https://tomobank.readthedocs.io/en/latest/) [^8] using stripe-removal from [^9] or [^10] for pre-processing. 
  The data should be in sinogram order, e.g.:
 
 > num_rays=data.shape[0]  
@@ -162,6 +167,8 @@ There are other interfaces to the solvers that don't use mpi, don't chunk the da
 
 10. examples: examples using mpi, e.g. with [tomobank](https://tomobank.readthedocs.io/en/latest/) [^8] data. It calls [^9] for pre-processor.
 
+14. prep: pre-process raw data
+
 2. fubini.py: high performance CPU and GPU forward and backward operators  using non-uniform FFT.
 
 3. solvers.py: iterative solvers.
@@ -185,6 +192,7 @@ There are other interfaces to the solvers that don't use mpi, don't chunk the da
 12. fft.py: handles ffts (plans, GPU,...).
 
 13. mpi_workers: handle spawned workers (working from files or numpy arrays)
+
  
 
 
@@ -215,3 +223,5 @@ There are other interfaces to the solvers that don't use mpi, don't chunk the da
 [^8]: Francesco De Carlo, Doğa Gürsoy, Daniel J Ching, K Joost Batenburg, Wolfgang Ludwig, Lucia Mancini, Federica Marone, Rajmund Mokso, Daniël M Pelt, Jan Sijbers, and Mark Rivers. Tomobank: a tomographic data repository for computational x-ray science. Measurement Science and Technology, 29(3):034004, 2018. [URL](http://stacks.iop.org/0957-0233/29/i=3/a=034004).
 
 [^9]: N. T. Vo,  R. C. Atwood, M. Drakopoulos,  Opt. Express, 26, 28396–28412 (2018). 
+
+[^10]: [Y. Mäkinen,  S. Marchesini, A. Foi,  "Ring artifact reduction via multiscale nonlocal collaborative filtering of spatially correlated noise", J. Synchrotron Rad. 28(3), pages 876-888, 2021.](http://doi.org/10.1107/S1600577521001910)

@@ -109,7 +109,7 @@ def reconstruct_mpiv(sino, theta, rot_center, Dopts):
     # make sure we sent the data
     comm_intra.barrier()
 
-    # doing the reconstruction
+    # do the reconstruction in spawned mpi calls
     
     comm_intra.barrier()
     # import numpy as np
