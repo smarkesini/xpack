@@ -55,7 +55,7 @@ def dnames_get():
     return dnames #dname_sino,dname_theta,dname_tomo
 
 
-def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_iter = 10, tol=5e-3, GPU = True, shmem = False, max_chunk_slice=16,  reg = None, tau = None, verbose = verboseall,ncore=None, crop=None, mpring=False):
+def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_iter = 10, tol=5e-3, GPU = True, shmem = False, max_chunk_slice=16,  reg = None, tau = None, verbose = verboseall,ncore=None, crop=None, mpring=False, Positivity = False):
 
     def printv(*args,**kwargs): 
         if verbose>0:  printv0(*args,**kwargs)
@@ -171,7 +171,7 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     
     start=timer()
     from .wrap_algorithms import wrap
-    reconstruct=wrap(sino.shape,theta,rot_center,algo,xp=xp, obj_width=obj_width, max_iter=max_iter, tol=tol, reg=reg, tau=tau, ncore=ncore, verbose=verbose)   
+    reconstruct=wrap(sino.shape,theta,rot_center,algo,xp=xp, obj_width=obj_width, max_iter=max_iter, tol=tol, reg=reg, tau=tau, ncore=ncore, verbose=verbose, Positivity = Positivity)   
            
     end = timer()
     time_radonsetup=(end - start)

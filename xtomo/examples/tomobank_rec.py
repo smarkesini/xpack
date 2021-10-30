@@ -18,13 +18,11 @@ fname_in = 'tomo_00002.h5'
 fname_out = 'tomo_00002_clean.h5'
 
 
-# %%
-# h5 to np
 h5np=lambda fname,key: np.float32(h5py.File(fname, mode='r')[key][...])
 
 theta =h5np(dname+fname_in,'/exchange/theta')
 
-
+# %%
 try:
     os.remove(dname+fname_out)
 except:
@@ -81,12 +79,12 @@ plt.imshow(tomo2[1])
 
 # %%
 
-Dopts={ 'algo':'TV', 'GPU': True, 'n_workers' : 1 , 'reg': .02, 'max_chunk_slice': 16}
-
-tomo=xtomo_reconstruct(data,theta,rot_center, Dopts)
+Dopts={ 'algo':'SIRT', 'GPU': True, 'n_workers' : 1 ,  'max_chunk_slice': 16, 'Positivity': False}
+data1=data+np.max(data)
+tomo4=xtomo_reconstruct(data1,theta,rot_center, Dopts)
 
 plt.figure()
-plt.imshow(tomo[1])
+plt.imshow(tomo4[1])
 
 
 '''

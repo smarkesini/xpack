@@ -54,8 +54,8 @@ def dnames_get():
     dnames={'sino':"exchange/data", 'theta':"exchange/theta", 'tomo':"exchange/tomo", 'rot_center':"exchange/rot_center"}
     return dnames #dname_sino,dname_theta,dname_tomo
 
-
-DDopts={'algo':'iradon', 'GPU': 0, 'shmem':1, 'max_chunk_slice': 16, 'verbose':1, 'max_iter':10, 'tol': 1e-3, 'file_out':'*', 'reg':.5, 'tau':.05, 'ringbuffer':0, 'ncore':None, 'chunks': None }
+# defaults
+DDopts={'algo':'iradon', 'GPU': 0, 'shmem':1, 'max_chunk_slice': 16, 'verbose':1, 'max_iter':10, 'tol': 1e-3, 'file_out':'*', 'reg':.5, 'tau':.05, 'ringbuffer':0, 'ncore':None, 'chunks': None, 'Positivity': False }
 
 
 def reconstruct(sino, theta, rot_center, Dopts, order='sino'):
@@ -75,7 +75,7 @@ def reconstruct(sino, theta, rot_center, Dopts, order='sino'):
     ncore=Dopts['ncore']
     algo=Dopts['algo']
     GPU = Dopts['GPU']
-
+    Positivity = Dopts['Positivity']
     
     chunks = Dopts['chunks']
     
@@ -83,13 +83,13 @@ def reconstruct(sino, theta, rot_center, Dopts, order='sino'):
               rot_center = rot_center, max_iter = max_iter, tol=tol, 
               GPU = GPU, shmem = False, max_chunk_slice=max_chunk,  
               reg = reg, tau = tau, verbose = verboseall, 
-              ncore=ncore, crop=chunks, mpring=ringbuffer)
+              ncore=ncore, crop=chunks, mpring=ringbuffer, Positivity = Positivity)
 
     return tomo_out        
     
   
 
-def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_iter = 10, tol=5e-3, GPU = True, shmem = False, max_chunk_slice=16,  reg = None, tau = None, verbose = verboseall,ncore=None, crop=None, mpring=False):
+def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_iter = 10, tol=5e-3, GPU = True, shmem = False, max_chunk_slice=16,  reg = None, tau = None, verbose = verboseall,ncore=None, crop=None, mpring=False, Positivity = False):
 
     def printv(*args,**kwargs): 
         if verbose>0:  printv0(*args,**kwargs)
@@ -161,7 +161,7 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
     
     start=timer()
     from .wrap_algorithms import wrap
-    reconstruct=wrap(sino.shape,theta,rot_center,algo,xp=xp, obj_width=obj_width, max_iter=max_iter, tol=tol, reg=reg, tau=tau, ncore=ncore, verbose=verbose)   
+    reconstruct=wrap(sino.shape,theta,rot_center,algo,xp=xp, obj_width=obj_width, max_iter=max_iter, tol=tol, reg=reg, tau=tau, ncore=ncore, verbose=verbose, Positivity = Positivity)   
            
     end = timer()
     time_radonsetup=(end - start)

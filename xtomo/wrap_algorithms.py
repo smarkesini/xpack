@@ -2,7 +2,7 @@ import numpy as np
 from timeit import default_timer as timer
 #import time
 
-def wrap(sshape,theta,rot_center,algo,xp=np, obj_width=.98, max_iter=10, tol=1e-3, reg=1., tau=0.05, ncore=64, verbose=1):   
+def wrap(sshape,theta,rot_center,algo,xp=np, obj_width=.98, max_iter=10, tol=1e-3, reg=1., tau=0.05, ncore=64, verbose=1, Positivity = True):   
 
     num_rays=sshape[2]
     if xp.__name__=='cupy': 
@@ -71,7 +71,7 @@ def wrap(sshape,theta,rot_center,algo,xp=np, obj_width=.98, max_iter=10, tol=1e-
             #sirtBB=solve_sirt.sirtBB
             #t=0.
             def reconstruct(data,verbose):
-                tomo_t,rnrm=sirtBB(radon, iradon, data, xp, max_iter=max_iter, alpha=1.,verbose=verbose)
+                tomo_t,rnrm=sirtBB(radon, iradon, data, xp, max_iter=max_iter, alpha=1.,verbose=verbose,  Positivity = Positivity)
                 if GPU:
                     start1 = timer()
                     tomo= xp.asnumpy(tomo_t)

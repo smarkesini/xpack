@@ -74,10 +74,11 @@ def sirtMcalc(radon,radont,shape,xp, width = .65):
     return T1,S1
 
 
+#Positivity = True
 
-
-def sirtBB(radon, radont, sino_data, xp, max_iter=30, alpha=1, verbose=0, width=.65, useRC=False,BBstep=True):
+def sirtBB(radon, radont, sino_data, xp, max_iter=30, alpha=1, verbose=0, width=.65, useRC=False,BBstep=True, Positivity = False):
     
+    print('Positivity', Positivity)
     #print("verbose sirt",verbose)
     nrm0 = xp.linalg.norm(sino_data)
     if nrm0 == 0:
@@ -105,6 +106,10 @@ def sirtBB(radon, radont, sino_data, xp, max_iter=30, alpha=1, verbose=0, width=
     rnrm=0.
     #D=tnrm0*1e-4
     
+    if Positivity:
+        #tomo = xp.clip(tomo,0,xp.inf)
+        tomo = xp.clip(tomo,-xp.max(tomo)*1e-1,xp.inf)
+        
     for i in range(max_iter):
         
 
@@ -155,6 +160,9 @@ def sirtBB(radon, radont, sino_data, xp, max_iter=30, alpha=1, verbose=0, width=
         
         
         tomo -=  grad*alpha
+        
+        if Positivity:
+            tomo = xp.clip(tomo,-xp.max(tomo)*1e-1,xp.inf)
         
         grad_old=grad+0
         
