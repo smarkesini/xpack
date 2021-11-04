@@ -4,7 +4,7 @@ import numpy as np
 #from reconstruct import  recon_file #, recon
 #from xtomo.loop_sino import  recon_file #, recon
 
-from xtomo.communicator import rank, mpi_size
+from xtomo.communicator import rank, mpi_size, comm
 
 #import argparse
 
@@ -87,7 +87,7 @@ if __name__ == "__main__":
     
     times_of=timer()
     
-    tomo_out, ring_buffer = tomofile(file_out, file_in=fname, algo=algo, shape_tomo=(num_slices_cropped,num_rays,num_rays), ring_buffer=ringbuffer)
+    tomo_out, ring_buffer, fid_out = tomofile(file_out, file_in=fname, algo=algo, shape_tomo=(num_slices_cropped,num_rays,num_rays), ring_buffer=ringbuffer)
     
     ringbuffer=ring_buffer
     
@@ -104,62 +104,98 @@ if __name__ == "__main__":
           GPU = GPU, shmem = shmem, max_chunk_slice=max_chunk,  
           reg = reg, tau = tau, verbose = verboseall, 
           ncore=ncore, crop=chunks, mpring=ringbuffer)
+
+
+    #print('\n')
     
     ###################################################################
+    #print('tomosum', np.sum(tomo),type(tomo),'helloxxx')
     #if rank>0: quit()
-    if rank==0: 
-        dshape = sino.shape
-        
-        
-        #times_loop['outfile']=times_of
-        print(bold+"tomo shape",(num_slices_cropped,num_rays,num_rays), "n_angles",num_angles, ', algorithm:', algo,", max_iter:",max_iter,",mpi size:",mpi_size,",GPU:",GPU)
-        print("times full tomo", times_loop,flush=True)
-        #print("loop+setup time=", times_loop['loop']+times_loop['setup'], "snr=", ssnr(true_obj,tomo),endb)
-        print(bold+"loop+setup time=", times_loop['loop']+times_loop['setup'], 'saving',+times_loop['write'], 'total',timer()-time0,endb)
-        
-        
-        times_begin=timer()
-        if algo[0:min(len(algo),6)]=='tomopy' and type(tomo_out)!=type(None):
-            #print('saving tomopy output')
-            tomo_out[...]=tomo[...]
-            tomo_out.flush()
-        
-        
-        if file_out != '-1':
-            tomosave(tomo_out, ring_buffer,times_loop)
-        
-        #time_saving=timer()-times_begin
-        times_loop['write']+=timer()-times_begin
-        times_loop['tot']=timer()-time0
+
+     
+    tstring = str(times_loop)
+
+
+    #if type(tomo_out)==h5py._hl.dataset.Dataset:
+    #    tomo_out.file.create_dataset('mish/times', (1) ,dtype=h5py.string_dtype('utf-8',len(tstring)))
+        #if rank == 0:
+        #    tomo_out.file['mish/times'][...]=tstring
     
         
-        num_slices = tomo.shape[0]
-        #num_rays = tomo.shape[1]
-        #num_angles = sino.shape[1]
+    # print('############++++',type(tomo_out), np.sum(tomo_out))
+    #print('#================######')
+    if rank==0:  # write out to file
+         #print('\n',tstring,'\n')
+         # print('rank',rank)
+         dshape = sino.shape
+        
+        
+         #times_loop['outfile']=times_of
+         #print(bold+"tomo shape",(num_slices_cropped,num_rays,num_rays), "n_angles",num_angles, ', algorithm:', algo,", max_iter:",max_iter,",mpi size:",mpi_size,",GPU:",GPU)
+         #print("times full tomo", times_loop,flush=True)
+         #print("loop+setup time=", times_loop['loop']+times_loop['setup'], "snr=", ssnr(true_obj,tomo),endb)
+         #print(bold+"loop+setup time=", times_loop['loop']+times_loop['setup'], 'saving',+times_loop['write'], 'total',timer()-time0,endb)
+        
+        
+        
+         times_begin=timer()
+         if algo[0:min(len(algo),6)]=='tomopy' and type(tomo_out)!=type(None):
+             #print('saving tomopy output')
+             tomo_out[...]=tomo[...]
+             tomo_out.flush()
+        
+         # print('xxxxx',type(tomo_out), np.sum(tomo_out))
+         # print('xxxxx',type(tomo_out), np.sum(tomo_out))
+        
+         if file_out != '-1':
+             #pass
+             # print('tomosave')
+             tomosave(tomo, ring_buffer,times_loop)
+    
+         #print('xxxxx',type(tomo_out), np.sum(tomo_out))
+         #time_saving=timer()-times_begin
+         times_loop['write']+=timer()-times_begin
+         times_loop['tot']=timer()-time0
+    
+        
+         num_slices = tomo.shape[0]
+         #num_rays = tomo.shape[1]
+         #num_angles = sino.shape[1]
             
-        times_loop['outfile']=times_of
-        print(bold+"tomo shape",(num_slices,num_rays,num_rays), "n_angles",num_angles, ', algorithm:', algo,", max_iter:",max_iter,",mpi size:",mpi_size,",GPU:",GPU)
-        print("times full tomo", times_loop,flush=True)
-        #print("loop+setup time=", times_loop['loop']+times_loop['setup'], "snr=", ssnr(true_obj,tomo),endb)
-        print(bold+"loop+setup time=", times_loop['loop']+times_loop['setup'], 'saving',times_loop['write'], 'total', times_loop['tot'],endb, end='')
+         times_loop['outfile']=times_of
+         print(bold+"tomo shape",(num_slices,num_rays,num_rays), "n_angles",num_angles, ', algorithm:', algo,", max_iter:",max_iter,",mpi size:",mpi_size,",GPU:",GPU)
+         print("times full tomo", times_loop,flush=True)
+         #print("loop+setup time=", times_loop['loop']+times_loop['setup'], "snr=", ssnr(true_obj,tomo),endb)
+   #      print(bold+"loop+setup time=", times_loop['loop']+times_loop['setup'], 'saving',times_loop['write'], 'total', times_loop['tot'],endb, end='')
+         print(bold+"loop+setup time=", times_loop['loop']+times_loop['setup'], 'saving',times_loop['write'], 'total', times_loop['tot'],endb)
         
         
-        if time_file == 1:
-            print_times(fname,num_slices, num_rays, num_angles, args, times_loop)
+         # print('\n++++tomosum', np.sum(tomo),type(tomo),'hello???\n', fid)
+        
+         if time_file == 1:
+             print_times(fname,num_slices, num_rays, num_angles, args, times_loop)
     
-        if 'exchange/tomo' not in fid:
-            print("no tomogram to compare")
-            #quit()
-        else:
-            print(endb+"\n comparing with tomo in the file", end=' ')
-        #'exchange/tomo' in 
-        true_obj = None
-        try:
-            if type(chunks)!=type(None):
-                true_obj = fid['exchange/tomo'][chunks[0]:chunks[1],...]
-            else:
-                true_obj = fid['exchange/tomo'][...]
-            compare_tomo(tomo,true_obj,chunks)
+        
+         if 'exchange/tomo' not in fid:
+             pass
+             # print("no tomogram to compare")
+             #quit()
+         else:
+             print(endb+"\n comparing with tomo in the file", end=' ')
+         #'exchange/tomo' in 
+         true_obj = None
+         try:
+             if type(chunks)!=type(None):
+                 true_obj = fid['exchange/tomo'][chunks[0]:chunks[1],...]
+             else:
+                 true_obj = fid['exchange/tomo'][...]
+             compare_tomo(tomo,true_obj,chunks)
     
-        except:
-            print("no tomogram to compare")
+         except:
+             pass
+             #print("no tomogram to compare")
+        
+         try:
+            fid_out.close()
+         except:
+                pass

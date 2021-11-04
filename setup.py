@@ -21,16 +21,16 @@ print(find_packages())
 
 setup_info = dict(
         name = 'xtomo',
-        version = '0.1',
+        version = '0.12',
         packages = ['xtomo'],
         python_requires = '>={}.{}'.format(3,7),
         
         description = 'Distributed heterogeneous iterative solver for tomography.',
         long_description = read('README.md'),
+        long_description_content_type="text/markdown",
         
         url = 'https://github.com/smarkesini/xpack',        
         author = 'Stefano Marchesini',
-        author_email = 'smarchesini@sigray.com',
         
         install_requires = ['numpy >= 1.15.0', 'scipy >= 1.3.1'],
         
@@ -50,7 +50,7 @@ setup_info = dict(
             'Environment :: Console',
             'Intended Audience :: Developers',
             'Intended Audience :: Science/Research', 
-            'License :: OSI Approved :: OSS License',
+            'License :: OSI Approved :: BSD License',
             'Operating System :: OS Independent',
             'Programming Language :: Python',
             'Programming Language :: Python :: 3',
@@ -58,7 +58,7 @@ setup_info = dict(
             'Programming Language :: Python :: 3.8',
             'Programming Language :: Python :: 3 :: Only',
             'Topic :: Scientific/Engineering',
-            'Topic :: Scientific/Engineering :: Physics'
+            'Topic :: Scientific/Engineering :: Physics',
             'Topic :: Software Development :: Libraries :: Python Modules',
                 ]
         )    

@@ -78,7 +78,7 @@ def sirtMcalc(radon,radont,shape,xp, width = .65):
 
 def sirtBB(radon, radont, sino_data, xp, max_iter=30, alpha=1, verbose=0, width=.65, useRC=False,BBstep=True, Positivity = False):
     
-    print('Positivity', Positivity)
+    # print('Positivity', Positivity)
     #print("verbose sirt",verbose)
     nrm0 = xp.linalg.norm(sino_data)
     if nrm0 == 0:

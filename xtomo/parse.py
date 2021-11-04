@@ -18,7 +18,7 @@ def  parse():
     
     
     ap.add_argument("-f", "--file_in",  type = str, help="h5 file in")
-    ap.add_argument("-o", "--file_out", default='0',  type = str, help="file out, default 0, 0: autogenerate name, 0.tif or 0.h5; -1: skip saving")
+    ap.add_argument("-o", "--file_out", default='0',  type = str, help="file out, default 0, 0: autogenerate name -tif, 0.tif or 0.h5; -1: skip saving")
     ap.add_argument("-rot_center", "--rot_center",  type = float, help="rotation center, float ")
     ap.add_argument("-a", "--algo",  type = str, help="algorithm: 'iradon' (default), 'sirt', 'cgls', 'tv', 'tvrings' 'tomopy-gridrec', 'tomopy-sirt', 'astra'")
     ap.add_argument("-G", "--GPU",  type = int, help="turn on GPU, bool")
@@ -30,10 +30,10 @@ def  parse():
     ap.add_argument("-time_file", "--time_file", type = int, help="1: save timings to a txt file")
     ap.add_argument("-reg", "--reg",  type = float, help="regularization parameter")
     ap.add_argument("-tau", "--tau", type = float, help="soft thresholding parameter")
-    ap.add_argument("-v", "--verbose",   type = float, help="verbose float between (0-1), default 1")
+    ap.add_argument("-v", "--verbose",   type = float, help="verbose float between (0-1), default 1, a smaller value reduces outputs/loop")
     ap.add_argument("-sim", "--simulate",  type = bool, help="use simulated data, bool")
     ap.add_argument("-sim_shape", "--sim_shape",  type = int,nargs='+', help="simulate shape nslices,nangles,nrays")
-    ap.add_argument("-sim_width", "--sim_width",  type = int, help="object width between 0-1")
+    ap.add_argument("-sim_width", "--sim_width",  type = int, help="object width within the FOV, between 0-1")
     ap.add_argument('-opts', '--options', type=json.loads, help="e.g. \'{\"algo\":\"iradon\", \"maxiter\":10, \"tol\":1e-2, \"reg\":1, \"tau\":.05} \' ")
     ap.add_argument('-fopts', '--foptions', type=str, help="file with json options  ")
     ap.add_argument("-ncore", "--ncore", type=int, help="ncore for tomopy reconstruction algorithms")

@@ -1,6 +1,9 @@
 import numpy as np
 
-from .communicator import rank, mpi_size, mpi_barrier
+from .communicator import rank, mpi_size, mpi_barrier, comm
+import h5py
+import os
+#from xtomo.communicator import rank, mpi_size, comm
 
 bold='\033[1m'
 endb= '\033[0m'
@@ -12,7 +15,7 @@ def getfilename(file_in, algo='', file_out='*'):
 
     fname=file_in
     
-    if file_out == '0' or file_out=='*': 
+    if file_out == '0' or file_out=='*' or file_out == '0.tif' or file_out == '*.tif': 
         file_out = os.path.splitext(fname)[0]
         file_out=file_out+'_'+algo+'_recon.tif'
         if rank ==0: print('file out was */0, changed to:',file_out)
@@ -27,6 +30,7 @@ def getfilename(file_in, algo='', file_out='*'):
 # map to file_out
 def maptomofile(file_out, shape_tomo=(1,1,1), ring_buffer=0, cstring=None):
     tomo_out=None
+    fid = None
     #print(bold+"setting up output file"+endb)
     
     #fname=file_in
@@ -51,7 +55,7 @@ def maptomofile(file_out, shape_tomo=(1,1,1), ring_buffer=0, cstring=None):
     
                 if rank == 0:       
                     if os.path.exists(file_out): 
-                        if rank ==0: print('file exist, overwriting')
+                        if rank ==0: print('file exist, overwriting', file_out)
                         tomo_out = memmap(file_out) # file should already exist
                         if tomo_out.shape==shape_tomo:
                             #print("reusing")
@@ -75,20 +79,49 @@ def maptomofile(file_out, shape_tomo=(1,1,1), ring_buffer=0, cstring=None):
             elif os.path.splitext(file_out)[-1] in ('.h5','.hdf5'):
                 import h5py
                 # fname=args['file_out']
+                fid = h5py.File(file_out, 'w', driver='mpio', comm=comm)
+                #print('hello 0')
+                tomodset=fid.create_dataset('/exchange/tomo', shape_tomo , dtype='float32')
+                #print('hello 1')
+                tomo_out=fid['/exchange/tomo']
+                #print('hello 2')
+                fid.create_dataset('/mish/command', (1) ,dtype=h5py.string_dtype('utf-8',len(cstring)))
+                fid.create_dataset('/mish/times', (1) ,dtype=h5py.string_dtype('utf-8',300))
+                
+                #
+                # fid.create_dataset('mish/command', data =cstring )   
+                # fid.create_dataset('mish/command', shape = (len(cstring),1),dtype='S')
+                # print('hello 3')
+                
+                
+                #fid = h5py.File(file_out, 'w')
                 if rank==0:
-                    print('creating h5 file',file_out,end=' ')
-                    fid = h5py.File(file_out, 'w')
-                    fid.create_dataset('mish/command', data =cstring )            
+                    #pass
+                    # print('trying here')
+                    #print('saving command to h5 file',file_out,end=' ')
+                    fid['mish/command'][...]=cstring
+                    #fid['mish/command']=cstring
+                    #fid.create_dataset('mish/command', data =cstring )            
+                    #print('created command' )
+                    # fid = h5py.File(file_out, 'w')
+                    #fid.create_dataset('mish/command', data =cstring )            
                     #tomo_out=fid.create_dataset('/exchange/tomo', (num_slices,num_rays,num_rays) , chunks=(max_chunk,num_rays,num_rays),dtype='float32')
-                    tomodset=fid.create_dataset('/exchange/tomo', shape_tomo , dtype='float32')
-                    tomo_out=tomodset[...]
-                    mpi_barrier()
+                    #tomodset=fid.create_dataset('/exchange/tomo', shape_tomo , dtype='float32')
+                    #tomo_out=tomodset
+                    #mpi_barrier()
                 else:
-                    mpi_barrier() # file should already exist
-                    fid = h5py.File(file_out, 'a')
+                    pass
+                    #fid.create_dataset('mish/command', data =cstring )      
+                    # fid.create_dataset('mish/command')
+                    #mpi_barrier() # file should already exist
+                    
+                    #fid = h5py.File(file_out, 'a')
     
-                    tomo_out=fid['/exchange/tomo']
-    return tomo_out, ring_buffer
+                    #tomo_out=fid['/exchange/tomo']
+    #print('tomo out',type(tomo_out))
+    #print('#########hello????????????????????????')
+    #print('')
+    return tomo_out, ring_buffer, fid
 
 
 
@@ -109,47 +142,89 @@ def tomofile(file_out, file_in=None, algo='iradon', shape_tomo=(1,1,1), ring_buf
             
     if (type(file_out) is not type(None)) and file_out!='-1':  
             if rank==0: print("setting up output file")
+            
     
             #file_out = args['file_out']
             file_out = getfilename(file_in, algo=algo, file_out=file_out)
+            # print('\n ---',file_out,'\n')
             import sys            
             cstring = ' '.join(sys.argv)
             #if rank==0: print('file_out', file_out)
             #if rank==0: print('cstring', cstring)
-            tomo_out, ring_buffer = maptomofile(file_out, shape_tomo, ring_buffer, cstring)
-    return tomo_out, ring_buffer
+            tomo_out, ring_buffer, fid_out = maptomofile(file_out, shape_tomo, ring_buffer, cstring)
+    #print('hello')
+    return tomo_out, ring_buffer, fid_out
 
 def tomosave(tomo_out, ring_buffer,times_loop):
+    # print('@@@',type(tomo_out), np.sum(tomo_out),ring_buffer)
     ringbuffer=ring_buffer
     if ringbuffer >1:
         import os.path
-        file_out = tomo_out.filename
+        try:
+            file_out = tomo_out.filename
+        except:
+            import re
+            file_out = re.findall(r'"(.*?)"', str(tomo_out.file), re.DOTALL)[0]
         
         if os.path.splitext(file_out)[-1] in ('.h5','.hdf5'):
+            #print('-----------')
+            # print('--++--------')
             import h5py
             tstring = str(times_loop)
             fid = h5py.File(file_out, 'a')
-        
-            fid.create_dataset('mish/times', data =tstring )            
+           
+            #fid.create_dataset('mish/times', data =tstring )     
+            fid.flush()
+            #print('-----------')
+            #print('++++++++++++')
             #fid.close()        
-        elif os.path.splitext(file_out)[-1] in ('.tif','.tiff'):
+        elif (os.path.splitext(file_out)[-1] in ('.tif','.tiff')) or type(tomo_out)==np.memmap:
             #tomo=tomo_out
             
             print('saving',end=' ')
-            if type(tomo_out)==np.memmap:
-                tomo_out.flush()
+            tomo_out.flush()
+#            if type(tomo_out)==np.memmap:
+#                tomo_out.flush()
 
     elif type(tomo_out)!=type(None):
             
             #tomo_out.close()
     #        pass
+        #print('----',type(tomo_out), np.sum(tomo_out))
 #    elif  (type(file_out) is not type(None)) and file_out!='-1':
-        print('flushing...',end=' ')
+        #print('@@@',type(tomo_out), np.sum(tomo_out),ring_buffer)
+        #print('flushing...',end=' ')
+        import os.path
         tstring = str(times_loop)
         # did not save during iterations
         #if os.path.splitext(file_out)[-1] in ('.tif','.tiff'):
-        tomo_out.flush()
-        del tomo_out
+        #print('+++@@@',type(tomo_out), np.sum(tomo_out),ring_buffer)
+        
+        #print(type(tomo_out) == H5py._hl.dataset.Dataset)
+        #if os.path.splitext(file_out)[-1] in ('.tif','.tiff'):
+        #    print('flushing...',end=' ')
+        #    tomo_out.flush()
+        import h5py
+        
+        if type(tomo_out)!=h5py._hl.dataset.Dataset:
+            #print('timings')
+            tomo_out.flush()
+        else:
+            tomo_out.file['mish/times'][0:len(tstring)]=tstring
+            
+            #print('saving times')
+            #tomo_out.file.create_dataset('mish/times', (1) ,dtype=h5py.string_dtype('utf-8',len(tstring)))
+            # tomo_out
+            #tomo_out.file.create_dataset('mish/times', data = tstring)
+            #print('saving times')
+            #tomo.file.create_dataset('mish/times1', data='cstring')
+        # try:
+        #     # print('+++---',type(tomo_out), np.sum(tomo_out))
+        #     #del tomo_out
+        # except:
+        #     pass
+        
+        #print('^^^@@@',type(tomo_out), np.sum(tomo_out),ring_buffer)
         #from tifffile import imsave
 
 def print_times(fname,num_slices, num_rays, num_angles, args, times_loop):

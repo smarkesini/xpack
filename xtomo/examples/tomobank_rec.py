@@ -79,7 +79,7 @@ plt.imshow(tomo2[1])
 
 # %%
 
-Dopts={ 'algo':'SIRT', 'GPU': True, 'n_workers' : 1 ,  'max_chunk_slice': 16, 'Positivity': False}
+Dopts={ 'algo':'SIRT', 'GPU': True, 'n_workers' : 2 ,  'max_chunk_slice': 16, 'Positivity': False}
 data1=data+np.max(data)
 tomo4=xtomo_reconstruct(data1,theta,rot_center, Dopts)
 

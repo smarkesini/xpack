@@ -72,7 +72,8 @@ def reconstruct_mpiv(sino, theta, rot_center, Dopts):
     import xtomo
     import xtomo.communicator
     
-    arg1=xtomo.__path__.__dict__["_path"][0]+'/mpi_worker.py'
+    #    arg1=xtomo.__path__.__dict__["_path"][0]+'/mpi_worker.py'
+    arg1=xtomo.__path__[0]+'/mpi_worker.py'
 
     
     comm = MPI.COMM_WORLD.Spawn(

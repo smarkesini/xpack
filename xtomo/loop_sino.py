@@ -136,7 +136,7 @@ def recon(sino, theta, algo = 'iradon', tomo_out=None, rot_center = None, max_it
             mpigather=True
     else:
         tomo = tomo_out
-        printv('tomo type'+str(type(tomo)))
+        #printv('tomo type'+str(type(tomo)))
         if shmem!=1 & mpi_size>1:
             mpigather=True
             
