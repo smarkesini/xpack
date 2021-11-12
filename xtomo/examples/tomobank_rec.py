@@ -23,6 +23,7 @@ h5np=lambda fname,key: np.float32(h5py.File(fname, mode='r')[key][...])
 theta =h5np(dname+fname_in,'/exchange/theta')
 
 # %%
+import os
 try:
     os.remove(dname+fname_out)
 except:

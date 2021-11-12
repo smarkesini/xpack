@@ -25,10 +25,11 @@ Python (>=3.7), numpy (>=1.15.0), either scipy (>=1.3.1)  (for CPU) or [cupy >=7
 **Recommended**:  
 [mpi4py](https://mpi4py.readthedocs.io/en/stable/) for multicore and distributed jobs. It uses shared memory if the mpi framework supports it and cuda aware mpi see [^7] (thanks to [@LeoFang](https://github.com/leofang)!). If using conda, the feedstock version has cuda-aware mpi support: https://github.com/conda-forge/openmpi-feedstock , https://github.com/conda-forge/mpi4py-feedstock. 
 
-h5py (for reading/saving, with preferred parallel version [hdf5-parallel](https://anaconda.org/Clawpack/hdf5-parallel)).  
+h5py (for reading/saving, with preferred parallel version [hdf5-parallel](https://anaconda.org/lcls-ii/hdf5-parallel).  
 [tifffile](https://pypi.org/project/tifffile/) (for saving).  
  
-[tomopy](https://tomopy.readthedocs.io/en/latest/) To use tomopy-gridrec and tomopy-astra: tomopy and tomopy-[astra](https://www.astra-toolbox.com/). 
+[tomopy](https://tomopy.readthedocs.io/en/latest/) To use tomopy-gridrec and tomopy-astra: tomopy and tomopy-[astra](https://www.astra-toolbox.com/). Also [dxchange](https://dxchange.readthedocs.io/en/latest/source/install.html) for reading general tomography data.
+
 
 **Optional**:  
 [bm3d_streak](https://pypi.org/project/bm3d-streak-removal/) to pre-process data using [^10].
@@ -36,7 +37,7 @@ h5py (for reading/saving, with preferred parallel version [hdf5-parallel](https:
 
 
 **Notes**
-*Installation:* The order of installation should be Tomopy, cupy, mpi4py, then this package. Tomopy comes with its own libraries that override others.
+*Installation:* The order of installation should be (dxchange) Tomopy, cupy, mpi4py, then this package. Tomopy comes with its own libraries that override others.
 *Cache:* the library saves the Sparse matrices or SpMV each time you change geometry (number of pixels, angles, rotation center, ...). To clear them, use xtomo.sparse_plan.clean_cache()
 
 
@@ -64,20 +65,15 @@ The full list of options type:
 
 
 ```
-usage: recon.py [-h] [-f FILE_IN] [-o FILE_OUT] [-rot_center ROT_CENTER]
-                [-a ALGO] [-G GPU] [-S SHMEM] [-maxiter MAXITER] [-tol TOL]
-                [-max_chunk MAX_CHUNK_SLICE] [-chunks CHUNKS [CHUNKS ...]]
-                [-time_file TIME_FILE] [-reg REG] [-tau TAU] [-v VERBOSE]
-                [-sim SIMULATE] [-sim_shape SIM_SHAPE [SIM_SHAPE ...]]
-                [-sim_width SIM_WIDTH] [-opts OPTIONS] [-fopts FOPTIONS]
-                [-ncore NCORE] [-rb RING_BUFFER]
+usage: recon.py [-h] [-f FILE_IN] [-o FILE_OUT] [-rot_center ROT_CENTER] [-a ALGO] [-G GPU] [-S SHMEM] [-maxiter MAXITER] [-tol TOL] [-max_chunk MAX_CHUNK_SLICE] [-chunks CHUNKS [CHUNKS ...]] [-time_file TIME_FILE]
+                [-reg REG] [-tau TAU] [-v VERBOSE] [-sim SIMULATE] [-sim_shape SIM_SHAPE [SIM_SHAPE ...]] [-sim_width SIM_WIDTH] [-opts OPTIONS] [-fopts FOPTIONS] [-ncore NCORE] [-rb RING_BUFFER]
 
 optional arguments:
   -h, --help            show this help message and exit
   -f FILE_IN, --file_in FILE_IN
                         h5 file in
   -o FILE_OUT, --file_out FILE_OUT
-                        file out, default 0, 0: autogenerate name, 0.tif or 0.h5; -1: skip saving
+                        file out, default 0, 0: autogenerate name -tif, 0.tif or 0.h5; -1: skip saving
   -rot_center ROT_CENTER, --rot_center ROT_CENTER
                         rotation center, float 
   -a ALGO, --algo ALGO  algorithm: 'iradon' (default), 'sirt', 'cgls', 'tv', 'tvrings' 'tomopy-gridrec', 'tomopy-sirt', 'astra'
@@ -90,19 +86,19 @@ optional arguments:
   -max_chunk MAX_CHUNK_SLICE, --max_chunk_slice MAX_CHUNK_SLICE
                         max chunks per mpi rank
   -chunks CHUNKS [CHUNKS ...], --chunks CHUNKS [CHUNKS ...]
-                        chunks to reconstruct: [slices around center | first and last slice]
+                        chunks to reconstruct: [number of slices around center | first and last slice]
   -time_file TIME_FILE, --time_file TIME_FILE
                         1: save timings to a txt file
   -reg REG, --reg REG   regularization parameter
   -tau TAU, --tau TAU   soft thresholding parameter
   -v VERBOSE, --verbose VERBOSE
-                        verbose float between (0-1), default 1
+                        verbose float between (0-1), default 1, a smaller value reduces outputs/loop
   -sim SIMULATE, --simulate SIMULATE
                         use simulated data, bool
   -sim_shape SIM_SHAPE [SIM_SHAPE ...], --sim_shape SIM_SHAPE [SIM_SHAPE ...]
                         simulate shape nslices,nangles,nrays
   -sim_width SIM_WIDTH, --sim_width SIM_WIDTH
-                        object width between 0-1
+                        object width within the FOV, between 0-1
   -opts OPTIONS, --options OPTIONS
                         e.g. '{"algo":"iradon", "maxiter":10, "tol":1e-2, "reg":1, "tau":.05} ' 
   -fopts FOPTIONS, --foptions FOPTIONS
@@ -144,19 +140,19 @@ There are other interfaces to the solvers that don't use mpi, don't chunk the da
 
 [1] The core one-step inverse radon transform using the SPmV operation can be used as follows:
 
-> from fubini import radon_setup  
+> from xtomo.fubini import radon_setup  
 > radon, iradon = radon_setup(num_rays, theta, xp=[cupy or numpy], center=None,filter_type='hamming')  
 > tomogram=iradon(data)  
 
 [2] Algorithms (sirt, cgls, tv, ...), e.g. for tv on GPU:
 
-> from wrap_algorithms import wrap  
+> from xtomo.wrap_algorithms import wrap  
 > reconstruct=wrap(sino_shape,theta,rot_center,'tv' ,xp=cupy)  
 > tomogram = reconstruct(sinogram_stack, verbose)  
 
 [3] Chunking, if things don't fit in memory : 
 
-> from loop_sino import recon  
+> from xtomo.loop_sino import recon  
 > tomo, times_loop= recon(sino, theta, algo = 'iradon', ...)  
 
 

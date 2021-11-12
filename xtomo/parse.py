@@ -43,7 +43,7 @@ def  parse():
     
     # default options
     Dopts={ 'algo':'iradon', 'maxiter':10, 'shmem':True, 'GPU':True, 
-           'max_chunk_slice':16, 'verbose':True, 'tol':5e-3, 'reg':.1, 'tau':.05}
+           'max_chunk_slice':16, 'verbose':True, 'tol':5e-3, 'reg':.01, 'tau':.05}
     #reg=1., tau=0.05
     
     Dopts['sim_shape']=[128, 181, 256] 
