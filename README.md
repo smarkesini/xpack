@@ -1,10 +1,14 @@
 ## Description:
 
-XPACK is a high-performance library of basic operators for X-ray data processing. Xtomo  provides a distributed heterogeneous (GPUs or CPUs) iterative (or direct) solvers[^1] for tomography based on non-uniform FFT.
+XPACK is a high-performance library of basic operators for X-ray data processing. 
+Xtomo  provides a distributed heterogeneous (GPUs or CPUs) iterative (or direct) solvers[^1] for tomography based on non-uniform FFT.
+
+If you make use of the library for your publication, pleace cite [^1].
+
 Solvers are: iradon (non-iterative, also known as gridrec), SIRT (preconditioned by e.g. Ram-Lak-Hamming and with BB-step [^2]), CGLS (using CG-squared [^3]), TV (split Bregman[^4]), tvrings[^5] to remove rings within the iteration, tomopy-gridrec [^5a],[^5b], tomopy-astra [^6a],[^6b]...
 
 
-**Known Issues** Don't use an odd number of pixels in the last dimension (orthogonal to the rotation axis). There is a bug whereby odd numbers give the wrong results. TV does not use halos, therefore the slice near the border of chunk are a bit corrupted. Assuming the regularization parameter is kept small, it is not a major problem.
+**Known Issues** Don't use an odd number of pixels in first dimension (orthogonal to the rotation axis). There is a bug whereby odd numbers give the wrong results. TV does not use halos, therefore the slice near the border of chunk are a bit corrupted. Assuming the regularization parameter is kept small, it is not a major problem.
 
 **Possible enhancement (contribution welcome)**: half precision arithmetic, GPU streaming. Halos for TV regularization, other solvers, positivity constraints in SIRT-BB, TV and CG,   Fan beam geometry, and more.
 
@@ -118,18 +122,24 @@ optional arguments:
 
 From Python, the most general interface (using mpi, etc) can be used as (e.g. 2 mpi workers, using GPUs, iradon algorithm): 
 
->  from xtomo.spawn import xtomo_reconstruct 
+>  import xtomo
 
->  Dopts={ 'algo':'iradon', 'GPU': True, 'n_workers' : 2 }
+>  tomo2=xtomo.recon(data,theta, rot_center, Dopts = None)
 
->  tomo1=xtomo_reconstruct(data,theta,rot_center, Dopts)
-
-
-See example '[examples/tomobank_rec.py](https://github.com/smarkesini/xpack/blob/master/xtomo/examples/tomobank_rec.py)', that will process tomo_00001 from [tomobank](https://tomobank.readthedocs.io/en/latest/) [^8] using stripe-removal from [^9] or [^10] for pre-processing. 
- The data should be in sinogram order, e.g.:
+where the data should be in sinogram order, e.g.:
 
 > num_rays=data.shape[0]  
 > num_angles=data.shape[1]  
+> num_slices=data.shape[2]  
+
+theta is the angle in radians, rot_center is the position of the center of rotation, 
+and Dopts is an optional set of parameters to define the type of solvers, parallelization, GPUs, etc. 
+for example to use TV regularization on 2 GPUS:
+
+>  Dopts={ 'algo':'TV', 'GPU': True, 'n_workers' : 2 }
+
+
+See example '[examples/tomobank_rec.py](https://github.com/smarkesini/xpack/blob/master/xtomo/examples/tomobank_rec.py)', that will process tomo_00001 from [tomobank](https://tomobank.readthedocs.io/en/latest/) [^8] using stripe-removal from [^9] or [^10] for pre-processing. 
 
 
 Dopts can be used to change various solvers, regularization parameters, chunking (to proces piece by piece), max_iterations,  GPU or CPU, number of mpi jobs spawned. Example options to apply TV regularization, with 2 GPUs, chunking 16 slices at a time:

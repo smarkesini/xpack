@@ -33,8 +33,8 @@ except:
 import os
 if os.path.isfile(dname+fname_out)==False:
     from xtomo.prep import clean_raw
-    clean_raw(dname+fname_in, dname+fname_out, max_chunks = 4, chunks=8, stripe_algo='bm3d_streak')
-#    clean_raw(dname+fname_in, dname+fname_out, max_chunks = 4, chunks=4, stripe_algo='None')
+#    clean_raw(dname+fname_in, dname+fname_out, max_chunks = 4, chunks=8, stripe_algo='bm3d_streak')
+    clean_raw(dname+fname_in, dname+fname_out, max_chunks = 4, chunks=4, stripe_algo='None')
     # clean_raw(dname+fname_in, dname+fname_out, max_chunks = 32, stripe_algo='vo_et_al')
 
 # 
@@ -70,22 +70,25 @@ rot_center = data.shape[2]//2+6.5
 
 # %%
 #  spawning mpi jobs on 2 gpus
-from xtomo.spawn import xtomo_reconstruct
-Dopts={ 'algo':'iradon', 'GPU': True, 'n_workers' : 2 }
+import xtomo
+# from xtomo.spawn import xtomo_reconstruct
+Dopts={ 'algo':'iradon', 'GPU': True, 'n_workers' : 1 }
 
-
-tomo2=xtomo_reconstruct(data,theta,rot_center, Dopts)
+tomo2=xtomo.recon(data,theta,rot_center, Dopts)
 plt.figure()
 plt.imshow(tomo2[1])
+plt.title('iradon')
 
 # %%
 
-Dopts={ 'algo':'SIRT', 'GPU': True, 'n_workers' : 2 ,  'max_chunk_slice': 16, 'Positivity': False}
+#Dopts={ 'algo':'TV', 'GPU': True, 'n_workers' : 2 ,  'max_chunk_slice': 20, 'Positivity': False, 'reg':0.0125}
+Dopts={ 'algo':'TV', 'GPU': True, 'n_workers' : 1 ,  'max_chunk_slice': 20, 'Positivity': False, 'reg':0.025, 'cgsmaxit':3}
 data1=data+np.max(data)
-tomo4=xtomo_reconstruct(data1,theta,rot_center, Dopts)
+tomo4=xtomo.recon(data1,theta,rot_center, Dopts)
 
 plt.figure()
 plt.imshow(tomo4[1])
+plt.title('TV')
 
 
 '''
@@ -106,6 +109,7 @@ tomo, times_loop= recon(data, theta, rot_center=rot_center, algo = 'tv', reg=.02
 
 plt.imshow(tomo[8])
 plt.draw()
+
 # %%
 from xtomo.loop_sino_simple import recon
 tomo, times_loop= recon(data, theta, rot_center=rot_center, algo = 'iradon')

@@ -16,7 +16,7 @@ except:
     raise ValueError('Could not connect to parent - ')
 
 # Defaults
-DDopts={'algo':'iradon', 'GPU': 0, 'shmem':1, 'max_chunk_slice': 16, 'verbose':1, 'max_iter':10, 'tol': 1e-3, 'file_out':'*', 'reg':.5, 'tau':.05, 'ringbuffer':0, 'ncore':None }
+DDopts={'algo':'iradon', 'GPU': 0, 'shmem':1, 'max_chunk_slice': 16, 'verbose':1, 'max_iter':10, 'tol': 1e-3, 'file_out':'*', 'reg':.05, 'tau':.05, 'ringbuffer':0, 'ncore':None , 'cgsmaxit':4}
 
 # wrapper for reconstruction from the data
 def rrr(sino, theta, rot_center, tomo_out, Dopts):
@@ -42,6 +42,7 @@ def rrr(sino, theta, rot_center, tomo_out, Dopts):
     tol=Dopts['tol']
     ncore=Dopts['ncore']
     algo=Dopts['algo']
+    cgsmaxit=Dopts['cgsmaxit']
 
     #file_out=Dopts['file_out']    
     #from xtomo.IO import maptomofile
@@ -64,7 +65,7 @@ def rrr(sino, theta, rot_center, tomo_out, Dopts):
               rot_center = rot_center, max_iter = max_iter, tol=tol, 
               GPU = GPU, shmem = shmem, max_chunk_slice=max_chunk,  
               reg = reg, tau = tau, verbose = verboseall, 
-              ncore=ncore, crop=chunks, mpring=ringbuffer)
+              ncore=ncore, crop=chunks, mpring=ringbuffer, cgsmaxit=cgsmaxit)
     #if rank==0:
     #    from xtomo.IO import tomosave
     #    tomosave(tomo_out, 0,times_loop)

@@ -5,11 +5,18 @@ mpi4py.rc.threads = False # no multithreading...
 from mpi4py import MPI
 
 
+DDopts={'algo':'iradon', 'GPU': True, 'n_workers' : 1, 'shmem':1, 'max_chunk_slice': 16, 'verbose':1, 'max_iter':10, 'tol': 1e-3, 'file_out':'*', 'reg':.05, 'tau':.05, 'ringbuffer':0, 'ncore':None , 'cgsmaxit':4}
+
+
 def xtomo_reconstruct(data, theta, rot_center='None', Dopts=None, order='sino'):
     if order != 'sino':
        data=np.swapaxes(data,0,1)
     if type(Dopts)==type(None):
-        Dopts={ 'algo':'iradon', 'GPU': True, 'n_workers' : 1 }            
+        Dopts=DDopts      
+        
+    for keys in DDopts: 
+        if keys not in Dopts: Dopts[keys]=DDopts[keys]
+
     if Dopts['n_workers']==1:
         from xtomo.loop_sino_simple import reconstruct
         tomo = reconstruct(data, theta, rot_center, Dopts)

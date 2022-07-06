@@ -16,3 +16,6 @@ from .prep import clean_raw, clean_sino
 #from .. import sparse_plan.clean_cache as clean_cache
 from .sparse_plan import clean_cache as clean_cache
 # xtomo.clean_cache = = .sparse_plan.clean_cache
+
+
+from .spawn import xtomo_reconstruct as recon

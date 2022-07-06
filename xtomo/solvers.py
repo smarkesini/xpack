@@ -203,7 +203,7 @@ def Pell1(x,τ): return xp.clip(xp.abs(x)-τ,0,None)*xp.sign(x)
 
 
 
-def solveTV(radon,radont, data, r, tau, x0=0, tol=1e-2, maxiter=5, verbose=0):
+def solveTV(radon,radont, data, r, tau, x0=0, tol=1e-2, maxiter=5, verbose=0, cgsmaxit=4):
    # print("solving TV only")
     # verbose=1: text output, 2: graphic output
     
@@ -232,7 +232,7 @@ def solveTV(radon,radont, data, r, tau, x0=0, tol=1e-2, maxiter=5, verbose=0):
     Lambda=0
     
 
-    cgsmaxit=4 # internal cg solver 
+    # internal cg solver 
  
     if xp.isscalar(x0):
         RTR = lambda x: xp.reshape(radont(radon(v2t(x))),(-1))

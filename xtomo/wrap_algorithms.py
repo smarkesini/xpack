@@ -2,7 +2,10 @@ import numpy as np
 from timeit import default_timer as timer
 #import time
 
-def wrap(sshape,theta,rot_center,algo,xp=np, obj_width=.98, max_iter=10, tol=1e-3, reg=1., tau=0.05, ncore=64, verbose=1, Positivity = True):   
+# wraps various algorithms around a given geometry into a function 
+
+
+def wrap(sshape,theta,rot_center,algo,xp=np, obj_width=.98, max_iter=10, tol=1e-3, reg=.05, tau=0.05, ncore=64, verbose=1, Positivity = True, cgsmaxit=4):   
 
     num_rays=sshape[2]
     if xp.__name__=='cupy': 
@@ -110,7 +113,7 @@ def wrap(sshape,theta,rot_center,algo,xp=np, obj_width=.98, max_iter=10, tol=1e-
             from .solvers import solveTV
 
             def reconstruct(data,verbose):
-                tomo_t,rnrm = solveTV(radon, iradon, data, reg, tau,  tol=5e-3, maxiter=max_iter, verbose=verbose)
+                tomo_t,rnrm = solveTV(radon, iradon, data, reg, tau,  tol=5e-3, maxiter=max_iter, verbose=verbose, cgsmaxit=4)
                 if GPU:
                     start1 = timer()
                     tomo= xp.asnumpy(tomo_t)
