@@ -34,7 +34,7 @@ import os
 if os.path.isfile(dname+fname_out)==False:
     from xtomo.prep import clean_raw
 #    clean_raw(dname+fname_in, dname+fname_out, max_chunks = 4, chunks=8, stripe_algo='bm3d_streak')
-    clean_raw(dname+fname_in, dname+fname_out, max_chunks = 4, chunks=4, stripe_algo='None')
+    clean_raw(dname+fname_in, dname+fname_out, max_chunks = 16, chunks=16, stripe_algo='None')
     # clean_raw(dname+fname_in, dname+fname_out, max_chunks = 32, stripe_algo='vo_et_al')
 
 # 
@@ -82,7 +82,7 @@ plt.title('iradon')
 # %%
 
 #Dopts={ 'algo':'TV', 'GPU': True, 'n_workers' : 2 ,  'max_chunk_slice': 20, 'Positivity': False, 'reg':0.0125}
-Dopts={ 'algo':'TV', 'GPU': True, 'n_workers' : 1 ,  'max_chunk_slice': 20, 'Positivity': False, 'reg':0.025, 'cgsmaxit':3}
+Dopts={ 'algo':'TV', 'GPU': True, 'n_workers' : 1 ,  'max_chunk_slice': 16, 'Positivity': False, 'reg':0.025, 'cgsmaxit':4}
 data1=data+np.max(data)
 tomo4=xtomo.recon(data1,theta,rot_center, Dopts)
 

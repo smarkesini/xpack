@@ -37,17 +37,30 @@ def cg(A,b, x0=0, maxiter=100, tol=1e-4,  At=None):
     p=r0
     x = x0
 
+    r1_2 = xp.inner(r0,r0) 
+
+    
     for ii in range(maxiter):
-        a  = xp.inner(r0,r0)/ xp.inner(p,A(p))
+        Ap = A(p)
+        r0_2 = r1_2
+        a  = r0_2/ xp.inner(p,Ap)
         x += a*p
-        r1 = r0 - a*A(p)
-        if xp.linalg.norm(r1)/bnrm < tol:
-            return  x, flag, ii, xp.linalg.norm(r1)
-        b = xp.inner(r1,r1) / xp.inner(r0,r0)
+        r1 = r0 - a*Ap
+        r1_2 = xp.inner(r1,r1) 
+        
+        #if xp.linalg.norm(r1)/bnrm < tol:
+        #if xp.sqrt(r1_2)/bnrm < tol:
+        if (r1_2) < (tol * bnrm)**2:
+            #return  x, flag, ii, xp.linalg.norm(r1)
+            return  x, flag, ii, xp.sqrt(r1_2)
+        b = r1_2 / r0_2
         p = r1 + b*p
         r0 = r1
-    print("reached maxit, residual norm=", xp.linalg.norm(r1))
-    return x, flag, ii, xp.linalg.norm(r1)
+    #print("reached maxit, residual norm=", xp.linalg.norm(r1))
+    print("reached maxit, residual norm=", xp.sqrt(r1_2)/bnrm)
+    flag = 1
+    # return x, flag, ii, xp.linalg.norm(r1)
+    return x, flag, ii, xp.sqrt(r1_2)
 
 # conjugate gradient squared
 #%     Univ. of Tennessee and Oak Ridge National Laboratory
@@ -233,11 +246,15 @@ def solveTV(radon,radont, data, r, tau, x0=0, tol=1e-2, maxiter=5, verbose=0, cg
     
 
     # internal cg solver 
+    cg2 = cg
+    
  
     if xp.isscalar(x0):
         RTR = lambda x: xp.reshape(radont(radon(v2t(x))),(-1))
         #x0=radont(data)
-        u,info, imax, resnrm = cgs(RTR, RTdata, maxiter=cgsmaxit)
+        #u,info, imax, resnrm = cgs(RTR, RTdata, maxiter=cgsmaxit)
+        u,info, imax, resnrm = cg2(RTR, RTdata, maxiter=cgsmaxit)
+    
     else: u=x0.ravel()
     
     for ii in range(1,maxiter+1):
@@ -246,8 +263,9 @@ def solveTV(radon,radont, data, r, tau, x0=0, tol=1e-2, maxiter=5, verbose=0, cg
         p=Pell1(Grad(v2t(u))-Lambda,tau)
         
         # update tomogram
-        u,info, imax, resnrm = cgs(RTRpLap, RTdata-r*Div(Lambda+p).ravel(),x0=u,tol=tol,maxiter=cgsmaxit)
-        
+        # u,info, imax, resnrm = cgs(RTRpLap, RTdata-r*Div(Lambda+p).ravel(),x0=u,tol=tol,maxiter=cgsmaxit)
+        u,info, imax, resnrm = cg2(RTRpLap, RTdata-r*Div(Lambda+p).ravel(),x0=u,tol=tol,maxiter=cgsmaxit)
+
         # update multiplier
         Lambda = Lambda + (p-Grad(v2t(u)))
         if verbose>0: printbar(ii*100//maxiter,'TV')

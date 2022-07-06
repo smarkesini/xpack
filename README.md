@@ -1,13 +1,14 @@
 ## Description:
 
-XPACK is a high-performance library of basic operators for X-ray data processing. 
-Xtomo  provides a distributed heterogeneous (GPUs or CPUs) iterative (or direct) solvers[^1] for tomography based on non-uniform FFT.
+Xtomo provides high performance reconstructions of tomography data. 
+Reference (Sparse Matrix-Based HPC Tomography [^1]) provides an overview of the strategy, performance, features and solvers.
+Performance is achieved using a distributed (using mpi) and heterogeneous (multi-GPUs or multicore) iterative (or direct) solvers 
+and non-uniform FFTs. The non-uniform FFT uses a gridding and inverse gridding operation performed by Sparse-Matrix Vector multiplication.
+   
+Solvers are: iradon (non-iterative, also known as gridrec), SIRT (preconditioned by e.g. Ram-Lak-Hamming and with BB-step [^2]), CGLS (using CG-squared [^3]), TV (split Bregman[^4]), tvrings[^5] to remove rings within the iteration, tomopy-gridrec [^5a],[^5b], tomopy-astra [^6a],[^6b]...
 
 If you make use of the library for your publication, pleace cite [^1].
 
-Solvers are: iradon (non-iterative, also known as gridrec), SIRT (preconditioned by e.g. Ram-Lak-Hamming and with BB-step [^2]), CGLS (using CG-squared [^3]), TV (split Bregman[^4]), tvrings[^5] to remove rings within the iteration, tomopy-gridrec [^5a],[^5b], tomopy-astra [^6a],[^6b]...
-
-If you make use of this library for your publication, please cite [^1].
 
 **Contributors:** S. Marchesini, SLAC; Anu Trivedi, Virginia Tech.; Pablo Enfedaque, LBNL
 
