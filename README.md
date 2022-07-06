@@ -7,12 +7,14 @@ If you make use of the library for your publication, pleace cite [^1].
 
 Solvers are: iradon (non-iterative, also known as gridrec), SIRT (preconditioned by e.g. Ram-Lak-Hamming and with BB-step [^2]), CGLS (using CG-squared [^3]), TV (split Bregman[^4]), tvrings[^5] to remove rings within the iteration, tomopy-gridrec [^5a],[^5b], tomopy-astra [^6a],[^6b]...
 
+If you make use of this library for your publication, please cite [^1].
+
+**Contributors:** S. Marchesini, SLAC; Anu Trivedi, Virginia Tech.; Pablo Enfedaque, LBNL
 
 **Known Issues** Don't use an odd number of pixels in first dimension (orthogonal to the rotation axis). There is a bug whereby odd numbers give the wrong results. TV does not use halos, therefore the slice near the border of chunk are a bit corrupted. Assuming the regularization parameter is kept small, it is not a major problem.
 
 **Possible enhancement (contribution welcome)**: half precision arithmetic, GPU streaming. Halos for TV regularization, other solvers, positivity constraints in SIRT-BB, TV and CG,   Fan beam geometry, and more.
 
-**Contributors:** S. Marchesini, SLAC; Anu Trivedi, Virginia Tech.; Pablo Enfedaque, LBNL
 
 
 ## Installation:
