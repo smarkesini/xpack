@@ -1,16 +1,24 @@
 ## Description:
 
-Xtomo provides high performance reconstructions of tomography data. 
-Reference (Sparse Matrix-Based HPC Tomography [^1]) provides an overview of the strategy, performance, features and solvers.
-Performance is achieved using a distributed (using mpi) and heterogeneous (multi-GPUs or multicore) iterative (or direct) solvers 
-and non-uniform FFTs. The non-uniform FFT uses a gridding and inverse gridding operation performed by Sparse-Matrix Vector multiplication.
-   
-Solvers are: iradon (non-iterative, also known as gridrec), SIRT (preconditioned by e.g. Ram-Lak-Hamming and with BB-step [^2]), CGLS (using CG-squared [^3]), TV (split Bregman[^4]), tvrings[^5] to remove rings within the iteration, tomopy-gridrec [^5a],[^5b], tomopy-astra [^6a],[^6b]...
+Fast Tomographic reconstruction (see Sparse Matrix-Based HPC Tomography [^1] for an overview of the strategy and performance).
+
+Performance is achieved using a set of plans computed on the fly to perform fast "forward" transformations 
+between a volume and a set of radiographs, and its  "inverse" or (preconditioned) conjugate transform.
+The fast transformations are implemented using Fubini's Fourier-slice method, a.k.a. non-uniform FFT,  
+by setting up a Sparse-Matrix to perform the gridding and inverse gridding operations.
+The solvers run on parallel, distributed, multi-core and multi-GPU system using MPI, parallel IO,  
+spawned from the command line or from python. 
+
+  
+Various methods implemented are: iradon (non-iterative, also known as gridrec), SIRT (preconditioned by e.g. Ram-Lak-Hamming and with BB-step [^2]), CGLS (using CG-squared [^3]), TV (split Bregman[^4]), tvrings[^5] to remove rings within the iteration, tomopy-gridrec [^5a],[^5b], tomopy-astra [^6a],[^6b]...
+
+The problem gets broken up unto pieces and cached to and from file with parallel IO if things don't fit in memory.
+
 
 If you make use of the library for your publication, pleace cite [^1].
 
 
-**Contributors:** S. Marchesini, SLAC; Anu Trivedi, Virginia Tech.; Pablo Enfedaque, LBNL
+**Contributors:** S. Marchesini, SLAC; Anu Trivedi, Virginia Tech.; Pablo Enfedaque, 
 
 **Known Issues** Don't use an odd number of pixels in first dimension (orthogonal to the rotation axis). There is a bug whereby odd numbers give the wrong results. TV does not use halos, therefore the slice near the border of chunk are a bit corrupted. Assuming the regularization parameter is kept small, it is not a major problem.
 
@@ -46,6 +54,53 @@ h5py (for reading/saving, with preferred parallel version [hdf5-parallel](https:
 **Notes**
 *Installation:* The order of installation should be (dxchange) Tomopy, cupy, mpi4py, then this package. Tomopy comes with its own libraries that override others.
 *Cache:* the library saves the Sparse matrices or SpMV each time you change geometry (number of pixels, angles, rotation center, ...). To clear them, use xtomo.sparse_plan.clean_cache()
+
+## Usage (Python)
+
+From Python, the most general interface (using mpi, etc) can be used as (e.g. 2 mpi workers, using GPUs, iradon algorithm): 
+
+>  import xtomo
+
+>  tomo2=xtomo.recon(data,theta, rot_center, Dopts = None)
+
+where the data should be in sinogram order, e.g.:
+
+> num_rays=data.shape[0]  
+> num_angles=data.shape[1]  
+> num_slices=data.shape[2]  
+
+theta is the angle in radians, rot_center is the position of the center of rotation, 
+and Dopts is an optional set of parameters to define the type of solvers, parallelization, GPUs, etc. 
+for example to use TV regularization on 2 GPUS:
+
+>  Dopts={ 'algo':'TV', 'GPU': True, 'n_workers' : 2 }
+
+
+See example '[examples/tomobank_rec.py](https://github.com/smarkesini/xpack/blob/master/xtomo/examples/tomobank_rec.py)', that will process tomo_00001 from [tomobank](https://tomobank.readthedocs.io/en/latest/) [^8] using stripe-removal from [^9] or [^10] for pre-processing. 
+
+
+Dopts can be used to change various solvers, regularization parameters, chunking (to proces piece by piece), max_iterations,  GPU or CPU, number of mpi jobs spawned. Example options to apply TV regularization, with 2 GPUs, chunking 16 slices at a time:
+ Dopts={ 'algo':'TV', 'GPU': True, 'n_workers' : 2 , 'reg': .02, 'max_chunk_slice': 16}
+
+
+There are other interfaces to the solvers that don't use mpi, don't chunk the data (to fit in memory), or don't iterate. Essentially starting from (1) the core functions, (2) to the iterative solvers, (3) looping chunks of data, and mpi:
+
+[1] The core one-step inverse radon transform using the SPmV operation can be used as follows:
+
+> from xtomo.fubini import radon_setup  
+> radon, iradon = radon_setup(num_rays, theta, xp=[cupy or numpy], center=None,filter_type='hamming')  
+> tomogram=iradon(data)  
+
+[2] Algorithms (sirt, cgls, tv, ...), e.g. for tv on GPU:
+
+> from xtomo.wrap_algorithms import wrap  
+> reconstruct=wrap(sino_shape,theta,rot_center,'tv' ,xp=cupy)  
+> tomogram = reconstruct(sinogram_stack, verbose)  
+
+[3] Chunking, if things don't fit in memory : 
+
+> from xtomo.loop_sino import recon  
+> tomo, times_loop= recon(sino, theta, algo = 'iradon', ...)  
 
 
 ## Usage (command line)
@@ -121,53 +176,6 @@ optional arguments:
 +-------------------------------------------------------------+
 
 ```
-## Usage (Python)
-
-From Python, the most general interface (using mpi, etc) can be used as (e.g. 2 mpi workers, using GPUs, iradon algorithm): 
-
->  import xtomo
-
->  tomo2=xtomo.recon(data,theta, rot_center, Dopts = None)
-
-where the data should be in sinogram order, e.g.:
-
-> num_rays=data.shape[0]  
-> num_angles=data.shape[1]  
-> num_slices=data.shape[2]  
-
-theta is the angle in radians, rot_center is the position of the center of rotation, 
-and Dopts is an optional set of parameters to define the type of solvers, parallelization, GPUs, etc. 
-for example to use TV regularization on 2 GPUS:
-
->  Dopts={ 'algo':'TV', 'GPU': True, 'n_workers' : 2 }
-
-
-See example '[examples/tomobank_rec.py](https://github.com/smarkesini/xpack/blob/master/xtomo/examples/tomobank_rec.py)', that will process tomo_00001 from [tomobank](https://tomobank.readthedocs.io/en/latest/) [^8] using stripe-removal from [^9] or [^10] for pre-processing. 
-
-
-Dopts can be used to change various solvers, regularization parameters, chunking (to proces piece by piece), max_iterations,  GPU or CPU, number of mpi jobs spawned. Example options to apply TV regularization, with 2 GPUs, chunking 16 slices at a time:
- Dopts={ 'algo':'TV', 'GPU': True, 'n_workers' : 2 , 'reg': .02, 'max_chunk_slice': 16}
-
-
-There are other interfaces to the solvers that don't use mpi, don't chunk the data (to fit in memory), or don't iterate. Essentially starting from (1) the core functions, (2) to the iterative solvers, (3) looping chunks of data, and mpi:
-
-[1] The core one-step inverse radon transform using the SPmV operation can be used as follows:
-
-> from xtomo.fubini import radon_setup  
-> radon, iradon = radon_setup(num_rays, theta, xp=[cupy or numpy], center=None,filter_type='hamming')  
-> tomogram=iradon(data)  
-
-[2] Algorithms (sirt, cgls, tv, ...), e.g. for tv on GPU:
-
-> from xtomo.wrap_algorithms import wrap  
-> reconstruct=wrap(sino_shape,theta,rot_center,'tv' ,xp=cupy)  
-> tomogram = reconstruct(sinogram_stack, verbose)  
-
-[3] Chunking, if things don't fit in memory : 
-
-> from xtomo.loop_sino import recon  
-> tomo, times_loop= recon(sino, theta, algo = 'iradon', ...)  
-
 
 
 ## Contents

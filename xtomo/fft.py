@@ -26,8 +26,13 @@ def fft(x):
 #    print('plan1d', plan1D)
 #    print('plan1d', plan1D)
 #    print('plan1d', plan1D)
+    try:
+        return fftpack.fft(x, overwrite_x=owrite, plan=plan1D)
+    except:
+        plan1D=fftpack.get_fft_plan(x, axes=(-1))
+        return fftpack.fft(x, overwrite_x=owrite, plan=plan1D)
     
-    return fftpack.fft(x, overwrite_x=owrite, plan=plan1D)
+        
     #return x
 
 def ifft(x):

@@ -222,11 +222,16 @@ def solveTV(radon,radont, data, r, tau, x0=0, tol=1e-2, maxiter=5, verbose=0, cg
     
     num_slices=data.shape[0]
     num_rays = data.shape[2]
+    num_angles = data.shape[1]
     shapetomo=(num_slices,num_rays  ,num_rays)
     
     v2t = lambda x: xp.reshape(x,(shapetomo))
    # t2i = lambda x: x[num_slices//2,num_rays//4:num_rays//4*3,num_rays//4:num_rays//4*3].real
     
+    # rescale the regularization 
+    # r = r * num_rays / num_angles 
+    # r = r * num_angles / num_rays 
+   
     # (Rᵗ R + r ∇ᵗ ∇) ∆
     RTRpLapt= lambda x: radont(radon(x))- r*Lap(x)
     RTRpLap = lambda x: RTRpLapt(v2t(x)).ravel() #i/o vectors

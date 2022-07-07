@@ -33,8 +33,8 @@ except:
 import os
 if os.path.isfile(dname+fname_out)==False:
     from xtomo.prep import clean_raw
-#    clean_raw(dname+fname_in, dname+fname_out, max_chunks = 4, chunks=8, stripe_algo='bm3d_streak')
-    clean_raw(dname+fname_in, dname+fname_out, max_chunks = 16, chunks=16, stripe_algo='None')
+    clean_raw(dname+fname_in, dname+fname_out, max_chunks = 4, chunks=4, stripe_algo='bm3d_streak')
+    # clean_raw(dname+fname_in, dname+fname_out, max_chunks = 16, chunks=16, stripe_algo='None')
     # clean_raw(dname+fname_in, dname+fname_out, max_chunks = 32, stripe_algo='vo_et_al')
 
 # 
@@ -54,6 +54,12 @@ data = h5np(dname+fname,'/exchange/data')
 theta = h5np(dname+fname,'/exchange/theta')
 # data = np.swapaxes(data,0,1)
 
+num_angles=theta.size
+subsample_angle=1
+theta1=theta[0:num_angles:subsample_angle]
+data1=data[:,0:num_angles:subsample_angle,:]
+
+
 
 # theta=theta*np.pi/180.
 
@@ -68,23 +74,24 @@ rot_center = data.shape[2]//2+6.5
     
 
 
-# %%
+## %%
 #  spawning mpi jobs on 2 gpus
 import xtomo
 # from xtomo.spawn import xtomo_reconstruct
 Dopts={ 'algo':'iradon', 'GPU': True, 'n_workers' : 1 }
 
-tomo2=xtomo.recon(data,theta,rot_center, Dopts)
+tomo2=xtomo.recon(data1,theta1,rot_center, Dopts)
 plt.figure()
 plt.imshow(tomo2[1])
 plt.title('iradon')
 
+del tomo2
 # %%
 
 #Dopts={ 'algo':'TV', 'GPU': True, 'n_workers' : 2 ,  'max_chunk_slice': 20, 'Positivity': False, 'reg':0.0125}
-Dopts={ 'algo':'TV', 'GPU': True, 'n_workers' : 1 ,  'max_chunk_slice': 16, 'Positivity': False, 'reg':0.025, 'cgsmaxit':4}
-data1=data+np.max(data)
-tomo4=xtomo.recon(data1,theta,rot_center, Dopts)
+Dopts={ 'algo':'TV', 'GPU': True, 'n_workers' : 1 ,  'max_chunk_slice': 16, 'Positivity': False, 'reg':0.0125, 'cgsmaxit':4}
+#data1=data+np.max(data)
+tomo4=xtomo.recon(data1,theta1,rot_center, Dopts)
 
 plt.figure()
 plt.imshow(tomo4[1])
